@@ -3,12 +3,14 @@ import numpy as np
 from pathlib import Path
 from sbm import ScanFields, SignalFields, Field
 import healpy as hp
+import os
 
 class TestSBM(unittest.TestCase):
     def setUp(self):
-        self.base_path = "../maps"
+        print(f"Current directory: {os.getcwd()}")
+        self.base_path = "maps"
         self.scan_field = ScanFields.load_det(self.base_path, "nside128_boresight.h5")
-        self.input_map = hp.read_map("../maps/cmb_0000_nside_128_seed_33.fits", field=(0,1,2)) * 1e6
+        self.input_map = hp.read_map("maps/cmb_0000_nside_128_seed_33.fits", field=(0,1,2)) * 1e6
         self.nside = hp.npix2nside(len(self.input_map[0]))
 
     def test_diff_gain(self, save_output_map=False):
@@ -32,9 +34,9 @@ class TestSBM(unittest.TestCase):
         print(f"output_map.shape: {output_map.shape}")
 
         if save_output_map==True:
-            hp.write_map("reference/diff_gain_output_map.fits", output_map)
+            hp.write_map("tests/reference/diff_gain_output_map.fits", output_map)
         else:
-            reference = hp.read_map("reference/diff_gain_output_map.fits", field=(0,1,2))
+            reference = hp.read_map("tests/reference/diff_gain_output_map.fits", field=(0,1,2))
             print(f"reference.shape: {reference.shape}")
             self.assertTrue(np.allclose(output_map, reference))
 
@@ -75,9 +77,9 @@ class TestSBM(unittest.TestCase):
         print(f"output_map.shape: {output_map.shape}")
 
         if save_output_map==True:
-            hp.write_map("reference/diff_pointing_output_map.fits", output_map)
+            hp.write_map("tests/reference/diff_pointing_output_map.fits", output_map)
         else:
-            reference = hp.read_map("reference/diff_pointing_output_map.fits", field=(0,1,2))
+            reference = hp.read_map("tests/reference/diff_pointing_output_map.fits", field=(0,1,2))
             print(f"reference.shape: {reference.shape}")
             self.assertTrue(np.allclose(output_map, reference))
 
