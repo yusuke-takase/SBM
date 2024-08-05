@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Spin-based map-making (SBM) for CMB experiments"
 authors = ["yusuke-takase <takase_y@s.okayama-u.ac.jp>"]
 readme = "README.md"
+repository = "https://github.com/yusuke-takase/SBM"
 
 keywords = [
     "CMB",
@@ -29,6 +30,7 @@ python = ">=3.10,<3.13"
 numpy = "^1.23"
 healpy = "^1.15.0"
 matplotlib = "^3.1"
+h5py = "^3.11.0"
 pytest = "^8.1.1"
 
 [build-system]
