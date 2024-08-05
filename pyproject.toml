@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "sbm"
+version = "0.1.0"
+description = "Spin-based map-making (SBM) for CMB experiments"
+authors = ["yusuke-takase <takase_y@s.okayama-u.ac.jp>"]
+readme = "README.md"
+
+keywords = [
+    "CMB",
+    "Map-making",
+    "Cross-linking"
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+numpy = "^1.23"
+healpy = "^1.15.0"
+matplotlib = "^3.1"
+pytest = "^8.1.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
