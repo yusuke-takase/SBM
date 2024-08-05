@@ -2,7 +2,7 @@
 
 <p align="center">
   <h1>
-  <img src="./maps/sca_fields.png" alt="Logo">
+  <img src="./maps/scan_fields.png" alt="Logo">
   </h1>
 </p>
 
