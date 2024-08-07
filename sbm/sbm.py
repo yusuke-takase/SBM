@@ -62,6 +62,8 @@ class ScanFields:
         self.h = []
         self.spins = []
         self.compled_fields = None
+        self.nside = None
+        self.npix = None
         self.mdim = None
         self.ndet = None
         self.all_channels = [
@@ -100,6 +102,8 @@ class ScanFields:
             instance.h = f['h'][:, 0, :]
             instance.h[np.isnan(instance.h)] = 1.0
             instance.spins = f['quantify']['n'][()]
+        instance.nside = hp.npix2nside(len(instance.hitmap))
+        instance.npix = hp.nside2npix(instance.nside)
         return instance
 
     @classmethod
@@ -121,6 +125,8 @@ class ScanFields:
         instance.ndet = len(filenames)
         instance.hitmap = np.zeros_like(first_sf.hitmap)
         instance.h = np.zeros_like(first_sf.h)
+        instance.nside = hp.npix2nside(len(instance.hitmap))
+        instance.npix = hp.nside2npix(instance.nside)
         for filename in filenames:
             sf = cls.load_det(dirpath, filename)
             instance.hitmap += sf.hitmap
@@ -159,6 +165,8 @@ class ScanFields:
         instance = cls()
         hitmap = np.zeros_like(crosslink_channels[0].hitmap)
         h = np.zeros_like(crosslink_channels[0].h)
+        instance.nside = hp.npix2nside(len(instance.hitmap))
+        instance.npix = hp.nside2npix(instance.nside)
         ndet = 0
         for sf in crosslink_channels:
             hitmap += sf.hitmap
@@ -173,6 +181,8 @@ class ScanFields:
     def initialize(self, mdim):
         self.hitmap = np.zeros_like(self.hitmap)
         self.h = np.zeros_like(self.h)
+        self.nside = hp.npix2nside(len(self.hitmap))
+        self.npix = hp.nside2npix(self.nside)
         self.spins = np.zeros_like(self.spins)
         self.mdim = mdim
         self.ndet = 0
@@ -217,6 +227,22 @@ class ScanFields:
                 ])
         else:
             raise ValueError("mdim is 2 or 3 only supported")
+        return covmat
+
+    def create_covmat(self, base_spin: list):
+        """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
+
+        Args:
+            base_spin (list): list of spin to create the covariance matrix
+        """
+        base_spin = np.array(base_spin)
+        waits = np.array([0.5 if x != 0 else 1.0 for x in base_spin])
+        spin_mat = base_spin[np.newaxis,:] - base_spin[:,np.newaxis]
+        wait_mat = np.abs(waits[np.newaxis,:]) * np.abs(waits[:,np.newaxis])
+        covmat = np.zeros([len(base_spin),len(base_spin),self.npix], dtype=complex)
+        for i in range(len(base_spin)):
+            for j in range(len(base_spin)):
+                covmat[i,j,:] = self.get_xlink(spin_mat[i,j])*wait_mat[i,j]
         return covmat
 
     def t2b(self):
