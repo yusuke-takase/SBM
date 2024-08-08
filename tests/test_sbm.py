@@ -9,7 +9,7 @@ class TestSBM(unittest.TestCase):
     def setUp(self):
         print(f"Current directory: {os.getcwd()}")
         self.base_path = "maps"
-        self.scan_field = ScanFields.load_det(self.base_path, "nside128_boresight.h5")
+        self.scan_field = ScanFields.load_det(self.base_path, "nside128_boresight")
         self.input_map = hp.read_map("maps/cmb_0000_nside_128_seed_33.fits", field=(0,1,2)) * 1e6
         self.nside = hp.npix2nside(len(self.input_map[0]))
 
