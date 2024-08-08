@@ -74,7 +74,7 @@ class ScanFields:
         self.fwhms = [70.5,58.5,51.1,41.6,47.1,36.9,43.8,33.0,41.5,30.2,26.3,23.7,37.8,33.6,30.8,28.9,28.0,28.6,24.7,22.5,20.9,17.9]
 
     @classmethod
-    def load_det(cls, base_path: str, filename: str):
+    def load_det(cls, base_path: str, det_name: str):
         """ Load the scan fields data of a detector from a .h5 file
 
         Args:
@@ -93,9 +93,13 @@ class ScanFields:
         Returns:
             instance (ScanFields): instance of the ScanFields class containing the scan fields data of the detector
         """
-        assert filename.endswith('.h5'), "Invalid file path. Must be a .h5 file"
         instance = cls()
         instance.ndet = 1
+        t2b = None
+        if det_name[-1] == "B":
+            t2b = True
+            det_name = det_name[:-1] + "T"
+        filename = det_name + ".h5"
         with h5py.File(os.path.join(base_path, filename), 'r') as f:
             instance.ss = {key: value[()] for key, value in zip(f['ss'].keys(), f['ss'].values()) if key != "quat"}
             instance.hitmap = f['hitmap'][:]
@@ -104,6 +108,8 @@ class ScanFields:
             instance.spins = f['quantify']['n'][()]
         instance.nside = hp.npix2nside(len(instance.hitmap))
         instance.npix = hp.nside2npix(instance.nside)
+        if t2b == True:
+            instance = instance.t2b()
         return instance
 
     @classmethod
@@ -120,6 +126,7 @@ class ScanFields:
         """
         dirpath = os.path.join(base_path, channel)
         filenames = os.listdir(dirpath)
+        filenames = [os.path.splitext(filename)[0] for filename in filenames]
         first_sf = cls.load_det(dirpath, filenames[0])
         instance = cls()
         instance.ndet = len(filenames)
@@ -298,6 +305,7 @@ class ScanFields:
         ):
         dirpath = os.path.join(base_path, channel)
         filenames = os.listdir(dirpath)
+        filenames = [os.path.splitext(filename)[0] for filename in filenames]
         assert len(filenames) == len(gain_a) == len(gain_b)
         total_sf = cls.load_det(dirpath, filenames[0])
         total_sf.initialize(mdim)
@@ -361,6 +369,7 @@ class ScanFields:
 
         dirpath = os.path.join(base_path, channel)
         filenames = os.listdir(dirpath)
+        filenames = [os.path.splitext(filename)[0] for filename in filenames]
         assert len(filenames) == len(rho) == len(chi)
         total_sf = cls.load_det(dirpath, filenames[0])
         total_sf.initialize(mdim)

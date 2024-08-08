@@ -32,7 +32,8 @@ numpy = "^1.23"
 healpy = "^1.15.0"
 matplotlib = "^3.1"
 h5py = "^3.11.0"
-pytest = "^8.1.1"
+pytest = "^7.4"
+litebird_sim = "^0.13.0"
 
 [build-system]
 requires = ["poetry-core"]
