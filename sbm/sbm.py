@@ -222,18 +222,15 @@ class ScanFields:
             mdim (int): dimension of the covariance matrix.
         """
         if mdim == 2:
-            covmat = np.array([
-                [self.get_xlink(0)/4.0 , self.get_xlink(4)/4.0],
-                [self.get_xlink(-4)/4.0, self.get_xlink(0)/4.0]
-            ])
-        elif mdim==3:
-            covmat = np.array([
-                [self.get_xlink(0)     , self.get_xlink(-2)/2.0, self.get_xlink(2)/2.0],
-                [self.get_xlink(2)/2.0 , self.get_xlink(0)/4.0 , self.get_xlink(4)/4.0],
-                [self.get_xlink(-2)/2.0, self.get_xlink(-4)/4.0, self.get_xlink(0)/4.0]
-                ])
+            covmat = self.create_covmat(base_spin=[2,-2])
+        elif mdim == 3:
+            covmat = self.create_covmat(base_spin=[0,2,-2])
+        elif mdim == 5:
+            covmat = self.create_covmat(base_spin=[0,1,-1,2,-2])
+        elif mdim == 7:
+            covmat = self.create_covmat(base_spin=[0,1,-1,2,-2,3,-3])
         else:
-            raise ValueError("mdim is 2 or 3 only supported")
+            raise ValueError("mdim is 2, 3, 5 and 7 are only supported")
         return covmat
 
     def create_covmat(self, base_spin: list):
@@ -244,7 +241,8 @@ class ScanFields:
         """
         base_spin = np.array(base_spin)
         waits = np.array([0.5 if x != 0 else 1.0 for x in base_spin])
-        spin_mat = base_spin[np.newaxis,:] - base_spin[:,np.newaxis]
+        spin_mat =  base_spin[:,np.newaxis] - base_spin[np.newaxis,:]
+        #print(spin_mat)
         wait_mat = np.abs(waits[np.newaxis,:]) * np.abs(waits[:,np.newaxis])
         covmat = np.zeros([len(base_spin),len(base_spin),self.npix], dtype=complex)
         for i in range(len(base_spin)):
@@ -419,15 +417,28 @@ class ScanFields:
             compled_fields (np.ndarray)
         """
         self.mdim = mdim
-        s_0 = self.get_coupled_field(signal_fields, spin_out=0)
+
         sp2 = self.get_coupled_field(signal_fields, spin_out=2)
         sm2 = self.get_coupled_field(signal_fields, spin_out=-2)
         if self.mdim==2:
             coupled_fields = np.array([sp2/2.0, sm2/2.0])
         elif self.mdim==3:
+            s_0 = self.get_coupled_field(signal_fields, spin_out=0)
             coupled_fields = np.array([s_0, sp2/2.0, sm2/2.0])
+        elif self.mdim==5:
+            s_0 = self.get_coupled_field(signal_fields, spin_out=0)
+            sp1 = self.get_coupled_field(signal_fields, spin_out=1)
+            sm1 = self.get_coupled_field(signal_fields, spin_out=-1)
+            coupled_fields = np.array([s_0, sp1/2.0, sm1/2.0, sp2/2.0, sm2/2.0])
+        elif self.mdim==7:
+            s_0 = self.get_coupled_field(signal_fields, spin_out=0)
+            sp1 = self.get_coupled_field(signal_fields, spin_out=1)
+            sm1 = self.get_coupled_field(signal_fields, spin_out=-1)
+            sp3 = self.get_coupled_field(signal_fields, spin_out=3)
+            sm3 = self.get_coupled_field(signal_fields, spin_out=-3)
+            coupled_fields = np.array([s_0, sp1/2.0, sm1/2.0, sp2/2.0, sm2/2.0, sp3/2.0, sm3/2.0])
         else:
-            raise ValueError("mdim is 2 or 3 only supported")
+            raise ValueError("mdim is 2, 3, 5 and 7 only supported")
         self.coupled_fields = coupled_fields
 
     def map_make(self, signal_fields, mdim):
@@ -449,15 +460,19 @@ class ScanFields:
         for i in range(b.shape[1]):
             x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if mdim == 2:
-            # None that:
+            # Note that:
             # x[0] = Q + iU
             # x[1] = Q - iU
             output_map = np.array([np.zeros_like(x[0].real), x[0].real, x[0].imag])
         if mdim == 3:
-            # None that:
+            # Note that:
             # x[1] = Q + iU
             # x[2] = Q - iU
             output_map = np.array([x[0].real, x[1].real, x[1].imag])
+        if mdim == 5:
+            output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag])
+        if mdim == 7:
+            output_map = np.array([x[0].real, x[1].real, x[1].imag, x[2].real, x[2].imag, x[3].real, x[3].imag])
         return output_map
 
     def solve(self):
@@ -471,42 +486,44 @@ class ScanFields:
         for i in range(b.shape[1]):
             x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if self.mdim == 2:
-            # None that:
-            # x[0] = Q + iU
-            # x[1] = Q - iU
             output_map = np.array([np.zeros_like(x[0].real), x[0].real, x[0].imag])
         if self.mdim == 3:
-            # None that:
-            # x[1] = Q + iU
-            # x[2] = Q - iU
             output_map = np.array([x[0].real, x[1].real, x[1].imag])
+        if self.mdim == 5:
+            output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag])
+        if self.mdim == 7:
+            output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag])
         return output_map
 
-
 def plot_maps(mdim, input_map, output_map, residual):
+    titles = ["Input", "Output", "Residual"]
+    maps = [input_map, output_map, residual]
     if mdim == 2:
-        plt.figure(figsize=(10,5))
-        hp.mollview(input_map[1], sub=(1,2,1), title="Input $Q$", unit="$\mu K_{CMB}$")
-        hp.mollview(input_map[2], sub=(1,2,2), title="Input $U$", unit="$\mu K_{CMB}$")
+        units = ["I", "Q", "U"]
+        for i, title in enumerate(titles[:2]):
+            plt.figure(figsize=(10, 5))
+            for j in range(1,3):
+                hp.mollview(maps[i][j], sub=(1, 2, j), title=f"{title} ${units[j]}$", unit="$\mu K_{CMB}$")
 
-        plt.figure(figsize=(10,5))
-        hp.mollview(output_map[1], sub=(1,2,1), title="Output $Q$", unit="$\mu K_{CMB}$")
-        hp.mollview(output_map[2], sub=(1,2,2), title="Output $U$", unit="$\mu K_{CMB}$")
+        plt.figure(figsize=(10, 5))
+        for j in range(1, 3):
+            hp.mollview(residual[j], sub=(1, 2, j), title=f"Residual $\Delta {units[j]}$", unit="$\mu K_{CMB}$")
 
-        plt.figure(figsize=(10,5))
-        hp.mollview(residual[1], sub=(1,2,1), title="Residual $\Delta Q$", unit="$\mu K_{CMB}$")
-        hp.mollview(residual[2], sub=(1,2,2), title="Residual $\Delta U$", unit="$\mu K_{CMB}$")
     elif mdim == 3:
-        plt.figure(figsize=(15,5))
-        hp.mollview(input_map[0], sub=(1,3,1), title="Input $T$", unit="$\mu K_{CMB}$")
-        hp.mollview(input_map[1], sub=(1,3,2), title="Input $Q$", unit="$\mu K_{CMB}$")
-        hp.mollview(input_map[2], sub=(1,3,3), title="Input $U$", unit="$\mu K_{CMB}$")
+        units = ["I", "Q", "U"]
+        for i, title in enumerate(titles[:2]):
+            plt.figure(figsize=(15, 5))
+            for j in range(3):
+                hp.mollview(maps[i][j], sub=(1, 3, j + 1), title=f"{title} ${units[j]}$", unit="$\mu K_{CMB}$")
 
-        plt.figure(figsize=(15,5))
-        hp.mollview(output_map[0], sub=(1,3,1), title="Output $T$", unit="$\mu K_{CMB}$")
-        hp.mollview(output_map[1], sub=(1,3,2), title="Output $Q$", unit="$\mu K_{CMB}$")
-        hp.mollview(output_map[2], sub=(1,3,3), title="Output $U$", unit="$\mu K_{CMB}$")
+        plt.figure(figsize=(15, 5))
+        for j in range(1, 3):
+            hp.mollview(residual[j], sub=(1, 2, j), title=f"Residual $\Delta {units[j]}$", unit="$\mu K_{CMB}$")
 
-        plt.figure(figsize=(15,5))
-        hp.mollview(residual[1], sub=(1,2,1), title="Residual $\Delta Q$", unit="$\mu K_{CMB}$")
-        hp.mollview(residual[2], sub=(1,2,2), title="Residual $\Delta U$", unit="$\mu K_{CMB}$")
+    elif mdim == 5:
+        titles = ["Input", "Output", "Residual"]
+        units = ["I", "{}_{1}Z^Q", "{}_{1}Z^U", "Q", "U"]
+        for i, title in enumerate(titles):
+            plt.figure(figsize=(15, 5))
+            for j in range(maps[i].shape[0]):
+                hp.mollview(maps[i][j], sub=(1, len(units), j + 1), title=f"{title} ${units[j]}$", unit="$\mu K_{CMB}$")
