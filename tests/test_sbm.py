@@ -34,7 +34,8 @@ class TestSBM(unittest.TestCase):
         print(f"output_map.shape: {output_map.shape}")
 
         if save_output_map==True:
-            hp.write_map("tests/reference/diff_gain_output_map.fits", output_map)
+            hp.write_map("tests/reference/diff_gain_output_map.fits", output_map, overwrite=True)
+            print("Diff gain output map saved.")
         else:
             reference = hp.read_map("tests/reference/diff_gain_output_map.fits", field=(0,1,2))
             print(f"reference.shape: {reference.shape}")
@@ -47,20 +48,23 @@ class TestSBM(unittest.TestCase):
         dQ = hp.alm2map_der1(hp.map2alm(self.input_map[1]), nside=self.nside)
         dU = hp.alm2map_der1(hp.map2alm(self.input_map[2]), nside=self.nside)
 
-        eth_I = dI[2] - dI[1]*1j
-        eth_P = dQ[2] + dU[1] - (dQ[1] - dU[2])*1j
+        eth_I = dI[2] - 1j*dI[1]
+        eth_P = dQ[2] + dU[1] - 1j*(dQ[1] - dU[2])
+        o_eth_P = dQ[2] - dU[1] + 1j*(dQ[1] + dU[2])
 
-        rho = np.deg2rad(1/60)
-        chi = np.deg2rad(0)
-        print("rho: ", rho)
-        print("chi: ", chi)
+        rho_T = np.deg2rad(1/60)
+        chi_T = np.deg2rad(0)
+        rho_B = np.deg2rad(0)
+        chi_B = np.deg2rad(0)
+        zeta   = rho_T * np.exp(1j*chi_T) - 1j*rho_B * np.exp(1j*chi_B)
+        o_zeta = rho_T * np.exp(1j*chi_T) + 1j*rho_B * np.exp(1j*chi_B) #\overline{\zeta}
 
-        spin_0_field  = Field(I, spin=0)
-        spin_1_field  = Field(-rho/2*np.exp(1j*chi)*eth_I, spin=1)
+        spin_0_field  = Field(np.zeros(len(P)), spin=0)
+        spin_1_field  = Field(-1.0/4.0 * (zeta*eth_I + o_zeta.conj()*o_eth_P), spin=1)
         spin_m1_field = spin_1_field.conj()
         spin_2_field  = Field(P/2.0, spin=2)
         spin_m2_field = spin_2_field.conj()
-        spin_3_field  = Field(-rho/4*np.exp(1j*chi)*eth_P, spin=3)
+        spin_3_field  = Field(-1.0/4.0 * o_zeta * eth_P, spin=3)
         spin_m3_field = spin_3_field.conj()
 
         signal_field = SignalFields(
@@ -77,7 +81,8 @@ class TestSBM(unittest.TestCase):
         print(f"output_map.shape: {output_map.shape}")
 
         if save_output_map==True:
-            hp.write_map("tests/reference/diff_pointing_output_map.fits", output_map)
+            hp.write_map("tests/reference/diff_pointing_output_map.fits", output_map, overwrite=True)
+            print("Diff gain output map saved.")
         else:
             reference = hp.read_map("tests/reference/diff_pointing_output_map.fits", field=(0,1,2))
             print(f"reference.shape: {reference.shape}")
