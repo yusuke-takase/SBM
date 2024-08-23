@@ -331,20 +331,26 @@ class ScanFields:
 
     @staticmethod
     def _diff_pointing_field(
-        rho: float,
-        chi: float,
-        I: np.ndarray,
+        rho_T: float,
+        rho_B: float,
+        chi_T: float,
+        chi_B: float,
         P: np.ndarray,
         eth_I: np.ndarray,
-        eth_P: np.ndarray
+        eth_P: np.ndarray,
+        o_eth_P: np.ndarray
         ):
-        spin_0_field  = Field(I, spin=0)
-        spin_1_field  = Field(-rho/2*np.exp(1j*chi)*eth_I, spin=1)
+        zeta   = rho_T * np.exp(1j*chi_T) - 1j*rho_B * np.exp(1j*chi_B)
+        o_zeta = rho_T * np.exp(1j*chi_T) + 1j*rho_B * np.exp(1j*chi_B) #\overline{\zeta}
+
+        spin_0_field  = Field(np.zeros(len(P)), spin=0)
+        spin_1_field  = Field(-1.0/4.0 * (zeta*eth_I + o_zeta.conj()*o_eth_P), spin=1) #Field(-rho/2*np.exp(1j*chi)*eth_I, spin=1)
         spin_m1_field = spin_1_field.conj()
         spin_2_field  = Field(P/2.0, spin=2)
         spin_m2_field = spin_2_field.conj()
-        spin_3_field  = Field(-rho/4*np.exp(1j*chi)*eth_P, spin=3)
+        spin_3_field  = Field(-1.0/4.0 * o_zeta * eth_P, spin=3) #Field(-rho/4*np.exp(1j*chi)*eth_P, spin=3)
         spin_m3_field = spin_3_field.conj()
+
         diff_pointing_field = SignalFields(
             spin_0_field,
             spin_1_field,
@@ -363,14 +369,16 @@ class ScanFields:
         channel: str,
         mdim: int,
         input_map: np.ndarray,
-        rho: np.ndarray, # Pointing offset magnitude
-        chi: np.ndarray  # Pointing offset direction
+        rho_T: np.ndarray, # Pointing offset magnitude
+        rho_B: np.ndarray,
+        chi_T: np.ndarray,  # Pointing offset direction
+        chi_B: np.ndarray,
         ):
 
         dirpath = os.path.join(base_path, channel)
         filenames = os.listdir(dirpath)
         filenames = [os.path.splitext(filename)[0] for filename in filenames]
-        assert len(filenames) == len(rho) == len(chi)
+        assert len(filenames) == len(rho_T) == len(chi_T) == len(rho_B) == len(chi_B)
         total_sf = cls.load_det(dirpath, filenames[0])
         total_sf.initialize(mdim)
         total_sf.ndet = len(filenames)
@@ -383,12 +391,13 @@ class ScanFields:
         dQ = hp.alm2map_der1(hp.map2alm(input_map[1]), nside=nside)
         dU = hp.alm2map_der1(hp.map2alm(input_map[2]), nside=nside)
 
-        eth_I = dI[2] - dI[1]*1j
-        eth_P = dQ[2] + dU[1] - (dQ[1] - dU[2])*1j
+        eth_I = dI[2] - 1j*dI[1]
+        eth_P   = dQ[2] + dU[1] - 1j*(dQ[1] - dU[2])
+        o_eth_P = dQ[2] - dU[1] + 1j*(dQ[1] + dU[2])
 
         for i,filename in enumerate(filenames):
             sf = cls.load_det(dirpath, filename)
-            signal_fields = ScanFields._diff_pointing_field(rho[i], chi[i], I, P, eth_I, eth_P)
+            signal_fields = ScanFields._diff_pointing_field(rho_T[i], rho_B[i], chi_T[i], chi_B[i], P, eth_I, eth_P, o_eth_P)
             sf.couple(signal_fields, mdim)
             total_sf.hitmap += sf.hitmap
             total_sf.h += sf.h * sf.hitmap[:, np.newaxis]
