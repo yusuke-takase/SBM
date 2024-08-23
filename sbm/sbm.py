@@ -344,11 +344,11 @@ class ScanFields:
         o_zeta = rho_T * np.exp(1j*chi_T) + 1j*rho_B * np.exp(1j*chi_B) #\overline{\zeta}
 
         spin_0_field  = Field(np.zeros(len(P)), spin=0)
-        spin_1_field  = Field(-1.0/4.0 * (zeta*eth_I + o_zeta.conj()*o_eth_P), spin=1) #Field(-rho/2*np.exp(1j*chi)*eth_I, spin=1)
+        spin_1_field  = Field(-1.0/4.0 * (zeta*eth_I + o_zeta.conj()*o_eth_P), spin=1)
         spin_m1_field = spin_1_field.conj()
         spin_2_field  = Field(P/2.0, spin=2)
         spin_m2_field = spin_2_field.conj()
-        spin_3_field  = Field(-1.0/4.0 * o_zeta * eth_P, spin=3) #Field(-rho/4*np.exp(1j*chi)*eth_P, spin=3)
+        spin_3_field  = Field(-1.0/4.0 * o_zeta * eth_P, spin=3)
         spin_m3_field = spin_3_field.conj()
 
         diff_pointing_field = SignalFields(
