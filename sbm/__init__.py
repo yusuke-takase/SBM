@@ -4,7 +4,8 @@ from .sbm import (
     Field,
     SignalFields,
     ScanFields,
-    plot_maps
+    plot_maps,
+    get_instrument_table,
 )
 
 
@@ -22,5 +23,6 @@ __all__ = [
     "Field",
     "SignalFields",
     "ScanFields",
-    "plot_maps"
+    "plot_maps",
+    "get_instrument_table",
 ]

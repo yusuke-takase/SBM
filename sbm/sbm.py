@@ -5,8 +5,9 @@ import os
 import copy
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
-
-
+import pandas as pd
+import litebird_sim as lbs
+from litebird_sim import Imo
 class Field:
     """ Class to store the field data of detectors """
     def __init__(self, field: np.ndarray, spin: int):
@@ -27,6 +28,21 @@ class Field:
         """Get the complex conjugate of the field"""
         return Field(self.field.conj(), -self.spin)
 
+    def __add__(self, other):
+        """Add the field of two detectors
+
+        Args:
+            other (Field): field of the other detector
+
+        Returns:
+            result (Field): sum of the fields of the two detectors
+        """
+        if not isinstance(other, Field):
+            return NotImplemented
+        result = copy.deepcopy(self)
+        result.field += other.field
+        return result
+
 class SignalFields:
     """ Class to store the signal fields data of detectors """
     def __init__(self, *fields: Field):
@@ -37,6 +53,22 @@ class SignalFields:
         """
         self.fields = sorted(fields, key=lambda field: field.spin)
         self.spins = np.array([field.spin for field in self.fields])
+
+    def __add__(self, other):
+        """Add the signal fieldd
+
+        Args:
+            other (SignalFields): signal fields
+
+        Returns:
+            result (SignalFields): sum of the signal fields
+        """
+        if not isinstance(other, SignalFields):
+            return NotImplemented
+        result = copy.deepcopy(self)
+        for i in range(len(self.spins)):
+            result.fields[i].field += other.fields[i].field
+        return result
 
 class ScanFields:
     """ Class to store the scan fields data of detectors """
@@ -66,6 +98,12 @@ class ScanFields:
         self.npix = None
         self.mdim = None
         self.ndet = None
+        self.duration = None
+        self.sampling_rate = None
+        self.channel = None
+        self.net_detector_ukrts = None
+        self.net_channel_ukrts = None
+        self.noise_pdf = None
         self.all_channels = [
             'L1-040','L2-050','L1-060','L3-068','L2-068','L4-078','L1-078','L3-089','L2-089','L4-100','L3-119','L4-140',
             'M1-100','M2-119','M1-140','M2-166','M1-195',
@@ -94,6 +132,8 @@ class ScanFields:
             instance (ScanFields): instance of the ScanFields class containing the scan fields data of the detector
         """
         instance = cls()
+        if base_path.split("/")[-1] in instance.all_channels:
+            instance.channel = base_path.split("/")[-1]
         instance.ndet = 1
         t2b = None
         if det_name[-1] == "B":
@@ -106,7 +146,9 @@ class ScanFields:
             instance.h = f['h'][:, 0, :]
             instance.h[np.isnan(instance.h)] = 1.0
             instance.spins = f['quantify']['n'][()]
-        instance.nside = hp.npix2nside(len(instance.hitmap))
+        instance.nside = instance.ss["nside"]
+        instance.duration = instance.ss["duration"]
+        instance.sampling_rate = instance.ss["sampling_rate"]
         instance.npix = hp.nside2npix(instance.nside)
         if t2b == True:
             instance = instance.t2b()
@@ -129,11 +171,14 @@ class ScanFields:
         filenames = [os.path.splitext(filename)[0] for filename in filenames]
         first_sf = cls.load_det(dirpath, filenames[0])
         instance = cls()
+        instance.channel = channel
         instance.ndet = len(filenames)
         instance.hitmap = np.zeros_like(first_sf.hitmap)
         instance.h = np.zeros_like(first_sf.h)
-        instance.nside = hp.npix2nside(len(instance.hitmap))
+        instance.nside = first_sf.nside
         instance.npix = hp.nside2npix(instance.nside)
+        instance.duration = first_sf.duration
+        instance.sampling_rate = first_sf.sampling_rate
         for filename in filenames:
             sf = cls.load_det(dirpath, filename)
             instance.hitmap += sf.hitmap
@@ -172,8 +217,10 @@ class ScanFields:
         instance = cls()
         hitmap = np.zeros_like(crosslink_channels[0].hitmap)
         h = np.zeros_like(crosslink_channels[0].h)
-        instance.nside = hp.npix2nside(len(instance.hitmap))
+        instance.nside = crosslink_channels[0].ss["nside"]
         instance.npix = hp.nside2npix(instance.nside)
+        instance.duration = crosslink_channels[0].ss["duration"]
+        instance.sampling_rate = crosslink_channels[0].ss["sampling_rate"]
         ndet = 0
         for sf in crosslink_channels:
             hitmap += sf.hitmap
@@ -250,6 +297,31 @@ class ScanFields:
                 covmat[i,j,:] = self.get_xlink(spin_mat[i,j])*wait_mat[i,j]
         return covmat
 
+    def _get_covmat(self, mdim):
+        """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
+
+        Args:
+            mdim (int): dimension of the covariance matrix.
+        """
+        if mdim == 2:
+            covmat = np.array([
+                [self.get_xlink(0)/4.0 , self.get_xlink(4)/4.0],
+                [self.get_xlink(-4)/4.0, self.get_xlink(0)/4.0]
+            ])
+        elif mdim==3:
+            cos4 = (1+self.get_xlink(4).real)/2.
+            sin4 = (1-self.get_xlink(4).real)/2.
+            sin2 = -0.5 * self.get_xlink(4).imag
+            covmat = np.array([
+                [self.get_xlink(0).real  , self.get_xlink(2).real, -self.get_xlink(2).imag],
+                [self.get_xlink(2).real  , cos4                  , sin2],
+                [-self.get_xlink(2).imag, sin2                  , sin4]
+                ])
+        else:
+            raise ValueError("mdim is 2 or 3 only supported")
+        return covmat
+
+
     def t2b(self):
         """Transform Top detector cross-link to Bottom detector cross-link
         It assume top and bottom detector make a orthogonal pair.
@@ -291,6 +363,16 @@ class ScanFields:
             results.append(self.get_xlink(n) * signal_fields.fields[i].field)
         return np.array(results).sum(0)
 
+    @staticmethod
+    def diff_gain_field(gain_a, gain_b, I, P):
+        delta_g = gain_a - gain_b
+        signal_fields = SignalFields(
+            Field(delta_g*I/2.0, spin=0),
+            Field((2.0+gain_a+gain_b)*P/4.0, spin=2),
+            Field((2.0+gain_a+gain_b)*P.conj()/4.0, spin=-2),
+        )
+        return signal_fields
+
     @classmethod
     def sim_diff_gain_channel(
         cls,
@@ -313,12 +395,7 @@ class ScanFields:
         P = input_map[1] + 1j*input_map[2]
         for i,filename in enumerate(filenames):
             sf = cls.load_det(dirpath, filename)
-            delta_g = gain_a[i] - gain_b[i]
-            signal_fields = SignalFields(
-                Field(delta_g*I/2.0, spin=0),
-                Field((2.0+gain_a[i]+gain_b[i])*P/4.0, spin=2),
-                Field((2.0+gain_a[i]+gain_b[i])*P.conj()/4.0, spin=-2),
-            )
+            signal_fields = ScanFields.diff_gain_field(gain_a[i], gain_b[i], I, P)
             sf.couple(signal_fields, mdim)
             total_sf.hitmap += sf.hitmap
             total_sf.h += sf.h * sf.hitmap[:, np.newaxis]
@@ -328,7 +405,7 @@ class ScanFields:
         return total_sf
 
     @staticmethod
-    def _diff_pointing_field(
+    def diff_pointing_field(
         rho_T: float,
         rho_B: float,
         chi_T: float,
@@ -395,7 +472,7 @@ class ScanFields:
 
         for i,filename in enumerate(filenames):
             sf = cls.load_det(dirpath, filename)
-            signal_fields = ScanFields._diff_pointing_field(rho_T[i], rho_B[i], chi_T[i], chi_B[i], P, eth_I, eth_P, o_eth_P)
+            signal_fields = ScanFields.diff_pointing_field(rho_T[i], rho_B[i], chi_T[i], chi_B[i], P, eth_I, eth_P, o_eth_P)
             sf.couple(signal_fields, mdim)
             total_sf.hitmap += sf.hitmap
             total_sf.h += sf.h * sf.hitmap[:, np.newaxis]
@@ -495,7 +572,55 @@ class ScanFields:
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag])
         return output_map
 
-def plot_maps(mdim, input_map, output_map, residual):
+    def generate_noise_pdf(
+        self,
+        imo=None,
+        net_ukrts=None,
+        return_pdf=False,
+        diff=True,
+        ):
+        channel = self.channel
+        if diff == True:
+            stat_scale = 2.0
+        else:
+            stat_scale = 1.0
+        if channel:
+            assert imo is not None, "imo is required when channel is given"
+            inst = get_instrument_table(imo, imo_version="v2")
+            net_detector_ukrts = inst.loc[inst["channel"] == channel, "net_detector_ukrts"].values[0]
+            net_channel_ukrts = inst.loc[inst["channel"] == channel, "net_channel_ukrts"].values[0]
+            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(stat_scale*self.hitmap)
+            sigma_p = sigma_i/np.sqrt(2.0)
+            self.net_channel_ukrts = net_channel_ukrts
+        else:
+            assert net_ukrts is not None, "net_ukrts is required when channel is not given"
+            net_detector_ukrts = net_ukrts
+            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(stat_scale*self.hitmap)
+            sigma_p = sigma_i/np.sqrt(2.0)
+        self.net_detector_ukrts = net_detector_ukrts
+        self.noise_pdf = np.array([sigma_i, sigma_p])
+        if return_pdf:
+            return self.noise_pdf
+
+    def generate_noise(self, seed=None):
+        assert self.noise_pdf is not None, "Generate noise pdf first by `ScanField.generate_noise_pdf()` method."
+        if seed:
+            np.random.seed(seed)
+        eff_noise_i = np.random.normal(loc=0., scale=self.noise_pdf[0], size=[self.npix])
+        eff_noise_q = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
+        eff_noise_u = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
+        return np.array([eff_noise_i, eff_noise_q, eff_noise_u])
+
+    def noise_field(self, seed=None):
+        noise = self.generate_noise(seed)
+        signal_fields = SignalFields(
+            Field(noise[0], spin=0),
+            Field(noise[1]+1j*noise[2], spin=2),
+            Field(noise[1]-1j*noise[2], spin=-2),
+        )
+        return signal_fields
+
+def plot_maps(mdim, input_map, output_map, residual, cmap="viridis"):
     titles = ["Input", "Output", "Residual"]
     maps = [input_map, output_map, residual]
     if mdim == 2:
@@ -503,22 +628,22 @@ def plot_maps(mdim, input_map, output_map, residual):
         for i, title in enumerate(titles[:2]):
             plt.figure(figsize=(10, 5))
             for j in range(1,3):
-                hp.mollview(maps[i][j], sub=(1, 2, j), title=f"{title} ${units[j]}$", unit="$\mu K_{CMB}$")
+                hp.mollview(maps[i][j], sub=(1, 2, j), title=f"{title} ${units[j]}$", unit="$\mu K_{CMB}$", cmap=cmap)
 
         plt.figure(figsize=(10, 5))
         for j in range(1, 3):
-            hp.mollview(residual[j], sub=(1, 2, j), title=f"Residual $\Delta {units[j]}$", unit="$\mu K_{CMB}$")
+            hp.mollview(residual[j], sub=(1, 2, j), title=f"Residual $\Delta {units[j]}$", unit="$\mu K_{CMB}$", cmap=cmap)
 
     elif mdim == 3:
         units = ["I", "Q", "U"]
         for i, title in enumerate(titles[:2]):
             plt.figure(figsize=(15, 5))
             for j in range(3):
-                hp.mollview(maps[i][j], sub=(1, 3, j + 1), title=f"{title} ${units[j]}$", unit="$\mu K_{CMB}$")
+                hp.mollview(maps[i][j], sub=(1, 3, j + 1), title=f"{title} ${units[j]}$", unit="$\mu K_{CMB}$", cmap=cmap)
 
         plt.figure(figsize=(15, 5))
         for j in range(1, 3):
-            hp.mollview(residual[j], sub=(1, 2, j), title=f"Residual $\Delta {units[j]}$", unit="$\mu K_{CMB}$")
+            hp.mollview(residual[j], sub=(1, 2, j), title=f"Residual $\Delta {units[j]}$", unit="$\mu K_{CMB}$", cmap=cmap)
 
     elif mdim == 5:
         titles = ["Input", "Output", "Residual"]
@@ -526,4 +651,60 @@ def plot_maps(mdim, input_map, output_map, residual):
         for i, title in enumerate(titles):
             plt.figure(figsize=(15, 5))
             for j in range(maps[i].shape[0]):
-                hp.mollview(maps[i][j], sub=(1, len(units), j + 1), title=f"{title} ${units[j]}$", unit="$\mu K_{CMB}$")
+                hp.mollview(maps[i][j], sub=(1, len(units), j + 1), title=f"{title} ${units[j]}$", unit="$\mu K_{CMB}$", cmap=cmap)
+
+def get_instrument_table(imo:Imo, imo_version="v2"):
+    """
+    This function generates DataFrame which is used for FGBuster as `instrument` from IMo.
+    """
+    telescopes     = ["LFT", "MFT", "HFT"]
+    channel_list   = []
+    freq           = []
+    depth_p        = []
+    fwhm           = []
+    telescope_list = []
+    bandwidth      = []
+    numOfdets      = []
+    net_detector_ukrts = []
+    net_channel_ukrts = []
+
+    for i in telescopes:
+        inst_info = imo.query("/releases/"+imo_version+"/satellite/"+i+"/instrument_info")
+        channel_list.append(inst_info.metadata["channel_names"])
+    channel_list = [item for sublist in channel_list for item in sublist]
+
+    for i in channel_list:
+        if i[0]   == "L":
+            telescope = "LFT"
+        elif i[0] == "M":
+            telescope = "MFT"
+        elif i[0] == "H":
+            telescope = "HFT"
+        chinfo = lbs.FreqChannelInfo.from_imo(imo,
+                  "/releases/{}/satellite/{}/{}/channel_info".format(imo_version, telescope, i))
+        freq.append(chinfo.band.bandcenter_ghz)
+        depth_p.append(chinfo.pol_sensitivity_channel_ukarcmin)
+        fwhm.append(chinfo.fwhm_arcmin)
+        telescope_list.append(telescope)
+        bandwidth.append(chinfo.bandwidth_ghz)
+        net_detector_ukrts.append(chinfo.net_detector_ukrts)
+        net_channel_ukrts.append(chinfo.net_channel_ukrts)
+        numOfdets.append(len(chinfo.detector_names))
+
+    instrument = pd.DataFrame(data = {
+        'channel'    : channel_list,
+        'frequency'  : freq,
+        'bandwidth'  : bandwidth,
+        'depth_p'    : depth_p,
+        'fwhm'       : fwhm,
+        'net_detector_ukrts' : net_detector_ukrts,
+        'net_channel_ukrts'  : net_channel_ukrts,
+        'ndet'       : numOfdets,
+        'f_sky'      : [1.0                  for i in range(len(channel_list))],
+        'status'     : ["forecast"           for i in range(len(channel_list))],
+        'reference'  : ["IMo-" + imo_version for i in range(len(channel_list))],
+        'type'       : ["satellite"          for i in range(len(channel_list))],
+        'experiment' : ["LiteBIRD"           for i in range(len(channel_list))],
+        'telescope'  : telescope_list
+    })
+    return instrument
