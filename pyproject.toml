@@ -34,6 +34,7 @@ matplotlib = "^3.1"
 h5py = "^3.11.0"
 pytest = "^7.4"
 litebird_sim = "^0.13.0"
+pandas = "<=2.2.2"
 
 [build-system]
 requires = ["poetry-core"]
