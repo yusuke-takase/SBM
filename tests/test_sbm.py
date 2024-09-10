@@ -35,7 +35,7 @@ class TestSBM(unittest.TestCase):
 
         if save_output_map==True:
             hp.write_map("tests/reference/diff_gain_output_map.fits", output_map, overwrite=True)
-            print("Diff gain output map saved.")
+            print("Diff gain output map is saved.")
         else:
             reference = hp.read_map("tests/reference/diff_gain_output_map.fits", field=(0,1,2))
             print(f"reference.shape: {reference.shape}")
@@ -82,9 +82,23 @@ class TestSBM(unittest.TestCase):
 
         if save_output_map==True:
             hp.write_map("tests/reference/diff_pointing_output_map.fits", output_map, overwrite=True)
-            print("Diff gain output map saved.")
+            print("Diff gain output map is saved.")
         else:
             reference = hp.read_map("tests/reference/diff_pointing_output_map.fits", field=(0,1,2))
+            print(f"reference.shape: {reference.shape}")
+            self.assertTrue(np.allclose(output_map, reference))
+
+    def test_noise_generation(self, save_output_map=False):
+        net_ukrts = 100
+        self.scan_field.generate_noise_pdf(net_ukrts=net_ukrts)
+        mdim = 3
+        seed = 12345
+        output_map = self.scan_field.generate_noise(mdim, seed)
+        if save_output_map==True:
+            hp.write_map(f"tests/reference/noise_map_{net_ukrts}ukrts.fits", output_map, overwrite=True)
+            print("Noise map is saved.")
+        else:
+            reference = hp.read_map(f"tests/reference/noise_map_{net_ukrts}ukrts.fits", field=(0,1,2))
             print(f"reference.shape: {reference.shape}")
             self.assertTrue(np.allclose(output_map, reference))
 

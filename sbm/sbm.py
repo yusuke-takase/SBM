@@ -104,6 +104,7 @@ class ScanFields:
         self.net_detector_ukrts = None
         self.net_channel_ukrts = None
         self.noise_pdf = None
+        self.covmat_inv = None
         self.all_channels = [
             'L1-040','L2-050','L1-060','L3-068','L2-068','L4-078','L1-078','L3-089','L2-089','L4-100','L3-119','L4-140',
             'M1-100','M2-119','M1-140','M2-166','M1-195',
@@ -296,31 +297,6 @@ class ScanFields:
             for j in range(len(base_spin)):
                 covmat[i,j,:] = self.get_xlink(spin_mat[i,j])*wait_mat[i,j]
         return covmat
-
-    def _get_covmat(self, mdim):
-        """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
-
-        Args:
-            mdim (int): dimension of the covariance matrix.
-        """
-        if mdim == 2:
-            covmat = np.array([
-                [self.get_xlink(0)/4.0 , self.get_xlink(4)/4.0],
-                [self.get_xlink(-4)/4.0, self.get_xlink(0)/4.0]
-            ])
-        elif mdim==3:
-            cos4 = (1+self.get_xlink(4).real)/2.
-            sin4 = (1-self.get_xlink(4).real)/2.
-            sin2 = -0.5 * self.get_xlink(4).imag
-            covmat = np.array([
-                [self.get_xlink(0).real  , self.get_xlink(2).real, -self.get_xlink(2).imag],
-                [self.get_xlink(2).real  , cos4                  , sin2],
-                [-self.get_xlink(2).imag, sin2                  , sin4]
-                ])
-        else:
-            raise ValueError("mdim is 2 or 3 only supported")
-        return covmat
-
 
     def t2b(self):
         """Transform Top detector cross-link to Bottom detector cross-link
@@ -531,7 +507,10 @@ class ScanFields:
             output_map (np.ndarray, [`mdim`, `npix`])
         """
         self.couple(signal_fields, mdim=mdim)
-        b = self.coupled_fields
+        #if seed:
+        #    np.random.seed(seed)
+        #    noise = self.generate_noise(seed)
+        b = self.coupled_fields# + noise
         A = self.get_covmat(mdim)
         x = np.empty_like(b)
         for i in range(b.shape[1]):
@@ -577,48 +556,82 @@ class ScanFields:
         imo=None,
         net_ukrts=None,
         return_pdf=False,
-        diff=True,
+        scale=1.0,
         ):
+        """ Generate probability density function of the noise.
+        The function store the noise PDF in the `self.noise_pdf` attribute.
+
+        Args:
+            imo (Imo): IMo object which contains the instrument information given by the `litebird_sim`
+
+            net_ukrts (float): net sensitivity of the detector in uK√s
+
+            return_pdf (bool): if True, return the noise PDF
+
+            scale (float): scale factor to adjust the noise PDF.
+                           When the defferential detection is performed, it should be scale = 2.0.
+        """
         channel = self.channel
-        if diff == True:
-            stat_scale = 2.0
-        else:
-            stat_scale = 1.0
         if channel:
             assert imo is not None, "imo is required when channel is given"
             inst = get_instrument_table(imo, imo_version="v2")
             net_detector_ukrts = inst.loc[inst["channel"] == channel, "net_detector_ukrts"].values[0]
             net_channel_ukrts = inst.loc[inst["channel"] == channel, "net_channel_ukrts"].values[0]
-            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(stat_scale*self.hitmap)
+            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*self.hitmap)
             sigma_p = sigma_i/np.sqrt(2.0)
             self.net_channel_ukrts = net_channel_ukrts
         else:
             assert net_ukrts is not None, "net_ukrts is required when channel is not given"
             net_detector_ukrts = net_ukrts
-            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(stat_scale*self.hitmap)
+            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*self.hitmap)
             sigma_p = sigma_i/np.sqrt(2.0)
         self.net_detector_ukrts = net_detector_ukrts
         self.noise_pdf = np.array([sigma_i, sigma_p])
         if return_pdf:
             return self.noise_pdf
 
-    def generate_noise(self, seed=None):
+    def generate_noise(self, mdim, seed=None):
+        """ Generate observed noise map with the noise PDF.
+
+        Args:
+            mdim (int): dimension of the linear system in the map-making equation
+
+            seed (int): seed for the random number generator
+
+        Returns:
+            noise (np.ndarray): noise map
+        """
         assert self.noise_pdf is not None, "Generate noise pdf first by `ScanField.generate_noise_pdf()` method."
+        if self.covmat_inv is None or self.covmat_inv.shape[0] != mdim:
+            cov = self.get_covmat(mdim)
+            covmat_inv = np.empty_like(cov)
+            for i in range(self.npix):
+                covmat_inv[:,:,i] = np.linalg.inv(cov[:,:,i])
+            self.covmat_inv = np.sqrt(covmat_inv)
         if seed:
             np.random.seed(seed)
-        eff_noise_i = np.random.normal(loc=0., scale=self.noise_pdf[0], size=[self.npix])
-        eff_noise_q = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
-        eff_noise_u = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
-        return np.array([eff_noise_i, eff_noise_q, eff_noise_u])
+        n_i = np.random.normal(loc=0., scale=self.noise_pdf[0], size=[self.npix])
+        n_q = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
+        n_u = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
+        if mdim == 2:
+            noise = np.array([
+                n_q * self.covmat_inv[0,0,:].real,
+                n_u * self.covmat_inv[0,0,:].real,
+                ])
+        elif mdim == 3:
+            noise = np.array([
+                n_i * self.covmat_inv[0,0,:].real,
+                n_q * self.covmat_inv[1,1,:].real,
+                n_u * self.covmat_inv[1,1,:].real,
+            ])
+        elif mdim > 3:
+            noise = np.array([
+                    n_i * self.covmat_inv[0,0,:].real,
+                    n_q * self.covmat_inv[3,3,:].real,
+                    n_u * self.covmat_inv[3,3,:].real,
+                ])
+        return noise
 
-    def noise_field(self, seed=None):
-        noise = self.generate_noise(seed)
-        signal_fields = SignalFields(
-            Field(noise[0], spin=0),
-            Field(noise[1]+1j*noise[2], spin=2),
-            Field(noise[1]-1j*noise[2], spin=-2),
-        )
-        return signal_fields
 
 def plot_maps(mdim, input_map, output_map, residual, cmap="viridis"):
     titles = ["Input", "Output", "Residual"]
@@ -656,6 +669,14 @@ def plot_maps(mdim, input_map, output_map, residual, cmap="viridis"):
 def get_instrument_table(imo:Imo, imo_version="v2"):
     """
     This function generates DataFrame which is used for FGBuster as `instrument` from IMo.
+
+    Args:
+        imo (Imo): IMo object which contains the instrument information given by the `litebird_sim`
+
+        imo_version (str): version of the IMo. Default is "v2"
+
+    Returns:
+        instrument (pd.DataFrame): DataFrame which contains the instrument information
     """
     telescopes     = ["LFT", "MFT", "HFT"]
     channel_list   = []
