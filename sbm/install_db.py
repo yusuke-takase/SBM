@@ -13,12 +13,12 @@ import os
 import json
 import numpy as np
 import toml
+from .main import ScanFields
 
 CONFIG_PATH = Path.home() / ".config" / "sbm_dataset"
 CONFIG_FILE_PATH = CONFIG_PATH / "sbm_dataset.toml"
 
 repositories = []
-
 
 # Convert numpy.int64 to Python int
 def custom_encoder(obj):
@@ -29,6 +29,35 @@ def custom_encoder(obj):
     if isinstance(obj, bytes):
         return obj.decode('utf-8')
     raise TypeError(f"Type {type(obj)} not serializable")
+
+def gen_jsonfile(base_path):
+    dataset = []
+    scan_field = None
+    for root, dirs, files in os.walk(base_path):
+        ch = root.split('/')[-1]
+        if files:
+            data = {
+                "channel": ch,
+                "detectors": files
+            }
+            dataset.append(data)
+        if ch == "boresight":
+            scan_field = ScanFields.load_det("boresight", base_path=root)
+
+    nside = int(scan_field.nside)
+    duration = int(scan_field.duration)
+    scan_strategy = scan_field.ss
+    considered_spin = scan_field.spins
+    scaninfo = {
+        "nside": nside,
+        "duration": duration,
+        "scan_strategy": scan_strategy,
+        "considered_spin": considered_spin
+    }
+    with open(os.path.join(base_path, "sim_config.json"), 'w') as f:
+        json.dump(scaninfo, f, indent=4, default=custom_encoder)
+        json.dump(dataset, f, indent=4)
+
 
 def retrieve_local_source():
     print()
@@ -113,11 +142,6 @@ The configuration has been saved into file
 """
     )
 
-def extract_location_from_toml(file_path):
-    with open(file_path, 'r') as file:
-        data = toml.load(file)
-        loc = data['repositories'][0]['location']
-    return loc
 
 def main():
     if run_main_loop():

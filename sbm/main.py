@@ -8,12 +8,18 @@ from multiprocessing import Pool
 import pandas as pd
 import litebird_sim as lbs
 from litebird_sim import Imo
-import toml
 from pathlib import Path
-from .install_db import extract_location_from_toml
+import toml
 
 CONFIG_PATH = Path.home() / ".config" / "sbm_dataset"
 CONFIG_FILE_PATH = CONFIG_PATH / "sbm_dataset.toml"
+
+def extract_location_from_toml(file_path):
+    with open(file_path, 'r') as file:
+        data = toml.load(file)
+        loc = data['repositories'][0]['location']
+    return loc
+
 
 if not CONFIG_FILE_PATH.exists():
     DB_ROOT_PATH = None
@@ -435,7 +441,7 @@ class ScanFields:
         input_map: np.ndarray,
         rho_T: np.ndarray, # Pointing offset magnitude
         rho_B: np.ndarray,
-        chi_T: np.ndarray,  # Pointing offset direction
+        chi_T: np.ndarray, # Pointing offset direction
         chi_B: np.ndarray,
         base_path=DB_ROOT_PATH,
         ):
@@ -520,14 +526,11 @@ class ScanFields:
             output_map (np.ndarray, [`mdim`, `npix`])
         """
         self.couple(signal_fields, mdim=mdim)
-        #if seed:
-        #    np.random.seed(seed)
-        #    noise = self.generate_noise(seed)
-        b = self.coupled_fields# + noise
+        b = self.coupled_fields
         A = self.get_covmat(mdim)
         x = np.zeros_like(b)
-        for i in range(b.shape[1]):
-            if np.linalg.det(A[:,:,i]) != 0.0:
+        for i in range(self.npix):
+            if self.hitmap[i] >= 4:
                 x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if mdim == 2:
             # Note that:
@@ -554,7 +557,7 @@ class ScanFields:
         A = self.get_covmat(self.mdim)
         x = np.zeros_like(b)
         for i in range(b.shape[1]):
-            if np.linalg.det(A[:,:,i]) != 0.0:
+            if self.hitmap[i] >= 4:
                 x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if self.mdim == 2:
             output_map = np.array([np.zeros_like(x[0].real), x[0].real, x[0].imag])
@@ -745,31 +748,3 @@ def get_instrument_table(imo:Imo, imo_version="v2"):
         'telescope'  : telescope_list
     })
     return instrument
-
-def gen_jsonfile(base_path):
-    dataset = []
-    scan_field = None
-    for root, dirs, files in os.walk(base_path):
-        ch = root.split('/')[-1]
-        if files:
-            data = {
-                "channel": ch,
-                "detectors": files
-            }
-            dataset.append(data)
-        if ch == "boresight":
-            scan_field = ScanFields.load_det("boresight", base_path=root)
-
-    nside = int(scan_field.nside)
-    duration = int(scan_field.duration)
-    scan_strategy = scan_field.ss
-    considered_spin = scan_field.spins
-    scaninfo = {
-        "nside": nside,
-        "duration": duration,
-        "scan_strategy": scan_strategy,
-        "considered_spin": considered_spin
-    }
-    with open(os.path.join(base_path, "sim_config.json"), 'w') as f:
-        json.dump(scaninfo, f, indent=4, default=custom_encoder)
-        json.dump(dataset, f, indent=4)
