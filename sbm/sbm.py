@@ -512,9 +512,10 @@ class ScanFields:
         #    noise = self.generate_noise(seed)
         b = self.coupled_fields# + noise
         A = self.get_covmat(mdim)
-        x = np.empty_like(b)
+        x = np.zeros_like(b)
         for i in range(b.shape[1]):
-            x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+            if np.linalg.det(A[:,:,i]) != 0.0:
+                x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if mdim == 2:
             # Note that:
             # x[0] = Q + iU
@@ -538,9 +539,10 @@ class ScanFields:
         assert self.coupled_fields is not None, "Couple the fields first"
         b = self.coupled_fields
         A = self.get_covmat(self.mdim)
-        x = np.empty_like(b)
+        x = np.zeros_like(b)
         for i in range(b.shape[1]):
-            x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+            if np.linalg.det(A[:,:,i]) != 0.0:
+                x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if self.mdim == 2:
             output_map = np.array([np.zeros_like(x[0].real), x[0].real, x[0].imag])
         if self.mdim == 3:
@@ -615,6 +617,7 @@ class ScanFields:
         n_u = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
         if mdim == 2:
             noise = np.array([
+                np.zeros_like(n_i),
                 n_q * self.covmat_inv[0,0,:].real,
                 n_u * self.covmat_inv[0,0,:].real,
                 ])
