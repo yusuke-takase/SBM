@@ -14,7 +14,11 @@ from .install_db import extract_location_from_toml
 
 CONFIG_PATH = Path.home() / ".config" / "sbm_dataset"
 CONFIG_FILE_PATH = CONFIG_PATH / "sbm_dataset.toml"
-DB_ROOT_PATH = extract_location_from_toml(CONFIG_FILE_PATH)
+
+if not CONFIG_FILE_PATH.exists():
+    DB_ROOT_PATH = None
+else:
+    DB_ROOT_PATH = extract_location_from_toml(CONFIG_FILE_PATH)
 
 class Field:
     """ Class to store the field data of detectors """
@@ -228,10 +232,10 @@ class ScanFields:
         instance = cls()
         hitmap = np.zeros_like(crosslink_channels[0].hitmap)
         h = np.zeros_like(crosslink_channels[0].h)
-        instance.nside = crosslink_channels[0].ss["nside"]
+        instance.nside = crosslink_channels[0].nside
         instance.npix = hp.nside2npix(instance.nside)
-        instance.duration = crosslink_channels[0].ss["duration"]
-        instance.sampling_rate = crosslink_channels[0].ss["sampling_rate"]
+        instance.duration = crosslink_channels[0].duration
+        instance.sampling_rate = crosslink_channels[0].sampling_rate
         ndet = 0
         for sf in crosslink_channels:
             hitmap += sf.hitmap
