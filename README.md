@@ -20,6 +20,15 @@ cd sbm
 pip install -e .
 ```
 
+# Database instllation
+
+The SBM needs a database which includes cross-link data in HDF5 format.
+By following command, you can install the path of database in local storage.
+
+```
+python -m sbm.install_db
+```
+
 # Tutorials
 
 There are several tutorials in the [notebooks](https://github.com/yusuke-takase/SBM/tree/master/notebooks).
