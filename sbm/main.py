@@ -26,6 +26,14 @@ if not CONFIG_FILE_PATH.exists():
 else:
     DB_ROOT_PATH = extract_location_from_toml(CONFIG_FILE_PATH)
 
+channel_list = [
+    'L1-040','L2-050','L1-060','L3-068','L2-068','L4-078','L1-078','L3-089','L2-089','L4-100','L3-119','L4-140',
+    'M1-100','M2-119','M1-140','M2-166','M1-195',
+    'H1-195','H2-235','H1-280','H2-337','H3-402'
+]
+
+fwhms = [70.5,58.5,51.1,41.6,47.1,36.9,43.8,33.0,41.5,30.2,26.3,23.7,37.8,33.6,30.8,28.9,28.0,28.6,24.7,22.5,20.9,17.9]
+
 class Field:
     """ Class to store the field data of detectors """
     def __init__(self, field: np.ndarray, spin: int):
@@ -123,12 +131,6 @@ class ScanFields:
         self.net_channel_ukrts = None
         self.noise_pdf = None
         self.covmat_inv = None
-        self.all_channels = [
-            'L1-040','L2-050','L1-060','L3-068','L2-068','L4-078','L1-078','L3-089','L2-089','L4-100','L3-119','L4-140',
-            'M1-100','M2-119','M1-140','M2-166','M1-195',
-            'H1-195','H2-235','H1-280','H2-337','H3-402'
-        ]
-        self.fwhms = [70.5,58.5,51.1,41.6,47.1,36.9,43.8,33.0,41.5,30.2,26.3,23.7,37.8,33.6,30.8,28.9,28.0,28.6,24.7,22.5,20.9,17.9]
 
     @classmethod
     def load_det(cls, det_name: str, base_path=DB_ROOT_PATH):
@@ -152,7 +154,7 @@ class ScanFields:
             instance (ScanFields): instance of the ScanFields class containing the scan fields data of the detector
         """
         instance = cls()
-        if base_path.split("/")[-1] in instance.all_channels:
+        if base_path.split("/")[-1] in channel_list:
             instance.channel = base_path.split("/")[-1]
         instance.ndet = 1
         t2b = None
@@ -513,7 +515,7 @@ class ScanFields:
             raise ValueError("mdim is 2, 3, 5 and 7 only supported")
         self.coupled_fields = coupled_fields
 
-    def map_make(self, signal_fields, mdim):
+    def map_make(self, signal_fields, mdim, only_iqu=False):
         """Get the output map by solving the linear equation Ax=b
         This operation gives us an equivalent result of the simple binning map-making aproach
 
@@ -525,47 +527,56 @@ class ScanFields:
         Returns:
             output_map (np.ndarray, [`mdim`, `npix`])
         """
+        self.mdim = mdim
         self.couple(signal_fields, mdim=mdim)
         b = self.coupled_fields
         A = self.get_covmat(mdim)
         x = np.zeros_like(b)
+        xlink2 = np.abs(self.get_xlink(2))
         for i in range(self.npix):
-            if self.hitmap[i] >= 4:
+            #if self.hitmap[i] >= 4:
+            if xlink2[i] < 0.7:
                 x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if mdim == 2:
-            # Note that:
-            # x[0] = Q + iU
-            # x[1] = Q - iU
+            # output_map =        [Fake I                  , Q        , U        ]
             output_map = np.array([np.zeros_like(x[0].real), x[0].real, x[0].imag])
         if mdim == 3:
-            # Note that:
-            # x[1] = Q + iU
-            # x[2] = Q - iU
+            # output_map =        [I        , Q        , U        ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag])
         if mdim == 5:
+            # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag])
         if mdim == 7:
-            output_map = np.array([x[0].real, x[1].real, x[1].imag, x[2].real, x[2].imag, x[3].real, x[3].imag])
+            # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ,Z3^Q      , Z3^U     ]
+            output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag])
+        if only_iqu == True:
+            if mdim > 3:
+                output_map = np.array([output_map[0], output_map[3], output_map[4]])
         return output_map
 
     def solve(self):
         """Get the output map by solving the linear equation Ax=b
         This operation gives us an equivalent result of the simple binning map-making aproach
         """
-        assert self.coupled_fields is not None, "Couple the fields first"
+        assert self.coupled_fields is not None, "Couple the fields first by `ScanFields.couple()` method."
         b = self.coupled_fields
         A = self.get_covmat(self.mdim)
         x = np.zeros_like(b)
+        xlink2 = np.abs(self.get_xlink(2))
         for i in range(b.shape[1]):
-            if self.hitmap[i] >= 4:
+            if xlink2[i] < 0.7:
                 x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if self.mdim == 2:
+            # output_map =        [Fake I                  , Q        , U        ]
             output_map = np.array([np.zeros_like(x[0].real), x[0].real, x[0].imag])
         if self.mdim == 3:
+            # output_map =        [I        , Q        , U        ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag])
         if self.mdim == 5:
+            # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag])
         if self.mdim == 7:
+            # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ,Z3^Q      , Z3^U     ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag])
         return output_map
 
@@ -748,3 +759,36 @@ def get_instrument_table(imo:Imo, imo_version="v2"):
         'telescope'  : telescope_list
     })
     return instrument
+
+def add_label(output_map:np.ndarray):
+    mdim = output_map.shape[0]
+    if mdim == 2:
+        labeled_maps = {
+            "q": output_map[0],
+            "u": output_map[1],
+        }
+    elif mdim == 3:
+        labeled_maps = {
+            "i": output_map[0],
+            "q": output_map[1],
+            "u": output_map[2],
+        }
+    elif mdim == 5:
+        labeled_maps = {
+            "i":   output_map[0],
+            "z1q": output_map[1],
+            "z1u": output_map[2],
+            "q":   output_map[3],
+            "U":   output_map[4],
+        }
+    elif mdim == 7:
+        labeled_maps = {
+            "i":   output_map[0],
+            "z1q": output_map[1],
+            "z1u": output_map[2],
+            "q":   output_map[3],
+            "u":   output_map[4],
+            "z3q": output_map[5],
+            "z3u": output_map[6],
+        }
+    return labeled_maps

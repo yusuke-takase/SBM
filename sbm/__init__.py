@@ -6,7 +6,18 @@ from .main import (
     ScanFields,
     plot_maps,
     get_instrument_table,
+    add_label,
     DB_ROOT_PATH,
+    channel_list,
+    fwhms
+)
+
+from .pipelines import (
+    Configlation,
+    Systematics,
+    sim_diff_gain_per_ch,
+    sim_diff_pointing_per_ch,
+    sim_noise_per_ch,
 )
 
 
@@ -26,5 +37,14 @@ __all__ = [
     "ScanFields",
     "plot_maps",
     "get_instrument_table",
+    "add_label",
     "DB_ROOT_PATH",
+    "channel_list",
+    "fwhms",
+    # pipelines.py
+    "Configlation",
+    "Systematics",
+    "sim_diff_gain_per_ch",
+    "sim_diff_pointing_per_ch",
+    "sim_noise_per_ch",
 ]
