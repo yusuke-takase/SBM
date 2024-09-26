@@ -6,3 +6,6 @@ notebooks/__pycache__/
 sbm/__pycache__/
 .ipynb_checkpoints/
 __pycache__/
+notebooks/cmb
+.pytest_cache/
+tests/__pycache__/
