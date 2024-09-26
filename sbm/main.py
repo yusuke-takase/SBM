@@ -36,23 +36,26 @@ fwhms = [70.5,58.5,51.1,41.6,47.1,36.9,43.8,33.0,41.5,30.2,26.3,23.7,37.8,33.6,3
 
 class Field:
     """ Class to store the field data of detectors """
-    def __init__(self, field: np.ndarray, spin: int):
+    def __init__(self, field: np.ndarray, spin_n: int, spin_m: int):
         """Initialize the class with field and spin data
 
         Args:
             field (np.ndarray): field data of the detector
 
-            spin (int): spin number of the detector
+            spin_n (int): spin number of the crossing angle
+
+            spin_m (int): spin number of the HWP angle
         """
         if all(isinstance(x, float) for x in field):
             self.field = field + 1j*np.zeros(len(field))
         else:
             self.field = field
-        self.spin = spin
+        self.spin_n = spin_n
+        self.spin_m = spin_m
 
     def conj(self):
         """Get the complex conjugate of the field"""
-        return Field(self.field.conj(), -self.spin)
+        return Field(self.field.conj(), -self.spin_n, -self.spin_m)
 
     def __add__(self, other):
         """Add the field of two detectors
@@ -77,8 +80,10 @@ class SignalFields:
         Args:
             fields (Field): field (map) data of the signal
         """
-        self.fields = sorted(fields, key=lambda field: field.spin)
-        self.spins = np.array([field.spin for field in self.fields])
+        #self.fields = sorted(fields, key=lambda field: field.spin)
+        self.fields = sorted(fields, key=lambda field: (field.spin_n, field.spin_m))
+        self.spins_n = np.array([field.spin_n for field in self.fields])
+        self.spins_m = np.array([field.spin_m for field in self.fields])
 
     def __add__(self, other):
         """Add the signal fieldd
@@ -92,7 +97,7 @@ class SignalFields:
         if not isinstance(other, SignalFields):
             return NotImplemented
         result = copy.deepcopy(self)
-        for i in range(len(self.spins)):
+        for i in range(len(self.spins_n)): # この足し方でいいのか？
             result.fields[i].field += other.fields[i].field
         return result
 
@@ -107,7 +112,9 @@ class ScanFields:
 
         h (np.ndarray): cross-link (orientation function) of the detector
 
-        spins (np.ndarray): array of spin numbers
+        spins_n (np.ndarray): array of spin_n numbers
+
+        spins_m (np.ndarray): array of spin_m numbers
 
         std (np.ndarray): standard deviation of the hitmap and h
 
@@ -118,7 +125,8 @@ class ScanFields:
         self.ss = {}
         self.hitmap = []
         self.h = []
-        self.spins = []
+        self.spins_n = []
+        self.spins_m = []
         self.compled_fields = None
         self.nside = None
         self.npix = None
@@ -166,9 +174,10 @@ class ScanFields:
         with h5py.File(os.path.join(base_path, filename), 'r') as f:
             instance.ss = {key: value[()] for key, value in zip(f['ss'].keys(), f['ss'].values()) if key != "quat"}
             instance.hitmap = f['hitmap'][:]
-            instance.h = f['h'][:, 0, :]
+            instance.h = f['h'][:,:,:]
             instance.h[np.isnan(instance.h)] = 1.0
-            instance.spins = f['quantify']['n'][()]
+            instance.spins_n = f['toml']['spin_n'][()]
+            instance.spins_m = f['toml']['spin_m'][()]
         instance.nside = instance.ss["nside"]
         instance.duration = instance.ss["duration"]
         instance.sampling_rate = instance.ss["sampling_rate"]
@@ -207,7 +216,8 @@ class ScanFields:
             instance.hitmap += sf.hitmap
             instance.h += sf.hitmap[:, np.newaxis] * sf.h
         instance.h /= instance.hitmap[:, np.newaxis]
-        instance.spins = first_sf.spins
+        instance.spins_n = first_sf.spins_n
+        instance.spins_m = first_sf.spins_m
         return instance
 
     @classmethod
@@ -252,7 +262,8 @@ class ScanFields:
         instance.ndet = ndet
         instance.hitmap = hitmap
         instance.h = h / hitmap[:, np.newaxis]
-        instance.spins = crosslink_channels[0].spins
+        instance.spins_n = crosslink_channels[0].spins_n
+        instance.spins_m = crosslink_channels[0].spins_m
         return instance
 
     def initialize(self, mdim):
@@ -260,30 +271,77 @@ class ScanFields:
         self.h = np.zeros_like(self.h)
         self.nside = hp.npix2nside(len(self.hitmap))
         self.npix = hp.nside2npix(self.nside)
-        self.spins = np.zeros_like(self.spins)
+        self.spins_n = np.zeros_like(self.spins_n)
+        self.spins_m = np.zeros_like(self.spins_m)
         self.mdim = mdim
         self.ndet = 0
-        self.coupled_fields = np.zeros([self.mdim, len(self.hitmap)], dtype=np.complex128)
+        self.coupled_fields = np.zeros([self.mdim, self.npix], dtype=np.complex128)
 
-    def get_xlink(self, spin_n: int):
+    def _get_xlink(self, spin_n: int, spin_m: int):
         """Get the cross-link of the detector for a given spin number
 
         Args:
             spin_n (int): spin number for which the cross-link is to be obtained
 
-            If s`pin_n` is 0, the cross-link for the spin number 0 is returned, i.e,
+            spin_m (int): spin number for which the cross-link is to be obtained
+
+            If `spin_n` is 0, the cross-link for the spin number 0 is returned, i.e,
             the map which has 1 in the real part and zero in the imaginary part.
 
         Returns:
             xlink (1d-np.ndarray): cross-link of the detector for the given spin number
         """
 
-        if spin_n == 0:
-            return np.ones_like(self.h[:, 0]) + 1j * np.zeros_like(self.h[:, 0])
-        if spin_n < 0:
-            return self.h[:, np.abs(spin_n) - 1].conj()
+        if spin_n == 0 and spin_m == 0:
+            return np.ones_like(self.h[:,0,0]) + 1j * np.zeros_like(self.h[:,0,0])
+        elif spin_n > 0 and spin_m <= 0:
+            idx_n = np.where(self.spins_n==spin_n)[0][0]
+            idx_m = np.where(self.spins_m==spin_m)[0][0]
+            #print(idx_n, idx_m)
+            return self.h[:, idx_m, idx_n]
+        elif spin_n < 0 and spin_m >= 0:
+            idx_n = np.where(self.spins_n==-spin_n)[0][0]
+            idx_m = np.where(self.spins_m==-spin_m)[0][0]
+            #print(idx_n, idx_m, "conj")
+            return self.h[:, idx_m, idx_n].conj()
+        elif spin_n >0 and spin_m >= 0:
+            idx_n = np.where(self.spins_n==spin_n)[0][0]
+            idx_m = np.where(self.spins_m==spin_m)[0][0]
+            #print(idx_n, idx_m)
+            return self.h[:, idx_m, idx_n]
+        elif spin_n < 0 and spin_m <= 0:
+            idx_n = np.where(self.spins_n==-spin_n)[0][0]
+            idx_m = np.where(self.spins_m==-spin_m)[0][0]
+            #print(idx_n, idx_m, "conj")
+            return self.h[:, idx_m, idx_n].conj()
         else:
-            return self.h[:, spin_n - 1]
+            #print(idx_n, idx_m)
+            idx_n = np.where(self.spins_n==spin_n)[0][0]
+            idx_m = np.where(self.spins_m==spin_m)[0][0]
+            return self.h[:, idx_m, idx_n]
+
+    def get_xlink(self, spin_n, spin_m):
+        """Get the cross-link of the detector for a given spin number
+
+        Args:
+            spin_n (int): spin number for which the cross-link is to be obtained
+
+            spin_m (int): spin number for which the cross-link is to be obtained
+
+            If `spin_n` is 0, the cross-link for the spin number 0 is returned, i.e,
+            the map which has 1 in the real part and zero in the imaginary part.
+
+        Returns:
+            xlink (1d-np.ndarray): cross-link of the detector for the given spin number
+        """
+        if spin_n == 0 and spin_m == 0:
+            return np.ones_like(self.h[:, 0, 0]) + 1j * np.zeros_like(self.h[:, 0, 0])
+        idx_n = np.where(self.spins_n == abs(spin_n))[0][0]
+        idx_m = np.where(self.spins_m == abs(spin_m))[0][0]
+        result = self.h[:, idx_m, idx_n]
+        if (spin_n < 0 and spin_m >= 0) or (spin_n < 0 and spin_m <= 0):
+            return result.conj()
+        return result
 
     def get_covmat(self, mdim):
         """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
@@ -292,32 +350,52 @@ class ScanFields:
             mdim (int): dimension of the covariance matrix.
         """
         if mdim == 2:
-            covmat = self.create_covmat(base_spin=[2,-2])
+            covmat = self.create_covmat([2,-2], [0,0])
         elif mdim == 3:
-            covmat = self.create_covmat(base_spin=[0,2,-2])
+            covmat = self.create_covmat([0,2,-2], [0,0,0])
         elif mdim == 5:
-            covmat = self.create_covmat(base_spin=[0,1,-1,2,-2])
+            covmat = self.create_covmat([0,1,-1,2,-2], [0,0,0,0,0])
         elif mdim == 7:
-            covmat = self.create_covmat(base_spin=[0,1,-1,2,-2,3,-3])
+            covmat = self.create_covmat([0,1,-1,2,-2,3,-3], [0,0,0,0,0,0,0])
         else:
             raise ValueError("mdim is 2, 3, 5 and 7 are only supported")
         return covmat
 
-    def create_covmat(self, base_spin: list):
+    def get_covmat_hwp(self, mdim):
+        """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
+
+        Args:
+            mdim (int): dimension of the covariance matrix.
+        """
+        if mdim == 3:
+            covmat = self.create_covmat([0,-2,2], [0,4,-4])
+        elif mdim == 5:
+            covmat = self.create_covmat([0,-1,1,-2,2], [0,0,0,4,-4])
+        elif mdim == 9:
+            covmat = self.create_covmat([0,-1,1,-2,2,-3,3,-1,1], [0,0,0,4,-4,4,-4,4,-4])
+        else:
+            raise ValueError("mdim is 3, 5 and 9 are only supported")
+        return covmat
+
+    def create_covmat(self, base_spin_n: list, base_spin_m: list):
         """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
 
         Args:
             base_spin (list): list of spin to create the covariance matrix
         """
-        base_spin = np.array(base_spin)
-        waits = np.array([0.5 if x != 0 else 1.0 for x in base_spin])
-        spin_mat =  base_spin[:,np.newaxis] - base_spin[np.newaxis,:]
-        #print(spin_mat)
+        assert len(base_spin_n) == len(base_spin_m), "base_spin_n and base_spin_m should have the same length"
+        base_spin_n = np.array(base_spin_n)
+        base_spin_m = np.array(base_spin_m)
+        waits = np.array([0.5 if x != 0 else 1.0 for x in base_spin_n])
+        spin_n_mat =  base_spin_n[:,np.newaxis] - base_spin_n[np.newaxis,:]
+        spin_m_mat =  base_spin_m[:,np.newaxis] - base_spin_m[np.newaxis,:]
+        #print(spin_m_mat)
         wait_mat = np.abs(waits[np.newaxis,:]) * np.abs(waits[:,np.newaxis])
-        covmat = np.zeros([len(base_spin),len(base_spin),self.npix], dtype=complex)
-        for i in range(len(base_spin)):
-            for j in range(len(base_spin)):
-                covmat[i,j,:] = self.get_xlink(spin_mat[i,j])*wait_mat[i,j]
+        covmat = np.zeros([len(base_spin_n),len(base_spin_n),self.npix], dtype=complex)
+        for i in range(len(base_spin_n)):
+            for j in range(len(base_spin_n)):
+                #print(spin_n_mat[i,j], spin_m_mat[i,j])
+                covmat[i,j,:] = self.get_xlink(spin_n_mat[i,j], spin_m_mat[i,j])*wait_mat[i,j]
         return covmat
 
     def t2b(self):
@@ -340,7 +418,7 @@ class ScanFields:
         result.h = (self.h*self.hitmap[:, np.newaxis] + other.h*other.hitmap[:, np.newaxis])/result.hitmap[:, np.newaxis]
         return result
 
-    def get_coupled_field(self, signal_fields: SignalFields, spin_out: int):
+    def get_coupled_field(self, signal_fields: SignalFields, spin_n_out: int, spin_m_out: int):
         """ Multiply the scan fields and signal fields to get the detected fields by
         given cross-linking
 
@@ -355,19 +433,21 @@ class ScanFields:
             results (np.ndarray): detected fields by the given cross-linking
         """
         results = []
-        for i in range(len(signal_fields.spins)):
-            n = spin_out - signal_fields.spins[i]
-            #print(f"n-n': {n}, n: {signal_fields.spins[i]}")
-            results.append(self.get_xlink(n) * signal_fields.fields[i].field)
+        for i in range(len(signal_fields.spins_n)):
+            n = spin_n_out - signal_fields.spins_n[i]
+            m = spin_m_out - signal_fields.spins_m[i]
+            print(f"n-n': {n}, n: {signal_fields.spins_n[i]}")
+            print(f"m-m': {m}, n: {signal_fields.spins_m[i]}")
+            results.append(self.get_xlink(n,m) * signal_fields.fields[i].field)
         return np.array(results).sum(0)
 
     @staticmethod
     def diff_gain_field(gain_a, gain_b, I, P):
         delta_g = gain_a - gain_b
         signal_fields = SignalFields(
-            Field(delta_g*I/2.0, spin=0),
-            Field((2.0+gain_a+gain_b)*P/4.0, spin=2),
-            Field((2.0+gain_a+gain_b)*P.conj()/4.0, spin=-2),
+            Field(delta_g*I/2.0, spin_n=0, spin_m=0),
+            Field((2.0+gain_a+gain_b)*P/4.0, spin=2, spin_m=0),
+            Field((2.0+gain_a+gain_b)*P.conj()/4.0, spin=-2, spin_m=0),
         )
         return signal_fields
 
@@ -417,11 +497,11 @@ class ScanFields:
         o_zeta = rho_T * np.exp(1j*chi_T) + 1j*rho_B * np.exp(1j*chi_B) #\overline{\zeta}
 
         spin_0_field  = Field(np.zeros(len(P)), spin=0)
-        spin_1_field  = Field(-1.0/4.0 * (zeta*eth_I + o_zeta.conj()*o_eth_P), spin=1)
+        spin_1_field  = Field(-1.0/4.0 * (zeta*eth_I + o_zeta.conj()*o_eth_P), spin_n=1, spin_m=0)
         spin_m1_field = spin_1_field.conj()
-        spin_2_field  = Field(P/2.0, spin=2)
+        spin_2_field  = Field(P/2.0, spin_n=2, spin_m=0)
         spin_m2_field = spin_2_field.conj()
-        spin_3_field  = Field(-1.0/4.0 * o_zeta * eth_P, spin=3)
+        spin_3_field  = Field(-1.0/4.0 * o_zeta * eth_P, spin_n=3, spin_m=0)
         spin_m3_field = spin_3_field.conj()
 
         diff_pointing_field = SignalFields(
@@ -478,6 +558,13 @@ class ScanFields:
         total_sf.h /= total_sf.hitmap[:, np.newaxis]
         return total_sf
 
+    def hwp_ip_field(epsilon, phi_qi, I):
+        signal_fields = SignalFields(
+            Field(epsilon/2.0 * np.exp(-1j*phi_qi)*I, spin_n=4, spin_m=-4),
+            Field(epsilon/2.0 * np.exp(1j*phi_qi)*I, spin_n=-4, spin_m=4),
+        )
+        return signal_fields
+
     def couple(self, signal_fields, mdim):
         """Get the coupled fields which is obtained by multiplication between cross-link
         and signal fields
@@ -492,24 +579,60 @@ class ScanFields:
         """
         self.mdim = mdim
 
-        sp2 = self.get_coupled_field(signal_fields, spin_out=2)
-        sm2 = self.get_coupled_field(signal_fields, spin_out=-2)
+        sp2 = self.get_coupled_field(signal_fields, spin_n_out=2, spin_m_out=0)
+        sm2 = self.get_coupled_field(signal_fields, spin_n_out=-2, spin_m_out=0)
         if self.mdim==2:
             coupled_fields = np.array([sp2/2.0, sm2/2.0])
         elif self.mdim==3:
-            s_0 = self.get_coupled_field(signal_fields, spin_out=0)
+            s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
             coupled_fields = np.array([s_0, sp2/2.0, sm2/2.0])
         elif self.mdim==5:
-            s_0 = self.get_coupled_field(signal_fields, spin_out=0)
-            sp1 = self.get_coupled_field(signal_fields, spin_out=1)
-            sm1 = self.get_coupled_field(signal_fields, spin_out=-1)
+            s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+            sp1 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
+            sm1 = self.get_coupled_field(signal_fields, spin_n_out=-1, spin_m_out=0)
             coupled_fields = np.array([s_0, sp1/2.0, sm1/2.0, sp2/2.0, sm2/2.0])
         elif self.mdim==7:
-            s_0 = self.get_coupled_field(signal_fields, spin_out=0)
-            sp1 = self.get_coupled_field(signal_fields, spin_out=1)
-            sm1 = self.get_coupled_field(signal_fields, spin_out=-1)
-            sp3 = self.get_coupled_field(signal_fields, spin_out=3)
-            sm3 = self.get_coupled_field(signal_fields, spin_out=-3)
+            s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+            sp1 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
+            sm1 = self.get_coupled_field(signal_fields, spin_n_out=-1, spin_m_out=0)
+            sp3 = self.get_coupled_field(signal_fields, spin_n_out=3, spin_m_out=0)
+            sm3 = self.get_coupled_field(signal_fields, spin_n_out=-3, spin_m_out=0)
+            coupled_fields = np.array([s_0, sp1/2.0, sm1/2.0, sp2/2.0, sm2/2.0, sp3/2.0, sm3/2.0])
+        else:
+            raise ValueError("mdim is 2, 3, 5 and 7 only supported")
+        self.coupled_fields = coupled_fields
+
+    def couple_hwp(self, signal_fields, mdim):
+        """Get the coupled fields which is obtained by multiplication between cross-link
+        and signal fields
+
+        Args:
+            signal_fields (SignalFields): signal fields data of the detector
+
+            mdim (int): dimension of the system (here, the map)
+
+        Returns:
+            compled_fields (np.ndarray)
+        """
+        self.mdim = mdim
+
+        sp2m4 = self.get_coupled_field(signal_fields, spin_n_out=2, spin_m_out=-4)
+        sm2p4 = self.get_coupled_field(signal_fields, spin_n_out=-2, spin_m_out=4)
+        if self.mdim==3:
+            s_00 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+            coupled_fields = np.array([s_00, sp2m4/2.0, sm2p4/2.0])
+        elif self.mdim==5:
+            s_00 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+            sm1p0 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
+            sp1m0 = self.get_coupled_field(signal_fields, spin_n_out=-1, spin_m_out=0)
+            coupled_fields = np.array([s_00, sm1p0/2.0, sp1m0/2.0, sp2m4/2.0, sm2p4/2.0])
+        elif self.mdim==9:
+            s_00 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+            sm1p0 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
+            sp1m0 = self.get_coupled_field(signal_fields, spin_n_out=-1, spin_m_out=0)
+            # 以下調整必要 0926ここまで
+            sp3 = self.get_coupled_field(signal_fields, spin_n_out=3, spin_m_out=0)
+            sm3 = self.get_coupled_field(signal_fields, spin_n_out=-3, spin_m_out=0)
             coupled_fields = np.array([s_0, sp1/2.0, sm1/2.0, sp2/2.0, sm2/2.0, sp3/2.0, sm3/2.0])
         else:
             raise ValueError("mdim is 2, 3, 5 and 7 only supported")
