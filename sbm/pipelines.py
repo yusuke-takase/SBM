@@ -100,7 +100,7 @@ def sim_diff_gain_per_ch(
         with Pool() as pool:
             for i,result in enumerate(tqdm(pool.imap(process_gain, file_args), total=len(file_args), desc=f"Processing {config.channel}")):
                 observed_map += result["map"]
-                noise_map += _sf.generate_noise(config.mdim, seed=None)
+                noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
                 sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
     else:
         for i, filename in enumerate(tqdm(filenames, desc=f"Processing {config.channel}")):
@@ -108,7 +108,7 @@ def sim_diff_gain_per_ch(
             diff_gain_signal = ScanFields.diff_gain_field(gain_t[i], gain_b[i], I, P)
             output = sf.map_make(diff_gain_signal, config.mdim)
             observed_map += output
-            noise_map += _sf.generate_noise(config.mdim, seed=None)
+            noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
             xlink2 = np.abs(sf.get_xlink(2))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
     observed_map = np.array(observed_map)/sky_weight
@@ -197,7 +197,7 @@ def sim_diff_pointing_per_ch(
             for i,result in enumerate(tqdm(pool.imap(process_pointing, file_args), total=len(file_args), desc=f"Processing {config.channel}")):
                 observed_maps += result["map"]
                 sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
-                noise_map += _sf.generate_noise(config.mdim, seed=None)
+                noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
     else:
         for i, filename in enumerate(tqdm(filenames, desc=f"Processing {config.channel}")):
             sf = ScanFields.load_det(filename, base_path=dirpath)
@@ -206,7 +206,7 @@ def sim_diff_pointing_per_ch(
             xlink2 = np.abs(sf.get_xlink(2))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
             observed_maps += output
-            noise_map += _sf.generate_noise(config.mdim, seed=None)
+            noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
     observed_maps = np.array(observed_maps)/sky_weight
     noise_map = np.array(noise_map)/sky_weight
     return observed_maps, noise_map
