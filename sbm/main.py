@@ -272,8 +272,8 @@ class ScanFields:
         self.h = np.zeros_like(self.h)
         self.nside = hp.npix2nside(len(self.hitmap))
         self.npix = hp.nside2npix(self.nside)
-        self.spins_n = np.zeros_like(self.spins_n)
-        self.spins_m = np.zeros_like(self.spins_m)
+        #self.spins_n = self.spins_n
+        #self.spins_m = self.spins_m
         self.mdim = mdim
         self.ndet = 0
         self.coupled_fields = np.zeros([self.mdim, self.npix], dtype=np.complex128)
@@ -337,6 +337,7 @@ class ScanFields:
         """
         if spin_n == 0 and spin_m == 0:
             return np.ones_like(self.h[:, 0, 0]) + 1j * np.zeros_like(self.h[:, 0, 0])
+        #print("n: ", spin_n, "m: ", spin_m)
         idx_n = np.where(self.spins_n == abs(spin_n))[0][0]
         idx_m = np.where(self.spins_m == abs(spin_m))[0][0]
         result = self.h[:, idx_m, idx_n]
@@ -465,6 +466,7 @@ class ScanFields:
         total_sf.initialize(mdim)
         total_sf.ndet = len(filenames)
         total_sf.use_hwp = False
+        total_sf.spins_n
         assert input_map.shape == (3,len(total_sf.hitmap))
         I = input_map[0]
         P = input_map[1] + 1j*input_map[2]
