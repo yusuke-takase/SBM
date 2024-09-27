@@ -400,7 +400,7 @@ class ScanFields:
         It assume top and bottom detector make a orthogonal pair.
         """
         class_copy = copy.deepcopy(self)
-        class_copy.h *= np.exp(-1j * self.spins * (np.pi / 2))
+        class_copy.h *= np.exp(-1j * self.spins_n * (np.pi / 2))
         return class_copy
 
     def __add__(self, other):
@@ -412,7 +412,7 @@ class ScanFields:
             return NotImplemented
         result = copy.deepcopy(self)
         result.hitmap += other.hitmap
-        result.h = (self.h*self.hitmap[:, np.newaxis] + other.h*other.hitmap[:, np.newaxis])/result.hitmap[:, np.newaxis]
+        result.h = (self.h*self.hitmap[:,np.newaxis,np.newaxis] + other.h*other.hitmap[:,np.newaxis,np.newaxis])/result.hitmap[:,np.newaxis,np.newaxis]
         return result
 
     def get_coupled_field(self, signal_fields: SignalFields, spin_n_out: int, spin_m_out: int):

@@ -39,7 +39,7 @@ def process_gain(args):
     result = {
         "hitmap": sf.hitmap,
         "map": output,
-        "xlink2": np.abs(sf.get_xlink(2)),
+        "xlink2": np.abs(sf.get_xlink(2,0)),
         }
     return result
 
@@ -51,7 +51,7 @@ def process_pointing(args):
     result = {
         "hitmap": sf.hitmap,
         "map": output,
-        "xlink2": np.abs(sf.get_xlink(2)),
+        "xlink2": np.abs(sf.get_xlink(2,0)),
         }
     return result
 
@@ -229,7 +229,7 @@ def sim_diff_pointing_per_ch(
             sf = ScanFields.load_det(filename, base_path=dirpath)
             diff_signal = ScanFields.diff_pointing_field(rho_t[i],rho_b[i],chi_t[i],chi_b[i],P,eth_I,eth_P,o_eth_P)
             output = sf.map_make(diff_signal, config.mdim)
-            xlink2 = np.abs(sf.get_xlink(2))
+            xlink2 = np.abs(sf.get_xlink(2,0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
             observed_maps += output
             noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
