@@ -8,9 +8,9 @@ import os
 class TestSBM(unittest.TestCase):
     def setUp(self):
         print(f"Current directory: {os.getcwd()}")
-        self.base_path = "maps"
-        self.scan_field = ScanFields.load_det("nside128_boresight", self.base_path)
-        self.input_map = hp.read_map("maps/cmb_0000_nside_128_seed_33.fits", field=(0,1,2)) * 1e6
+        self.scan_field = ScanFields.load_det("nside_32_boresight_hwp", "tests")
+        inputmap = hp.read_map("maps/cmb_0000_nside_128_seed_33.fits", field=(0,1,2)) * 1e6
+        self.input_map = hp.ud_grade(inputmap, self.scan_field.nside)
         self.nside = hp.npix2nside(len(self.input_map[0]))
 
     def test_diff_gain(self, save_output_map=False):
@@ -25,9 +25,9 @@ class TestSBM(unittest.TestCase):
         print(f"P.shape: {P.shape}")
 
         signal_field = SignalFields(
-            Field(delta_g*I/2, spin=0),
-            Field((2.0+g_a+g_b)*P/4, spin=2),
-            Field((2.0+g_a+g_b)*P.conj()/4, spin=-2),
+            Field(delta_g*I/2, spin_n=0, spin_m=0),
+            Field((2.0+g_a+g_b)*P/4, spin_n=2, spin_m=0),
+            Field((2.0+g_a+g_b)*P.conj()/4, spin_n=-2, spin_m=0),
         )
         mdim = 2
         output_map = self.scan_field.map_make(signal_field, mdim=mdim)
@@ -59,12 +59,12 @@ class TestSBM(unittest.TestCase):
         zeta   = rho_T * np.exp(1j*chi_T) - 1j*rho_B * np.exp(1j*chi_B)
         o_zeta = rho_T * np.exp(1j*chi_T) + 1j*rho_B * np.exp(1j*chi_B) #\overline{\zeta}
 
-        spin_0_field  = Field(np.zeros(len(P)), spin=0)
-        spin_1_field  = Field(-1.0/4.0 * (zeta*eth_I + o_zeta.conj()*o_eth_P), spin=1)
+        spin_0_field  = Field(np.zeros(len(P)), spin_n=0, spin_m=0)
+        spin_1_field  = Field(-1.0/4.0 * (zeta*eth_I + o_zeta.conj()*o_eth_P), spin_n=1, spin_m=0)
         spin_m1_field = spin_1_field.conj()
-        spin_2_field  = Field(P/2.0, spin=2)
+        spin_2_field  = Field(P/2.0, spin_n=2, spin_m=0)
         spin_m2_field = spin_2_field.conj()
-        spin_3_field  = Field(-1.0/4.0 * o_zeta * eth_P, spin=3)
+        spin_3_field  = Field(-1.0/4.0 * o_zeta * eth_P, spin_n=3, spin_m=0)
         spin_m3_field = spin_3_field.conj()
 
         signal_field = SignalFields(
