@@ -128,6 +128,7 @@ class ScanFields:
         self.spins_n = []
         self.spins_m = []
         self.compled_fields = None
+        self.use_hwp = None
         self.nside = None
         self.npix = None
         self.mdim = None
@@ -214,8 +215,8 @@ class ScanFields:
         for filename in filenames:
             sf = cls.load_det(filename, base_path=dirpath)
             instance.hitmap += sf.hitmap
-            instance.h += sf.hitmap[:, np.newaxis] * sf.h
-        instance.h /= instance.hitmap[:, np.newaxis]
+            instance.h += sf.hitmap[:, np.newaxis, np.newaxis] * sf.h
+        instance.h /= instance.hitmap[:, np.newaxis, np.newaxis]
         instance.spins_n = first_sf.spins_n
         instance.spins_m = first_sf.spins_m
         return instance
@@ -257,11 +258,11 @@ class ScanFields:
         ndet = 0
         for sf in crosslink_channels:
             hitmap += sf.hitmap
-            h += sf.hitmap[:, np.newaxis] * sf.h
+            h += sf.hitmap[:, np.newaxis, np.newaxis] * sf.h
             ndet += sf.ndet
         instance.ndet = ndet
         instance.hitmap = hitmap
-        instance.h = h / hitmap[:, np.newaxis]
+        instance.h = h / hitmap[:, np.newaxis, np.newaxis]
         instance.spins_n = crosslink_channels[0].spins_n
         instance.spins_m = crosslink_channels[0].spins_m
         return instance
@@ -349,32 +350,27 @@ class ScanFields:
         Args:
             mdim (int): dimension of the covariance matrix.
         """
-        if mdim == 2:
-            covmat = self.create_covmat([2,-2], [0,0])
-        elif mdim == 3:
-            covmat = self.create_covmat([0,2,-2], [0,0,0])
-        elif mdim == 5:
-            covmat = self.create_covmat([0,1,-1,2,-2], [0,0,0,0,0])
-        elif mdim == 7:
-            covmat = self.create_covmat([0,1,-1,2,-2,3,-3], [0,0,0,0,0,0,0])
+        if self.use_hwp == False:
+            if mdim == 2:
+                covmat = self.create_covmat([2,-2], [0,0])
+            elif mdim == 3:
+                covmat = self.create_covmat([0,2,-2], [0,0,0])
+            elif mdim == 5:
+                covmat = self.create_covmat([0,1,-1,2,-2], [0,0,0,0,0])
+            elif mdim == 7:
+                covmat = self.create_covmat([0,1,-1,2,-2,3,-3], [0,0,0,0,0,0,0])
+            else:
+                raise ValueError("mdim is 2, 3, 5 and 7 are only supported")
+            return covmat
         else:
-            raise ValueError("mdim is 2, 3, 5 and 7 are only supported")
-        return covmat
-
-    def get_covmat_hwp(self, mdim):
-        """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
-
-        Args:
-            mdim (int): dimension of the covariance matrix.
-        """
-        if mdim == 3:
-            covmat = self.create_covmat([0,-2,2], [0,4,-4])
-        elif mdim == 5:
-            covmat = self.create_covmat([0,-1,1,-2,2], [0,0,0,4,-4])
-        elif mdim == 9:
-            covmat = self.create_covmat([0,-1,1,-2,2,-3,3,-1,1], [0,0,0,4,-4,4,-4,4,-4])
-        else:
-            raise ValueError("mdim is 3, 5 and 9 are only supported")
+            if mdim == 3:
+                covmat = self.create_covmat([0,-2,2], [0,4,-4])
+            elif mdim == 5:
+                    covmat = self.create_covmat([0,-1,1,-2,2], [0,0,0,4,-4])
+            elif mdim == 9:
+                    covmat = self.create_covmat([0,-1,1,-2,2,-3,3,-1,1], [0,0,0,4,-4,4,-4,4,-4])
+            else:
+                raise ValueError("mdim is 3, 5 and 9 are only supported")
         return covmat
 
     def create_covmat(self, base_spin_n: list, base_spin_m: list):
@@ -436,8 +432,8 @@ class ScanFields:
         for i in range(len(signal_fields.spins_n)):
             n = spin_n_out - signal_fields.spins_n[i]
             m = spin_m_out - signal_fields.spins_m[i]
-            print(f"n-n': {n}, n: {signal_fields.spins_n[i]}")
-            print(f"m-m': {m}, n: {signal_fields.spins_m[i]}")
+            #print(f"n-n': {n}, n: {signal_fields.spins_n[i]}")
+            #print(f"m-m': {m}, n: {signal_fields.spins_m[i]}")
             results.append(self.get_xlink(n,m) * signal_fields.fields[i].field)
         return np.array(results).sum(0)
 
@@ -446,8 +442,8 @@ class ScanFields:
         delta_g = gain_a - gain_b
         signal_fields = SignalFields(
             Field(delta_g*I/2.0, spin_n=0, spin_m=0),
-            Field((2.0+gain_a+gain_b)*P/4.0, spin=2, spin_m=0),
-            Field((2.0+gain_a+gain_b)*P.conj()/4.0, spin=-2, spin_m=0),
+            Field((2.0+gain_a+gain_b)*P/4.0, spin_n=2, spin_m=0),
+            Field((2.0+gain_a+gain_b)*P.conj()/4.0, spin_n=-2, spin_m=0),
         )
         return signal_fields
 
@@ -468,6 +464,7 @@ class ScanFields:
         total_sf = cls.load_det(filenames[0], base_path=dirpath)
         total_sf.initialize(mdim)
         total_sf.ndet = len(filenames)
+        total_sf.use_hwp = False
         assert input_map.shape == (3,len(total_sf.hitmap))
         I = input_map[0]
         P = input_map[1] + 1j*input_map[2]
@@ -476,10 +473,10 @@ class ScanFields:
             signal_fields = ScanFields.diff_gain_field(gain_a[i], gain_b[i], I, P)
             sf.couple(signal_fields, mdim)
             total_sf.hitmap += sf.hitmap
-            total_sf.h += sf.h * sf.hitmap[:, np.newaxis]
+            total_sf.h += sf.h * sf.hitmap[:, np.newaxis, np.newaxis]
             total_sf.coupled_fields += sf.coupled_fields * sf.hitmap
         total_sf.coupled_fields /= total_sf.hitmap
-        total_sf.h /= total_sf.hitmap[:, np.newaxis]
+        total_sf.h /= total_sf.hitmap[:, np.newaxis, np.newaxis]
         return total_sf
 
     @staticmethod
@@ -496,7 +493,7 @@ class ScanFields:
         zeta   = rho_T * np.exp(1j*chi_T) - 1j*rho_B * np.exp(1j*chi_B)
         o_zeta = rho_T * np.exp(1j*chi_T) + 1j*rho_B * np.exp(1j*chi_B) #\overline{\zeta}
 
-        spin_0_field  = Field(np.zeros(len(P)), spin=0)
+        spin_0_field  = Field(np.zeros(len(P)), spin_n=0, spin_m=0)
         spin_1_field  = Field(-1.0/4.0 * (zeta*eth_I + o_zeta.conj()*o_eth_P), spin_n=1, spin_m=0)
         spin_m1_field = spin_1_field.conj()
         spin_2_field  = Field(P/2.0, spin_n=2, spin_m=0)
@@ -534,6 +531,7 @@ class ScanFields:
         total_sf = cls.load_det(filenames[0], base_path=dirpath)
         total_sf.initialize(mdim)
         total_sf.ndet = len(filenames)
+        total_sf.use_hwp = False
         assert input_map.shape == (3,len(total_sf.hitmap))
 
         I = input_map[0]
@@ -552,10 +550,10 @@ class ScanFields:
             signal_fields = ScanFields.diff_pointing_field(rho_T[i], rho_B[i], chi_T[i], chi_B[i], P, eth_I, eth_P, o_eth_P)
             sf.couple(signal_fields, mdim)
             total_sf.hitmap += sf.hitmap
-            total_sf.h += sf.h * sf.hitmap[:, np.newaxis]
+            total_sf.h += sf.h * sf.hitmap[:, np.newaxis, np.newaxis]
             total_sf.coupled_fields += sf.coupled_fields * sf.hitmap
         total_sf.coupled_fields /= total_sf.hitmap
-        total_sf.h /= total_sf.hitmap[:, np.newaxis]
+        total_sf.h /= total_sf.hitmap[:, np.newaxis, np.newaxis]
         return total_sf
 
     def hwp_ip_field(epsilon, phi_qi, I):
@@ -565,7 +563,7 @@ class ScanFields:
         )
         return signal_fields
 
-    def couple(self, signal_fields, mdim):
+    def couple(self, signal_fields: SignalFields, mdim):
         """Get the coupled fields which is obtained by multiplication between cross-link
         and signal fields
 
@@ -579,63 +577,51 @@ class ScanFields:
         """
         self.mdim = mdim
 
-        sp2 = self.get_coupled_field(signal_fields, spin_n_out=2, spin_m_out=0)
-        sm2 = self.get_coupled_field(signal_fields, spin_n_out=-2, spin_m_out=0)
-        if self.mdim==2:
-            coupled_fields = np.array([sp2/2.0, sm2/2.0])
-        elif self.mdim==3:
-            s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
-            coupled_fields = np.array([s_0, sp2/2.0, sm2/2.0])
-        elif self.mdim==5:
-            s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
-            sp1 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
-            sm1 = self.get_coupled_field(signal_fields, spin_n_out=-1, spin_m_out=0)
-            coupled_fields = np.array([s_0, sp1/2.0, sm1/2.0, sp2/2.0, sm2/2.0])
-        elif self.mdim==7:
-            s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
-            sp1 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
-            sm1 = self.get_coupled_field(signal_fields, spin_n_out=-1, spin_m_out=0)
-            sp3 = self.get_coupled_field(signal_fields, spin_n_out=3, spin_m_out=0)
-            sm3 = self.get_coupled_field(signal_fields, spin_n_out=-3, spin_m_out=0)
-            coupled_fields = np.array([s_0, sp1/2.0, sm1/2.0, sp2/2.0, sm2/2.0, sp3/2.0, sm3/2.0])
+        if np.all(signal_fields.spins_m == 0):
+            self.use_hwp = False
         else:
-            raise ValueError("mdim is 2, 3, 5 and 7 only supported")
-        self.coupled_fields = coupled_fields
-
-    def couple_hwp(self, signal_fields, mdim):
-        """Get the coupled fields which is obtained by multiplication between cross-link
-        and signal fields
-
-        Args:
-            signal_fields (SignalFields): signal fields data of the detector
-
-            mdim (int): dimension of the system (here, the map)
-
-        Returns:
-            compled_fields (np.ndarray)
-        """
-        self.mdim = mdim
-
-        sp2m4 = self.get_coupled_field(signal_fields, spin_n_out=2, spin_m_out=-4)
-        sm2p4 = self.get_coupled_field(signal_fields, spin_n_out=-2, spin_m_out=4)
-        if self.mdim==3:
-            s_00 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
-            coupled_fields = np.array([s_00, sp2m4/2.0, sm2p4/2.0])
-        elif self.mdim==5:
-            s_00 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
-            sm1p0 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
-            sp1m0 = self.get_coupled_field(signal_fields, spin_n_out=-1, spin_m_out=0)
-            coupled_fields = np.array([s_00, sm1p0/2.0, sp1m0/2.0, sp2m4/2.0, sm2p4/2.0])
-        elif self.mdim==9:
-            s_00 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
-            sm1p0 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
-            sp1m0 = self.get_coupled_field(signal_fields, spin_n_out=-1, spin_m_out=0)
-            # 以下調整必要 0926ここまで
-            sp3 = self.get_coupled_field(signal_fields, spin_n_out=3, spin_m_out=0)
-            sm3 = self.get_coupled_field(signal_fields, spin_n_out=-3, spin_m_out=0)
-            coupled_fields = np.array([s_0, sp1/2.0, sm1/2.0, sp2/2.0, sm2/2.0, sp3/2.0, sm3/2.0])
+            self.use_hwp = True
+        if self.use_hwp == False:
+            sp2 = self.get_coupled_field(signal_fields, spin_n_out=2, spin_m_out=0)
+            if self.mdim==2:
+                coupled_fields = np.array([sp2/2.0, sp2.conj()/2.0])
+            elif self.mdim==3:
+                s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+                coupled_fields = np.array([s_0, sp2/2.0, sp2.conj()/2.0])
+            elif self.mdim==5:
+                s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+                sp1 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
+                coupled_fields = np.array([s_0, sp1/2.0, sp1.conj()/2.0, sp2/2.0, sp2.conj()/2.0])
+            elif self.mdim==7:
+                s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+                sp1 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
+                sp3 = self.get_coupled_field(signal_fields, spin_n_out=3, spin_m_out=0)
+                coupled_fields = np.array([s_0, sp1/2.0, sp1.conj()/2.0, sp2/2.0, sp2.conj()/2.0, sp3/2.0, sp3.conj()/2.0])
+            else:
+                raise ValueError("mdim is 2, 3, 5 and 7 only supported")
         else:
-            raise ValueError("mdim is 2, 3, 5 and 7 only supported")
+            sp2m4 = self.get_coupled_field(signal_fields, spin_n_out=2, spin_m_out=-4)
+            if self.mdim==3:
+                s_00 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+                coupled_fields = np.array([s_00, sp2m4/2.0, sp2m4.conj()/2.0])
+            elif self.mdim==5:
+                # for pointing offset
+                s_00 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+                sp1_0 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
+                coupled_fields = np.array([s_00, sp1_0/2.0, sp1_0.conj()/2.0, sp2m4/2.0, sp2m4.conj()/2.0])
+            elif self.mdim==9:
+                # for pointing offset
+                s_00 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+                sp1_0 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
+                sp3m4 = self.get_coupled_field(signal_fields, spin_n_out=3, spin_m_out=-4)
+                sp1m4 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=-4)
+                coupled_fields = np.array([s_00,
+                                        sp1_0/2.0, sp1_0.conj()/2.0,
+                                        sp2m4/2.0, sp2m4.conj()/2.0,
+                                        sp3m4/2.0, sp3m4.conj()/2.0,
+                                        sp1m4/2.0, sp1m4.copnj()/2.0])
+            else:
+                raise ValueError("mdim is 2, 3, 5 and 7 only supported")
         self.coupled_fields = coupled_fields
 
     def map_make(self, signal_fields, mdim, only_iqu=False):
@@ -647,18 +633,24 @@ class ScanFields:
 
             mdim (int): dimension of the liner system
 
+            only_iqu (bool): if True, return only I, Q, U map
+
         Returns:
             output_map (np.ndarray, [`mdim`, `npix`])
         """
         self.mdim = mdim
         self.couple(signal_fields, mdim=mdim)
         b = self.coupled_fields
-        A = self.get_covmat(mdim)
         x = np.zeros_like(b)
-        xlink2 = np.abs(self.get_xlink(2))
-        for i in range(self.npix):
-            #if self.hitmap[i] >= 4:
-            if xlink2[i] < 0.7:
+        if self.use_hwp == False:
+            A = self.get_covmat(mdim)
+            xlink2 = np.abs(self.get_xlink(2,0))
+            for i in range(self.npix):
+                if xlink2[i] < 0.7:
+                    x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+        else:
+            A = self.get_covmat_hwp(mdim)
+            for i in range(self.npix):
                 x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if mdim == 2:
             # output_map =        [Fake I                  , Q        , U        ]
@@ -683,11 +675,17 @@ class ScanFields:
         """
         assert self.coupled_fields is not None, "Couple the fields first by `ScanFields.couple()` method."
         b = self.coupled_fields
-        A = self.get_covmat(self.mdim)
         x = np.zeros_like(b)
-        xlink2 = np.abs(self.get_xlink(2))
-        for i in range(b.shape[1]):
-            if xlink2[i] < 0.7:
+
+        if self.use_hwp == False:
+            A = self.get_covmat(self.mdim)
+            xlink2 = np.abs(self.get_xlink(2,0))
+            for i in range(b.shape[1]):
+                if xlink2[i] < 0.7:
+                    x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+        else:
+            A = self.get_covmat(self.mdim)
+            for i in range(b.shape[1]):
                 x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if self.mdim == 2:
             # output_map =        [Fake I                  , Q        , U        ]
