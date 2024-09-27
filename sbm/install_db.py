@@ -47,12 +47,14 @@ def gen_jsonfile(base_path):
     nside = int(scan_field.nside)
     duration = int(scan_field.duration)
     scan_strategy = scan_field.ss
-    considered_spin = scan_field.spins
+    considered_spin_n = scan_field.spins_n
+    considered_spin_m = scan_field.spins_m
     scaninfo = {
         "nside": nside,
         "duration": duration,
         "scan_strategy": scan_strategy,
-        "considered_spin": considered_spin
+        "considered_spin_n": considered_spin_n,
+        "considered_spin_m": considered_spin_m,
     }
     with open(os.path.join(base_path, "sim_config.json"), 'w') as f:
         json.dump(scaninfo, f, indent=4, default=custom_encoder)
