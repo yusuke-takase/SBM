@@ -101,8 +101,8 @@ def sim_diff_gain_per_ch(
 
     _sf = ScanFields.load_det(filenames[0], base_path=dirpath)
     _sf.generate_noise_pdf(config.imo, scale=2.0)
-    observed_map = np.zeros([config.mdim, npix])
-    noise_map = np.zeros([config.mdim, npix])
+    observed_map = np.zeros([3, npix])
+    noise_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
     if config.parallel == True:
         file_args = [(i, filename, dirpath, gain_t, gain_b, I, P, config.mdim, config.only_iqu) for i, filename in enumerate(filenames)]
@@ -190,11 +190,8 @@ def sim_diff_pointing_per_ch(
 
     _sf = ScanFields.load_det(filenames[0], base_path=dirpath)
     _sf.generate_noise_pdf(config.imo, scale=2.0) # scale=2.0 i.e. consider differential detection
-    noise_map = np.zeros([config.mdim, npix])
-    if config.only_iqu == True:
-        observed_maps = np.zeros([3, npix])
-    else:
-        observed_maps = np.zeros([3, npix])
+    noise_map = np.zeros([3, npix])
+    observed_maps = np.zeros([3, npix])
 
     sky_weight = np.zeros(npix)
     if config.parallel == True:
