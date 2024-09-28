@@ -32,10 +32,10 @@ class Systematics:
         self.noise_seed = None
 
 def process_gain(args):
-    i, filename, dirpath, gain_t, gain_b, I, P, mdim = args
+    i, filename, dirpath, gain_t, gain_b, I, P, mdim, only_iqu = args
     sf = ScanFields.load_det(filename, dirpath)
     diff_gain_signal = ScanFields.diff_gain_field(gain_t[i], gain_b[i], I, P)
-    output = sf.map_make(diff_gain_signal, mdim)
+    output = sf.map_make(diff_gain_signal, mdim, only_iqu)
     result = {
         "hitmap": sf.hitmap,
         "map": output,
@@ -44,10 +44,10 @@ def process_gain(args):
     return result
 
 def process_pointing(args):
-    i,filename,dirpath,rho_t,rho_b,chi_t,chi_b,P,eth_I,eth_P,o_eth_P, mdim,only_iqu = args
+    i,filename,dirpath,rho_t,rho_b,chi_t,chi_b,P,eth_I,eth_P,o_eth_P, mdim, only_iqu = args
     sf = ScanFields.load_det(filename, dirpath)
     diff_signal = ScanFields.diff_pointing_field(rho_t[i],rho_b[i],chi_t[i],chi_b[i],P,eth_I,eth_P,o_eth_P)
-    output = sf.map_make(diff_signal, mdim, only_iqu=only_iqu)
+    output = sf.map_make(diff_signal, mdim, only_iqu)
     result = {
         "hitmap": sf.hitmap,
         "map": output,
@@ -101,11 +101,11 @@ def sim_diff_gain_per_ch(
 
     _sf = ScanFields.load_det(filenames[0], base_path=dirpath)
     _sf.generate_noise_pdf(config.imo, scale=2.0)
-    observed_map = np.zeros([config.mdim, npix])
-    noise_map = np.zeros([config.mdim, npix])
+    observed_map = np.zeros([3, npix])
+    noise_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
     if config.parallel == True:
-        file_args = [(i, filename, dirpath, gain_t, gain_b, I, P, config.mdim) for i, filename in enumerate(filenames)]
+        file_args = [(i, filename, dirpath, gain_t, gain_b, I, P, config.mdim, config.only_iqu) for i, filename in enumerate(filenames)]
         with Pool() as pool:
             for i, result in enumerate(tqdm(pool.imap(process_gain, file_args),
                                             total=len(file_args),
@@ -116,10 +116,13 @@ def sim_diff_gain_per_ch(
                 noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
                 sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
     else:
-        for i, filename in enumerate(tqdm(filenames, desc=f"{GREEN}Processing {config.channel}{RESET}", bar_format='{l_bar}{bar:10}{r_bar}', colour='green')):
+        for i, filename in enumerate(tqdm(filenames,
+                                          desc=f"{GREEN}Processing {config.channel}{RESET}",
+                                          bar_format='{l_bar}{bar:10}{r_bar}',
+                                          colour='green')):
             sf = ScanFields.load_det(filename, base_path=dirpath)
             diff_gain_signal = ScanFields.diff_gain_field(gain_t[i], gain_b[i], I, P)
-            output = sf.map_make(diff_gain_signal, config.mdim)
+            output = sf.map_make(diff_gain_signal, config.mdim, config.only_iqu)
             observed_map += output
             noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
             xlink2 = np.abs(sf.get_xlink(2))
@@ -187,11 +190,8 @@ def sim_diff_pointing_per_ch(
 
     _sf = ScanFields.load_det(filenames[0], base_path=dirpath)
     _sf.generate_noise_pdf(config.imo, scale=2.0) # scale=2.0 i.e. consider differential detection
-    noise_map = np.zeros([config.mdim, npix])
-    if config.only_iqu == True:
-        observed_maps = np.zeros([3, npix])
-    else:
-        observed_maps = np.zeros([3, npix])
+    noise_map = np.zeros([3, npix])
+    observed_maps = np.zeros([3, npix])
 
     sky_weight = np.zeros(npix)
     if config.parallel == True:
@@ -228,7 +228,7 @@ def sim_diff_pointing_per_ch(
                                           bar_format='{l_bar}{bar:10}{r_bar}', colour='green')):
             sf = ScanFields.load_det(filename, base_path=dirpath)
             diff_signal = ScanFields.diff_pointing_field(rho_t[i],rho_b[i],chi_t[i],chi_b[i],P,eth_I,eth_P,o_eth_P)
-            output = sf.map_make(diff_signal, config.mdim)
+            output = sf.map_make(diff_signal, config.mdim, config.only_iqu)
             xlink2 = np.abs(sf.get_xlink(2,0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
             observed_maps += output

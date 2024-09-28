@@ -573,7 +573,7 @@ class ScanFields:
                 raise ValueError("mdim is 2, 3, 5 and 7 only supported")
         self.coupled_fields = coupled_fields
 
-    def map_make(self, signal_fields, mdim, only_iqu=False):
+    def map_make(self, signal_fields, mdim, only_iqu=True):
         """Get the output map by solving the linear equation Ax=b
         This operation gives us an equivalent result of the simple binning map-making aproach
 
@@ -780,7 +780,7 @@ class ScanFields:
             seed (int): seed for the random number generator
 
         Returns:
-            noise (np.ndarray): noise map
+            noise (np.ndarray) [3,npix]: noise map
         """
         assert self.noise_pdf is not None, "Generate noise pdf first by `ScanField.generate_noise_pdf()` method."
         if self.covmat_inv is None or self.covmat_inv.shape[0] != mdim:
