@@ -330,13 +330,14 @@ class ScanFields:
         assert spin_m in self.spins_m, f"spin_m={spin_m} is not in the spins_m={self.spins_m}"
         if spin_n == 0 and spin_m == 0:
             return np.ones_like(self.h[:, 0, 0]) + 1j * np.zeros_like(self.h[:, 0, 0])
-        idx_n = np.where(self.spins_n == abs(spin_n))[0][0]
-        idx_m = np.where(self.spins_m == spin_m)[0][0]
-        #print(f"(m,n)=({spin_m},{spin_n})")
-        #print(f"h[:,{idx_m},{idx_n}]")
-        result = self.h[:, idx_m, idx_n]
-        if spin_n < 0:
-            result = result.conj()
+        if spin_n > 0:
+            idx_n = np.where(self.spins_n == np.abs(spin_n))[0][0]
+            idx_m = np.where(self.spins_m == spin_m)[0][0]
+            result = self.h[:, idx_m, idx_n]
+        else:
+            idx_n = np.where(self.spins_n == np.abs(spin_n))[0][0]
+            idx_m = np.where(self.spins_m == -spin_m)[0][0]
+            result = self.h[:, idx_m, idx_n].conj()
         return result
 
     def get_covmat(self, mdim):
@@ -726,6 +727,9 @@ class ScanFields:
         if self.mdim == 7:
             # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ,Z3^Q      , Z3^U     ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag])
+        if mdim == 9:
+            # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ,Z3^Q      , Z3^U     ,Z1^Q^4    , Z1^U^4   ]
+            output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag, x[7].real, x[7].imag])
         return output_map
 
     def generate_noise_pdf(
