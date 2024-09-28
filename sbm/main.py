@@ -435,39 +435,6 @@ class ScanFields:
         )
         return signal_fields
 
-    @classmethod
-    def sim_diff_gain_channel(
-        cls,
-        channel: str,
-        mdim: int,
-        input_map: np.ndarray,
-        gain_a: np.ndarray,
-        gain_b: np.ndarray,
-        base_path=DB_ROOT_PATH,
-        ):
-        dirpath = os.path.join(base_path, channel)
-        filenames = os.listdir(dirpath)
-        filenames = [os.path.splitext(filename)[0] for filename in filenames]
-        assert len(filenames) == len(gain_a) == len(gain_b)
-        total_sf = cls.load_det(filenames[0], base_path=dirpath)
-        total_sf.initialize(mdim)
-        total_sf.ndet = len(filenames)
-        total_sf.use_hwp = False
-        total_sf.spins_n
-        assert input_map.shape == (3,len(total_sf.hitmap))
-        I = input_map[0]
-        P = input_map[1] + 1j*input_map[2]
-        for i,filename in enumerate(filenames):
-            sf = cls.load_det(filename, base_path=dirpath)
-            signal_fields = ScanFields.diff_gain_field(gain_a[i], gain_b[i], I, P)
-            sf.couple(signal_fields, mdim)
-            total_sf.hitmap += sf.hitmap
-            total_sf.h += sf.h * sf.hitmap[:, np.newaxis, np.newaxis]
-            total_sf.coupled_fields += sf.coupled_fields * sf.hitmap
-        total_sf.coupled_fields /= total_sf.hitmap
-        total_sf.h /= total_sf.hitmap[:, np.newaxis, np.newaxis]
-        return total_sf
-
     @staticmethod
     def diff_pointing_field(
         rho_T: float,
@@ -500,50 +467,6 @@ class ScanFields:
             spin_m3_field,
         )
         return diff_pointing_field
-
-    @classmethod
-    def sim_diff_pointing_channel(
-        cls,
-        channel: str,
-        mdim: int,
-        input_map: np.ndarray,
-        rho_T: np.ndarray, # Pointing offset magnitude
-        rho_B: np.ndarray,
-        chi_T: np.ndarray, # Pointing offset direction
-        chi_B: np.ndarray,
-        base_path=DB_ROOT_PATH,
-        ):
-        dirpath = os.path.join(base_path, channel)
-        filenames = os.listdir(dirpath)
-        filenames = [os.path.splitext(filename)[0] for filename in filenames]
-        assert len(filenames) == len(rho_T) == len(chi_T) == len(rho_B) == len(chi_B)
-        total_sf = cls.load_det(filenames[0], base_path=dirpath)
-        total_sf.initialize(mdim)
-        total_sf.ndet = len(filenames)
-        total_sf.use_hwp = False
-        assert input_map.shape == (3,len(total_sf.hitmap))
-
-        I = input_map[0]
-        P = input_map[1] + 1j*input_map[2]
-        nside = hp.npix2nside(len(I))
-        dI = hp.alm2map_der1(hp.map2alm(input_map[0]), nside=nside)
-        dQ = hp.alm2map_der1(hp.map2alm(input_map[1]), nside=nside)
-        dU = hp.alm2map_der1(hp.map2alm(input_map[2]), nside=nside)
-
-        eth_I = dI[2] - 1j*dI[1]
-        eth_P   = dQ[2] + dU[1] - 1j*(dQ[1] - dU[2])
-        o_eth_P = dQ[2] - dU[1] + 1j*(dQ[1] + dU[2])
-
-        for i,filename in enumerate(filenames):
-            sf = cls.load_det(filename, base_path=dirpath)
-            signal_fields = ScanFields.diff_pointing_field(rho_T[i], rho_B[i], chi_T[i], chi_B[i], P, eth_I, eth_P, o_eth_P)
-            sf.couple(signal_fields, mdim)
-            total_sf.hitmap += sf.hitmap
-            total_sf.h += sf.h * sf.hitmap[:, np.newaxis, np.newaxis]
-            total_sf.coupled_fields += sf.coupled_fields * sf.hitmap
-        total_sf.coupled_fields /= total_sf.hitmap
-        total_sf.h /= total_sf.hitmap[:, np.newaxis, np.newaxis]
-        return total_sf
 
     @staticmethod
     def hwp_ip_field(epsilon, phi_qi, I):
@@ -731,6 +654,83 @@ class ScanFields:
             # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ,Z3^Q      , Z3^U     ,Z1^Q^4    , Z1^U^4   ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag, x[7].real, x[7].imag])
         return output_map
+
+    @classmethod
+    def sim_diff_gain_channel(
+        cls,
+        channel: str,
+        mdim: int,
+        input_map: np.ndarray,
+        gain_a: np.ndarray,
+        gain_b: np.ndarray,
+        base_path=DB_ROOT_PATH,
+        ):
+        dirpath = os.path.join(base_path, channel)
+        filenames = os.listdir(dirpath)
+        filenames = [os.path.splitext(filename)[0] for filename in filenames]
+        assert len(filenames) == len(gain_a) == len(gain_b)
+        total_sf = cls.load_det(filenames[0], base_path=dirpath)
+        total_sf.initialize(mdim)
+        total_sf.ndet = len(filenames)
+        total_sf.use_hwp = False
+        total_sf.spins_n
+        assert input_map.shape == (3,len(total_sf.hitmap))
+        I = input_map[0]
+        P = input_map[1] + 1j*input_map[2]
+        for i,filename in enumerate(filenames):
+            sf = cls.load_det(filename, base_path=dirpath)
+            signal_fields = ScanFields.diff_gain_field(gain_a[i], gain_b[i], I, P)
+            sf.couple(signal_fields, mdim)
+            total_sf.hitmap += sf.hitmap
+            total_sf.h += sf.h * sf.hitmap[:, np.newaxis, np.newaxis]
+            total_sf.coupled_fields += sf.coupled_fields * sf.hitmap
+        total_sf.coupled_fields /= total_sf.hitmap
+        total_sf.h /= total_sf.hitmap[:, np.newaxis, np.newaxis]
+        return total_sf
+
+    @classmethod
+    def sim_diff_pointing_channel(
+        cls,
+        channel: str,
+        mdim: int,
+        input_map: np.ndarray,
+        rho_T: np.ndarray, # Pointing offset magnitude
+        rho_B: np.ndarray,
+        chi_T: np.ndarray, # Pointing offset direction
+        chi_B: np.ndarray,
+        base_path=DB_ROOT_PATH,
+        ):
+        dirpath = os.path.join(base_path, channel)
+        filenames = os.listdir(dirpath)
+        filenames = [os.path.splitext(filename)[0] for filename in filenames]
+        assert len(filenames) == len(rho_T) == len(chi_T) == len(rho_B) == len(chi_B)
+        total_sf = cls.load_det(filenames[0], base_path=dirpath)
+        total_sf.initialize(mdim)
+        total_sf.ndet = len(filenames)
+        total_sf.use_hwp = False
+        assert input_map.shape == (3,len(total_sf.hitmap))
+
+        I = input_map[0]
+        P = input_map[1] + 1j*input_map[2]
+        nside = hp.npix2nside(len(I))
+        dI = hp.alm2map_der1(hp.map2alm(input_map[0]), nside=nside)
+        dQ = hp.alm2map_der1(hp.map2alm(input_map[1]), nside=nside)
+        dU = hp.alm2map_der1(hp.map2alm(input_map[2]), nside=nside)
+
+        eth_I = dI[2] - 1j*dI[1]
+        eth_P   = dQ[2] + dU[1] - 1j*(dQ[1] - dU[2])
+        o_eth_P = dQ[2] - dU[1] + 1j*(dQ[1] + dU[2])
+
+        for i,filename in enumerate(filenames):
+            sf = cls.load_det(filename, base_path=dirpath)
+            signal_fields = ScanFields.diff_pointing_field(rho_T[i], rho_B[i], chi_T[i], chi_B[i], P, eth_I, eth_P, o_eth_P)
+            sf.couple(signal_fields, mdim)
+            total_sf.hitmap += sf.hitmap
+            total_sf.h += sf.h * sf.hitmap[:, np.newaxis, np.newaxis]
+            total_sf.coupled_fields += sf.coupled_fields * sf.hitmap
+        total_sf.coupled_fields /= total_sf.hitmap
+        total_sf.h /= total_sf.hitmap[:, np.newaxis, np.newaxis]
+        return total_sf
 
     def generate_noise_pdf(
         self,
