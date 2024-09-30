@@ -9,9 +9,8 @@ from .main import (
     add_label,
     DB_ROOT_PATH,
     channel_list,
-    fwhms
+    fwhms,
 )
-
 from .pipelines import (
     Configlation,
     Systematics,
@@ -19,8 +18,13 @@ from .pipelines import (
     sim_diff_pointing_per_ch,
     sim_noise_per_ch,
 )
-
-
+from .tools import (
+    get_cmap,
+    c2d,
+    d2c,
+    load_fiducial_cl,
+    generate_cmb,
+)
 from .version import (
     __author__,
     __version__,
@@ -47,4 +51,10 @@ __all__ = [
     "sim_diff_gain_per_ch",
     "sim_diff_pointing_per_ch",
     "sim_noise_per_ch",
+    # tools.py
+    "get_cmap",
+    "c2d",
+    "d2c",
+    "load_fiducial_cl",
+    "generate_cmb",
 ]
