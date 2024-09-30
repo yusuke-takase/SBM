@@ -599,7 +599,8 @@ class ScanFields:
                     x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         else:
             for i in range(self.npix):
-                x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+                if self.hitmap[i] != 0:
+                    x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if mdim == 2:
             # output_map =        [Fake I                  , Q        , U        ]
             output_map = np.array([np.zeros_like(x[0].real), x[0].real, x[0].imag])
@@ -637,7 +638,8 @@ class ScanFields:
         else:
             A = self.get_covmat(self.mdim)
             for i in range(b.shape[1]):
-                x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+                if self.hitmap[i] != 0:
+                    x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if self.mdim == 2:
             # output_map =        [Fake I                  , Q        , U        ]
             output_map = np.array([np.zeros_like(x[0].real), x[0].real, x[0].imag])
@@ -758,7 +760,7 @@ class ScanFields:
             inst = get_instrument_table(imo, imo_version="v2")
             net_detector_ukrts = inst.loc[inst["channel"] == channel, "net_detector_ukrts"].values[0]
             net_channel_ukrts = inst.loc[inst["channel"] == channel, "net_channel_ukrts"].values[0]
-            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*self.hitmap)
+            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*self.hitmap) # hitがないpixelでzero divになる。最終的にgenerate_noise()で無視される
             sigma_p = sigma_i/np.sqrt(2.0)
             self.net_channel_ukrts = net_channel_ukrts
         else:
@@ -787,7 +789,10 @@ class ScanFields:
             cov = self.get_covmat(mdim)
             covmat_inv = np.empty_like(cov)
             for i in range(self.npix):
-                covmat_inv[:,:,i] = np.linalg.inv(cov[:,:,i])
+                if self.hitmap[i] != 0:
+                    covmat_inv[:,:,i] = np.linalg.inv(cov[:,:,i])
+                else:
+                    covmat_inv[:,:,i] = np.zeros_like(cov[:,:,i])
             self.covmat_inv = np.sqrt(covmat_inv)
         if seed:
             np.random.seed(seed)
