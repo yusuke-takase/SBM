@@ -37,3 +37,5 @@ Now, following systematics are implemented:
 
 - Differential gain
 - Differential pointing
+- Absolute pointing offset with HWP [Y. Takase et al.](https://arxiv.org/abs/2408.03040)
+- HWP non-ideality [G. Patanchon et al.](https://iopscience.iop.org/article/10.1088/1475-7516/2024/04/074)
