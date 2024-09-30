@@ -19,6 +19,12 @@ from .pipelines import (
     sim_diff_pointing_per_ch,
     sim_noise_per_ch,
 )
+from .tools import (
+    get_cmap,
+    c2d,
+    d2c,
+    load_fiducial_cl,
+)
 
 
 from .version import (
@@ -47,4 +53,9 @@ __all__ = [
     "sim_diff_gain_per_ch",
     "sim_diff_pointing_per_ch",
     "sim_noise_per_ch",
+    # tools.py
+    "get_cmap",
+    "c2d",
+    "d2c",
+    "load_fiducial_cl",
 ]
