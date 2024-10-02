@@ -151,7 +151,9 @@ def sim_diff_pointing_per_ch(
         parameters=mbsparams,
         channel_list=ch_info
     )
+    # 22個のIOが衝突してしまう
     fiducial_map = mbs.run_all()[0][config.channel]
+
     input_maps = {
         "cmb": mbs.generate_cmb()[0],
         "fg": mbs.generate_fg()[0],
