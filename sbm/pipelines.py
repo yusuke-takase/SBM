@@ -13,6 +13,7 @@ class Configlation:
     def __init__(self, imo, channel):
         self.imo = imo
         self.channel = channel
+        self.lbs_base_path = None
         self.imo_version = "v2"
         self.nside = 128
         self.mdim = 3
@@ -39,7 +40,7 @@ def process_gain(args):
     result = {
         "hitmap": sf.hitmap,
         "map": output,
-        "xlink2": np.abs(sf.get_xlink(2)),
+        "xlink2": np.abs(sf.get_xlink(2,0)),
         }
     return result
 
@@ -51,7 +52,7 @@ def process_pointing(args):
     result = {
         "hitmap": sf.hitmap,
         "map": output,
-        "xlink2": np.abs(sf.get_xlink(2)),
+        "xlink2": np.abs(sf.get_xlink(2,0)),
         }
     return result
 
@@ -63,7 +64,7 @@ def sim_diff_gain_per_ch(
 
     npix = hp.nside2npix(config.nside)
     telescope = config.channel[0]+"FT"
-    sim = lbs.Simulation(random_seed=None)
+    sim = lbs.Simulation(base_path=config.lbs_base_path, random_seed=None)
     sim.set_instrument(
         lbs.InstrumentInfo.from_imo(
             config.imo,
@@ -77,11 +78,9 @@ def sim_diff_gain_per_ch(
         channel_list=ch_info
     )
     fiducial_map = mbs.run_all()[0][config.channel]
-    cmb = mbs.generate_cmb()[0]
-    fg = mbs.generate_fg()[0]
     input_maps = {
-        "cmb": cmb,
-        "fg": fg,
+        "cmb": mbs.generate_cmb()[0],
+        "fg": mbs.generate_fg()[0],
     }
     I = fiducial_map[0]
     P = fiducial_map[1] + 1j*fiducial_map[2]
@@ -125,7 +124,7 @@ def sim_diff_gain_per_ch(
             output = sf.map_make(diff_gain_signal, config.mdim, config.only_iqu)
             observed_map += output
             noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
-            xlink2 = np.abs(sf.get_xlink(2))
+            xlink2 = np.abs(sf.get_xlink(2,0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
     observed_map = np.array(observed_map)/sky_weight
     noise_map = np.array(noise_map)/sky_weight
@@ -139,7 +138,7 @@ def sim_diff_pointing_per_ch(
 
     npix = hp.nside2npix(config.nside)
     telescope = config.channel[0]+"FT"
-    sim = lbs.Simulation(random_seed=None)
+    sim = lbs.Simulation(base_path=config.lbs_base_path, random_seed=None)
     sim.set_instrument(
         lbs.InstrumentInfo.from_imo(
             config.imo,
@@ -152,12 +151,12 @@ def sim_diff_pointing_per_ch(
         parameters=mbsparams,
         channel_list=ch_info
     )
+    # 22個のIOが衝突してしまう
     fiducial_map = mbs.run_all()[0][config.channel]
-    cmb = mbs.generate_cmb()[0]
-    fg = mbs.generate_fg()[0]
+
     input_maps = {
-        "cmb": cmb,
-        "fg": fg,
+        "cmb": mbs.generate_cmb()[0],
+        "fg": mbs.generate_fg()[0],
     }
     I = fiducial_map[0]
     P = fiducial_map[1] + 1j*fiducial_map[2]
@@ -229,12 +228,13 @@ def sim_diff_pointing_per_ch(
             sf = ScanFields.load_det(filename, base_path=dirpath)
             diff_signal = ScanFields.diff_pointing_field(rho_t[i],rho_b[i],chi_t[i],chi_b[i],P,eth_I,eth_P,o_eth_P)
             output = sf.map_make(diff_signal, config.mdim, config.only_iqu)
-            xlink2 = np.abs(sf.get_xlink(2))
+            xlink2 = np.abs(sf.get_xlink(2,0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
             observed_maps += output
             noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
     observed_maps = np.array(observed_maps)/sky_weight
     noise_map = np.array(noise_map)/sky_weight
+
     return observed_maps, noise_map, input_maps
 
 def sim_noise_per_ch(
