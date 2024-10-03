@@ -11,7 +11,7 @@ class TestSBM(unittest.TestCase):
         print(f"Current directory: {os.getcwd()}")
         self.scan_field = ScanFields.load_det("nside_32_boresight_hwp", "tests")
         #inputmap = hp.read_map("maps/cmb_0000_nside_128_seed_33.fits", field=(0,1,2)) * 1e6
-        inputmap = sbm.generate_cmb(128, r=0., smb_seed=33)
+        inputmap = sbm.generate_cmb(128, r=0., cmb_seed=33)
         self.input_map = hp.ud_grade(inputmap, self.scan_field.nside)
         self.nside = hp.npix2nside(len(self.input_map[0]))
         self.I = self.input_map[0]
