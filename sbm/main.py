@@ -37,7 +37,7 @@ fwhms = [70.5,58.5,51.1,41.6,47.1,36.9,43.8,33.0,41.5,30.2,26.3,23.7,37.8,33.6,3
 class Field:
     """ Class to store the field data of detectors """
     def __init__(self, field: np.ndarray, spin_n: int, spin_m: int):
-        """Initialize the class with field and spin data
+        """ Initialize the class with field and spin data
 
         Args:
             field (np.ndarray): field data of the detector
@@ -54,11 +54,11 @@ class Field:
         self.spin_m = spin_m
 
     def conj(self):
-        """Get the complex conjugate of the field"""
+        """ Get the complex conjugate of the field """
         return Field(self.field.conj(), -self.spin_n, -self.spin_m)
 
     def __add__(self, other):
-        """Add the field of two detectors
+        """ Add the field of two detectors
 
         Args:
             other (Field): field of the other detector
@@ -80,13 +80,12 @@ class SignalFields:
         Args:
             fields (Field): field (map) data of the signal
         """
-        #self.fields = sorted(fields, key=lambda field: field.spin)
         self.fields = sorted(fields, key=lambda field: (field.spin_n, field.spin_m))
         self.spins_n = np.array([field.spin_n for field in self.fields])
         self.spins_m = np.array([field.spin_m for field in self.fields])
 
     def get_field(self, spin_n, spin_m):
-        """Get the field of the given spin number
+        """ Get the field of the given spin number
 
         Args:
             spin_n (int): spin number for which the field is to be obtained
@@ -102,7 +101,7 @@ class SignalFields:
         return None
 
     def __add__(self, other):
-        """Add the signal fieldd
+        """ Add the signal fieldd
 
         Args:
             other (SignalFields): signal fields
@@ -123,20 +122,23 @@ class ScanFields:
         """ Initialize the class with empty data
 
         ss (dict):  of the scanning strategy parameters
-
         hitmap (np.ndarray): hitmap of the detector
-
         h (np.ndarray): cross-link (orientation function) of the detector
-
         spins_n (np.ndarray): array of spin_n numbers
-
-        spins_m (np.ndarray): array of spin_m numbers
-
-        std (np.ndarray): standard deviation of the hitmap and h
-
-        mean (np.ndarray): mean of the hitmap and h
-
-        all_channels (list): list of all the channels in the LiteBIRD
+        spins_m (np.ndarray): array of spin_m number
+        compled_fields (np.ndarray): coupled fields between scan fields and signal fields
+        use_hwp (bool): whether the observation uses HWP or not
+        nside (int): nside of the map
+        npix (int): number of pixels in the map
+        mdim (int): dimension of the liner system to do the map-making
+        ndet (int): number of detectors
+        duration (float): duration [s] of the observation
+        sampling_rate (float): sampling rate [Hz] of the observation
+        channel (str): name of the channel
+        net_detector_ukrts (float): net detector noise level [uKrts] of the detector
+        net_channel_ukrts (float): net channel noise level [uKrts] of the detectors
+        noise_pdf (np.ndarray): probability density function of the noise per sky pixel
+        covmat_inv (np.ndarray): inverse of the covariance matrix of the stokes parameters
         """
         self.ss = {}
         self.hitmap = []
@@ -162,21 +164,13 @@ class ScanFields:
         """ Load the scan fields data of a detector from a .h5 file
 
         Args:
-            filename (str): name of the .h5 file containing the scan fields data simulated by Falcons.jl
-            The fileformat requires cross-link_2407-dataset's format.
-            The file should contain the following groups:
-                - ss: scanning strategy parameters
-                - hitmap: hitmap of the detector
-                - h: cross-link (orientation function) of the detector
-                - quantify: group containing the following datasets
-                    - n: number of spins
-                    - mean: mean of the hitmap and h
-                    - std: standard deviation of the hitmap and h
+            filename (str): name of the *.h5 file containing the scan fields data simulated by Falcons.jl
 
-            base_path (str): path to the directory containing the .h5 file
+            base_path (str): path to the directory containing the *.h5 file
 
         Returns:
-            instance (ScanFields): instance of the ScanFields class containing the scan fields data of the detector
+            instance (ScanFields): instance of the ScanFields class containing
+            the scan fields data of the detector
         """
         instance = cls()
         if base_path.split("/")[-1] in channel_list:
@@ -205,15 +199,16 @@ class ScanFields:
 
     @classmethod
     def load_channel(cls, channel: str, base_path=DB_ROOT_PATH):
-        """Load the scan fields data of a channel from the directory containing the .h5 files
+        """ Load the scan fields data of a channel from the directory containing the *.h5 files
 
         Args:
-            base_path (str): path to the directory containing the .h5 files
+            base_path (str): path to the directory containing the *.h5 files
 
             channel (str): name of the channel to load the scan fields data from
 
         Returns:
-            instance (ScanFields): instance of the ScanFields class containing the scan fields data of the channel
+            instance (ScanFields): instance of the ScanFields class containing
+            the scan fields data of the channel
         """
         dirpath = os.path.join(base_path, channel)
         filenames = os.listdir(dirpath)
@@ -244,12 +239,13 @@ class ScanFields:
 
     @classmethod
     def load_full_FPU(cls, channel_list: list, base_path=DB_ROOT_PATH, max_workers=None):
-        """ Load the scan fields data of all the channels in the FPU from the directory containing the .h5 files
+        """ Load the scan fields data of all the channels in the FPU from
+        the directory containing the *.h5 files
 
         Args:
             base_path (str): path to the directory containing the channel's data
 
-            channel_list (list): list of channels to load the scan fields data from
+            channel_list (list): list of channels to load the scan fields data
 
             max_workers (int): number of processes to use for loading the scan
                                fields data of the channels. Default is None, which
@@ -284,7 +280,7 @@ class ScanFields:
         return instance
 
     def t2b(self):
-        """Transform Top detector cross-link to Bottom detector cross-link
+        """ Transform Top detector cross-link to Bottom detector cross-link
         It assume top and bottom detector make a orthogonal pair.
         """
         class_copy = copy.deepcopy(self)
@@ -292,7 +288,7 @@ class ScanFields:
         return class_copy
 
     def __add__(self, other):
-        """Add `hitmap` and `h` of two Scanfield instances
+        """ Add `hitmap` and `h` of two Scanfield instances
         For the `hitmap`, it adds the `hitmap` of the two instances
         For `h`, it adds the cross-link of the two instances weighted by the hitmap
         """
@@ -304,6 +300,7 @@ class ScanFields:
         return result
 
     def initialize(self, mdim):
+        """ Initialize the scan fields data """
         self.hitmap = np.zeros_like(self.hitmap)
         self.h = np.zeros_like(self.h)
         self.nside = hp.npix2nside(len(self.hitmap))
@@ -313,7 +310,7 @@ class ScanFields:
         self.coupled_fields = np.zeros([self.mdim, self.npix], dtype=np.complex128)
 
     def get_xlink(self, spin_n, spin_m):
-        """Get the cross-link of the detector for a given spin number
+        """ Get the cross-link of the detector for a given spin number
 
         Args:
             spin_n (int): spin number for which the cross-link is to be obtained
@@ -324,7 +321,7 @@ class ScanFields:
             the map which has 1 in the real part and zero in the imaginary part.
 
         Returns:
-            xlink (1d-np.ndarray): cross-link of the detector for the given spin number
+            xlink (1d-np.ndarray): cross-link of the detector for the given spin numbers
         """
         assert abs(spin_n) in self.spins_n, f"spin_n={spin_n} is not in the spins_n={self.spins_n}"
         assert spin_m in self.spins_m, f"spin_m={spin_m} is not in the spins_m={self.spins_m}"
@@ -341,7 +338,7 @@ class ScanFields:
         return result
 
     def get_covmat(self, mdim):
-        """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
+        """ Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
 
         Args:
             mdim (int): dimension of the covariance matrix.
@@ -376,10 +373,12 @@ class ScanFields:
         return covmat
 
     def create_covmat(self, base_spin_n: list, base_spin_m: list):
-        """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
+        """ Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
 
         Args:
-            base_spin (list): list of spin to create the covariance matrix
+            base_spin_n (list): list of spin_n to create the covariance matrix
+
+            base_spin_m (list): list of spin_m to create the covariance matrix
         """
         assert len(base_spin_n) == len(base_spin_m), "base_spin_n and base_spin_m should have the same length"
         base_spin_n = np.array(base_spin_n)
@@ -390,13 +389,10 @@ class ScanFields:
         if self.use_hwp == True:
             spin_n_mat = -spin_n_mat
             spin_m_mat = -spin_m_mat
-        #print(spin_n_mat)
-        #print(spin_m_mat)
         wait_mat = np.abs(waits[np.newaxis,:]) * np.abs(waits[:,np.newaxis])
         covmat = np.zeros([len(base_spin_n),len(base_spin_m),self.npix], dtype=complex)
         for i in range(len(base_spin_n)):
             for j in range(len(base_spin_m)):
-                #print(spin_n_mat[i,j], spin_m_mat[i,j])
                 covmat[i,j,:] = self.get_xlink(spin_n_mat[i,j], spin_m_mat[i,j])*wait_mat[i,j]
         return covmat
 
@@ -405,11 +401,11 @@ class ScanFields:
         given cross-linking
 
         Args:
-            scan_fields (ScanFields): scan fields data of the detector
-
             signal_fields (SignalFields): signal fields data of the detector
 
-            spin_out (int): spin number of the output field
+            spin_n_out (int): spin_n of the output field
+
+            spin_m_out (int): spin_m of the output field
 
         Returns:
             results (np.ndarray): detected fields by the given cross-linking
@@ -426,12 +422,26 @@ class ScanFields:
         return coupled_field
 
     @staticmethod
-    def diff_gain_field(gain_a, gain_b, I, P):
-        delta_g = gain_a - gain_b
+    def diff_gain_field(gain_T, gain_B, I, P):
+        """" Get the differential gain field of the detector
+
+        Args:
+            gain_T (float): gain of the `Top` detector
+
+            gain_B (float): gain of the `Bottom` detector
+
+            I (np.ndarray): temperature map
+
+            P (np.ndarray): polarization map (i.e. Q+iU)
+
+        Returns:
+            signal_fields (SignalFields): differential gain field of the detector
+        """
+        delta_g = gain_T - gain_B
         signal_fields = SignalFields(
             Field(delta_g*I/2.0, spin_n=0, spin_m=0),
-            Field((2.0+gain_a+gain_b)*P/4.0, spin_n=2, spin_m=0),
-            Field((2.0+gain_a+gain_b)*P.conj()/4.0, spin_n=-2, spin_m=0),
+            Field((2.0+gain_T+gain_B)*P/4.0, spin_n=2, spin_m=0),
+            Field((2.0+gain_T+gain_B)*P.conj()/4.0, spin_n=-2, spin_m=0),
         )
         return signal_fields
 
@@ -446,6 +456,25 @@ class ScanFields:
         eth_P: np.ndarray,
         o_eth_P: np.ndarray
         ):
+        """ Get the differential pointing field of the detector
+
+        Args:
+            rho_T (float): magnitude of pointing offset of the `Top` detector in radian
+
+            rho_B (float): magnitude of pointing offset of the `Bottom` detector in radian
+
+            chi_T (float): direction of the pointing offset of the `Top` detector in radian
+
+            chi_B (float): direction of the pointing offset of the `Bottom` detector in radian
+
+            P (np.ndarray): polarization map (i.e. Q+iU)
+
+            eth_I (np.ndarray): spin up gradient of the temperature map
+
+            eth_P (np.ndarray): spin up gradient of the polarization map
+
+            o_eth_P (np.ndarray): spin down gradient of the polarization map
+        """
         zeta   = rho_T * np.exp(1j*chi_T) - 1j*rho_B * np.exp(1j*chi_B)
         o_zeta = rho_T * np.exp(1j*chi_T) + 1j*rho_B * np.exp(1j*chi_B) #\overline{\zeta}
 
@@ -470,6 +499,15 @@ class ScanFields:
 
     @staticmethod
     def hwp_ip_field(epsilon, phi_qi, I):
+        """ Get the HWP instrumental polarization field of the detector
+
+        Args:
+            epsilon (float): Amplitude of the HWP Meuller matrix element varying at 4f
+
+            phi_qi (float): Phase shift in the HWP
+
+            I (np.ndarray): temperature map
+        """
         signal_fields = SignalFields(
             Field(epsilon/2.0 * np.exp(-1j*phi_qi)*I, spin_n=4, spin_m=-4),
             Field(epsilon/2.0 * np.exp(1j*phi_qi)*I, spin_n=-4, spin_m=4),
@@ -486,6 +524,23 @@ class ScanFields:
         eth_P: np.ndarray,
         o_eth_P: np.ndarray
         ):
+        """ Get the absolute pointing field of the detector
+
+        Args:
+            rho (float): magnitude of pointing offset in radian
+
+            chi (float): direction of the pointing offset in radian
+
+            I (np.ndarray): temperature map
+
+            P (np.ndarray): polarization map (i.e. Q+iU)
+
+            eth_I (np.ndarray): spin up gradient of the temperature map
+
+            eth_P (np.ndarray): spin up gradient of the polarization map
+
+            o_eth_P (np.ndarray): spin down gradient of the polarization map
+        """
         spin_00_field   = Field(I, spin_n=0, spin_m=0)
         spin_p2m4_field = Field(P/2.0, spin_n=2, spin_m=-4)
         spin_m2p4_field = spin_p2m4_field.conj()
@@ -510,15 +565,13 @@ class ScanFields:
 
     def couple(self, signal_fields: SignalFields, mdim):
         """ Get the coupled fields which is obtained by multiplication between cross-link
-        and signal fields
+        and signal fields. The function save the coupled fields in the class instance.
+        This method must be called before the 'ScanFields.map_make()' and 'ScanFields.solve()'method.
 
         Args:
             signal_fields (SignalFields): signal fields data of the detector
 
             mdim (int): dimension of the system (here, the map)
-
-        Returns:
-            compled_fields (np.ndarray)
         """
         self.mdim = mdim
 
@@ -574,7 +627,7 @@ class ScanFields:
         self.coupled_fields = coupled_fields
 
     def map_make(self, signal_fields, mdim, only_iqu=True):
-        """Get the output map by solving the linear equation Ax=b
+        """ Get the output map by solving the linear equation Ax=b
         This operation gives us an equivalent result of the simple binning map-making aproach
 
         Args:
@@ -622,7 +675,7 @@ class ScanFields:
         return output_map
 
     def solve(self):
-        """Get the output map by solving the linear equation Ax=b
+        """ Get the output map by solving the linear equation Ax=b
         This operation gives us an equivalent result of the simple binning map-making aproach
         """
         assert self.coupled_fields is not None, "Couple the fields first by `ScanFields.couple()` method."
@@ -663,14 +716,30 @@ class ScanFields:
         channel: str,
         mdim: int,
         input_map: np.ndarray,
-        gain_a: np.ndarray,
-        gain_b: np.ndarray,
+        gain_T: np.ndarray,
+        gain_B: np.ndarray,
         base_path=DB_ROOT_PATH,
         ):
+        """ Simulate the differential gain channel
+
+        Args:
+            channel (str): name of the channel to simulate
+
+            mdim (int): dimension of the system (here, the map)
+
+            input_map (np.ndarray): input map of the simulation
+
+            gain_T (np.ndarray): gain of the `Top` detector
+
+            gain_B (np.ndarray): gain of the `Bottom` detector
+
+            base_path (str): path to the directory containing the channel's data.
+                             Default is `DB_ROOT_PATH`
+        """
         dirpath = os.path.join(base_path, channel)
         filenames = os.listdir(dirpath)
         filenames = [os.path.splitext(filename)[0] for filename in filenames]
-        assert len(filenames) == len(gain_a) == len(gain_b)
+        assert len(filenames) == len(gain_T) == len(gain_B)
         total_sf = cls.load_det(filenames[0], base_path=dirpath)
         total_sf.initialize(mdim)
         total_sf.ndet = len(filenames)
@@ -681,7 +750,7 @@ class ScanFields:
         P = input_map[1] + 1j*input_map[2]
         for i,filename in enumerate(filenames):
             sf = cls.load_det(filename, base_path=dirpath)
-            signal_fields = ScanFields.diff_gain_field(gain_a[i], gain_b[i], I, P)
+            signal_fields = ScanFields.diff_gain_field(gain_T[i], gain_B[i], I, P)
             sf.couple(signal_fields, mdim)
             total_sf.hitmap += sf.hitmap
             total_sf.h += sf.h * sf.hitmap[:, np.newaxis, np.newaxis]
@@ -702,6 +771,26 @@ class ScanFields:
         chi_B: np.ndarray,
         base_path=DB_ROOT_PATH,
         ):
+        """ Simulate the differential pointing channel
+
+        Args:
+            channel (str): name of the channel to simulate
+
+            mdim (int): dimension of the system (here, the map)
+
+            input_map (np.ndarray): input map of the simulation
+
+            rho_T (np.ndarray): magnitude of pointing offset of the `Top` detector in radian
+
+            rho_B (np.ndarray): magnitude of pointing offset of the `Bottom` detector in radian
+
+            chi_T (np.ndarray): direction of the pointing offset of the `Top` detector in radian
+
+            chi_B (np.ndarray): direction of the pointing offset of the `Bottom` detector in radian
+
+            base_path (str): path to the directory containing the channel's data.
+                             Default is `DB_ROOT_PATH`
+        """
         dirpath = os.path.join(base_path, channel)
         filenames = os.listdir(dirpath)
         filenames = [os.path.splitext(filename)[0] for filename in filenames]
@@ -741,7 +830,7 @@ class ScanFields:
         return_pdf=False,
         scale=1.0,
         ):
-        """ Generate probability density function of the noise.
+        """ Generate probability density function (PDF) of the noise.
         The function store the noise PDF in the `self.noise_pdf` attribute.
 
         Args:
@@ -760,7 +849,8 @@ class ScanFields:
             inst = get_instrument_table(imo, imo_version="v2")
             net_detector_ukrts = inst.loc[inst["channel"] == channel, "net_detector_ukrts"].values[0]
             net_channel_ukrts = inst.loc[inst["channel"] == channel, "net_channel_ukrts"].values[0]
-            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*self.hitmap) # hitがないpixelでzero divになる。最終的にgenerate_noise()で無視される
+            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*self.hitmap)
+            # hitがないpixelでzero divになる。最終的にgenerate_noise()で無視される
             sigma_p = sigma_i/np.sqrt(2.0)
             self.net_channel_ukrts = net_channel_ukrts
         else:
@@ -821,6 +911,19 @@ class ScanFields:
 
 
 def plot_maps(mdim, input_map, output_map, residual, cmap="viridis"):
+    """ Plot the input, output and residual maps
+
+    Args:
+        mdim (int): dimension of the linear system in the map-making equation
+
+        input_map (np.ndarray): input map of the simulation
+
+        output_map (np.ndarray): output map of the simulation
+
+        residual (np.ndarray): residual map of the simulation
+
+        cmap (str): colormap to use
+    """
     titles = ["Input", "Output", "Residual"]
     maps = [input_map, output_map, residual]
     if mdim == 2:
@@ -916,36 +1019,3 @@ def get_instrument_table(imo:Imo, imo_version="v2"):
         'telescope'  : telescope_list
     })
     return instrument
-
-def add_label(output_map:np.ndarray):
-    mdim = output_map.shape[0]
-    if mdim == 2:
-        labeled_maps = {
-            "q": output_map[0],
-            "u": output_map[1],
-        }
-    elif mdim == 3:
-        labeled_maps = {
-            "i": output_map[0],
-            "q": output_map[1],
-            "u": output_map[2],
-        }
-    elif mdim == 5:
-        labeled_maps = {
-            "i":   output_map[0],
-            "z1q": output_map[1],
-            "z1u": output_map[2],
-            "q":   output_map[3],
-            "U":   output_map[4],
-        }
-    elif mdim == 7:
-        labeled_maps = {
-            "i":   output_map[0],
-            "z1q": output_map[1],
-            "z1u": output_map[2],
-            "q":   output_map[3],
-            "u":   output_map[4],
-            "z3q": output_map[5],
-            "z3u": output_map[6],
-        }
-    return labeled_maps

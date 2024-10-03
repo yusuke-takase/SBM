@@ -10,6 +10,20 @@ GREEN = '\033[92m'
 RESET = '\033[0m'
 
 class Configlation:
+    """ Configuration class for the simulation
+
+    imo (str): imo instance given by the litebird_sim
+    channel (str): The name of the channel
+    lbs_base_path (str): The base path of the litebird_sim
+    imo_version (str): The version of the imo
+    nside (int): The nside of the healpix map
+    mdim (int): The dimension to perform the map-making
+    parallel (bool): If True, the simulation is performed in thread parallel
+    xlink_threshold (float): The threshold of the cross-linking.
+        The pixel with the value less than this threshold is ignored when
+        the map-making is performed.
+    only_iqu (bool): If True, only I, Q, and U are returned after the map-making
+    """
     def __init__(self, imo, channel):
         self.imo = imo
         self.channel = channel
@@ -22,20 +36,31 @@ class Configlation:
         self.only_iqu = True
 
 class Systematics:
+    """ Systematics class for the simulation
+
+    sigma_gain_T (float): The standard deviation of the gain for the top detectors
+    sigma_gain_B (float): The standard deviation of the gain for the bottom detectors
+    sigma_rho_T (float): The standard deviation of the pointing for the top detectors
+    sigma_rho_B (float): The standard deviation of the pointing for the bottom detectors
+    sigma_chi_T (float): The standard deviation of the polarization angle for the top detectors
+    sigma_chi_B (float): The standard deviation of the polarization angle for the bottom detectors
+    syst_seed (int): The seed for the random number generator for the systematics
+    noise_seed (int): The seed for the random number generator for the noise
+    """
     def __init__(self):
-        self.sigma_gain_t = None
-        self.sigma_gain_b = None
-        self.sigma_rho_t = None
-        self.sigma_rho_b = None
-        self.sigma_chi_t = None
-        self.sigma_chi_b = None
+        self.sigma_gain_T = None
+        self.sigma_gain_B = None
+        self.sigma_rho_T = None
+        self.sigma_rho_B = None
+        self.sigma_chi_T = None
+        self.sigma_chi_B = None
         self.syst_seed = None
         self.noise_seed = None
 
 def process_gain(args):
-    i, filename, dirpath, gain_t, gain_b, I, P, mdim, only_iqu = args
+    i, filename, dirpath, gain_T, gain_B, I, P, mdim, only_iqu = args
     sf = ScanFields.load_det(filename, dirpath)
-    diff_gain_signal = ScanFields.diff_gain_field(gain_t[i], gain_b[i], I, P)
+    diff_gain_signal = ScanFields.diff_gain_field(gain_T[i], gain_B[i], I, P)
     output = sf.map_make(diff_gain_signal, mdim, only_iqu)
     result = {
         "hitmap": sf.hitmap,
@@ -45,9 +70,9 @@ def process_gain(args):
     return result
 
 def process_pointing(args):
-    i,filename,dirpath,rho_t,rho_b,chi_t,chi_b,P,eth_I,eth_P,o_eth_P, mdim, only_iqu = args
+    i,filename,dirpath,rho_T,rho_B,chi_T,chi_B,P,eth_I,eth_P,o_eth_P, mdim, only_iqu = args
     sf = ScanFields.load_det(filename, dirpath)
-    diff_signal = ScanFields.diff_pointing_field(rho_t[i],rho_b[i],chi_t[i],chi_b[i],P,eth_I,eth_P,o_eth_P)
+    diff_signal = ScanFields.diff_pointing_field(rho_T[i],rho_B[i],chi_T[i],chi_B[i],P,eth_I,eth_P,o_eth_P)
     output = sf.map_make(diff_signal, mdim, only_iqu)
     result = {
         "hitmap": sf.hitmap,
@@ -61,7 +86,23 @@ def sim_diff_gain_per_ch(
     syst: Systematics,
     mbsparams: lbs.MbsParameters,
     ):
+    """ Simulate the differential gain systematics for each channel
+    The map-making is performed for each detector in the channel
 
+    Args:
+        config (Configlation): The configuration class
+
+        syst (Systematics): The systematics class
+
+        mbsparams (lbs.MbsParameters): The parameters for the litebird_sim
+
+    Returns:
+        observed_map (np.ndarray): The observed map after the map-making
+
+        noise_map (np.ndarray): The noise map after the map-making
+
+        input_maps (dict): The input maps for the simulation
+    """
     npix = hp.nside2npix(config.nside)
     telescope = config.channel[0]+"FT"
     sim = lbs.Simulation(base_path=config.lbs_base_path, random_seed=None)
@@ -88,15 +129,15 @@ def sim_diff_gain_per_ch(
     filenames = os.listdir(dirpath)
     filenames = [os.path.splitext(filename)[0] for filename in filenames]
 
-    assert syst.sigma_gain_t is not None
-    assert syst.sigma_gain_b is not None
+    assert syst.sigma_gain_T is not None
+    assert syst.sigma_gain_B is not None
     if syst.syst_seed is not None:
         np.random.seed(syst.syst_seed)
-        gain_t = np.random.normal(loc=0.0, scale=syst.sigma_gain_t, size=len(filenames))
-        gain_b = np.random.normal(loc=0.0, scale=syst.sigma_gain_b, size=len(filenames))
+        gain_T = np.random.normal(loc=0.0, scale=syst.sigma_gain_T, size=len(filenames))
+        gain_B = np.random.normal(loc=0.0, scale=syst.sigma_gain_B, size=len(filenames))
     else:
-        gain_t = np.random.normal(loc=0.0, scale=syst.sigma_gain_t, size=len(filenames))
-        gain_b = np.random.normal(loc=0.0, scale=syst.sigma_gain_b, size=len(filenames))
+        gain_T = np.random.normal(loc=0.0, scale=syst.sigma_gain_T, size=len(filenames))
+        gain_B = np.random.normal(loc=0.0, scale=syst.sigma_gain_B, size=len(filenames))
 
     _sf = ScanFields.load_det(filenames[0], base_path=dirpath)
     _sf.generate_noise_pdf(config.imo, scale=2.0)
@@ -104,7 +145,7 @@ def sim_diff_gain_per_ch(
     noise_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
     if config.parallel == True:
-        file_args = [(i, filename, dirpath, gain_t, gain_b, I, P, config.mdim, config.only_iqu) for i, filename in enumerate(filenames)]
+        file_args = [(i, filename, dirpath, gain_T, gain_B, I, P, config.mdim, config.only_iqu) for i, filename in enumerate(filenames)]
         with Pool() as pool:
             for i, result in enumerate(tqdm(pool.imap(process_gain, file_args),
                                             total=len(file_args),
@@ -120,7 +161,7 @@ def sim_diff_gain_per_ch(
                                           bar_format='{l_bar}{bar:10}{r_bar}',
                                           colour='green')):
             sf = ScanFields.load_det(filename, base_path=dirpath)
-            diff_gain_signal = ScanFields.diff_gain_field(gain_t[i], gain_b[i], I, P)
+            diff_gain_signal = ScanFields.diff_gain_field(gain_T[i], gain_B[i], I, P)
             output = sf.map_make(diff_gain_signal, config.mdim, config.only_iqu)
             observed_map += output
             noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
@@ -135,7 +176,23 @@ def sim_diff_pointing_per_ch(
     syst: Systematics,
     mbsparams: lbs.MbsParameters,
     ):
+    """ Simulate the differential pointing systematics for each channel
+    The map-making is performed for each detector in the channel
 
+    Args:
+        config (Configlation): The configuration class
+
+        syst (Systematics): The systematics class
+
+        mbsparams (lbs.MbsParameters): The parameters for the litebird_sim
+
+    Returns:
+        observed_map (np.ndarray): The observed map after the map-making
+
+        noise_map (np.ndarray): The noise map after the map-making
+
+        input_maps (dict): The input maps for the simulation
+    """
     npix = hp.nside2npix(config.nside)
     telescope = config.channel[0]+"FT"
     sim = lbs.Simulation(base_path=config.lbs_base_path, random_seed=None)
@@ -164,21 +221,21 @@ def sim_diff_pointing_per_ch(
     filenames = os.listdir(dirpath)
     filenames = [os.path.splitext(filename)[0] for filename in filenames]
 
-    assert syst.sigma_rho_t is not None
-    assert syst.sigma_rho_b is not None
-    assert syst.sigma_chi_t is not None
-    assert syst.sigma_chi_b is not None
+    assert syst.sigma_rho_T is not None
+    assert syst.sigma_rho_B is not None
+    assert syst.sigma_chi_T is not None
+    assert syst.sigma_chi_B is not None
     if syst.syst_seed is not None:
         np.random.seed(syst.syst_seed)
-        rho_t = np.random.normal(loc=0.0, scale=syst.sigma_rho_t, size=len(filenames))
-        rho_b = np.random.normal(loc=0.0, scale=syst.sigma_rho_b, size=len(filenames))
-        chi_t = np.random.normal(loc=0.0, scale=syst.sigma_chi_t, size=len(filenames))
-        chi_b = np.random.normal(loc=0.0, scale=syst.sigma_chi_b, size=len(filenames))
+        rho_T = np.random.normal(loc=0.0, scale=syst.sigma_rho_T, size=len(filenames))
+        rho_B = np.random.normal(loc=0.0, scale=syst.sigma_rho_B, size=len(filenames))
+        chi_T = np.random.normal(loc=0.0, scale=syst.sigma_chi_T, size=len(filenames))
+        chi_B = np.random.normal(loc=0.0, scale=syst.sigma_chi_B, size=len(filenames))
     else:
-        rho_t = np.random.normal(loc=0.0, scale=syst.sigma_rho_t, size=len(filenames))
-        rho_b = np.random.normal(loc=0.0, scale=syst.sigma_rho_b, size=len(filenames))
-        chi_t = np.random.normal(loc=0.0, scale=syst.sigma_chi_t, size=len(filenames))
-        chi_b = np.random.normal(loc=0.0, scale=syst.sigma_chi_b, size=len(filenames))
+        rho_T = np.random.normal(loc=0.0, scale=syst.sigma_rho_T, size=len(filenames))
+        rho_B = np.random.normal(loc=0.0, scale=syst.sigma_rho_B, size=len(filenames))
+        chi_T = np.random.normal(loc=0.0, scale=syst.sigma_chi_T, size=len(filenames))
+        chi_B = np.random.normal(loc=0.0, scale=syst.sigma_chi_B, size=len(filenames))
 
     dI = hp.alm2map_der1(hp.map2alm(fiducial_map[0]), nside=config.nside)
     dQ = hp.alm2map_der1(hp.map2alm(fiducial_map[1]), nside=config.nside)
@@ -199,10 +256,10 @@ def sim_diff_pointing_per_ch(
             i,
             filename,
             dirpath,
-            rho_t,
-            rho_b,
-            chi_t,
-            chi_b,
+            rho_T,
+            rho_B,
+            chi_T,
+            chi_B,
             P,
             eth_I,
             eth_P,
@@ -212,7 +269,6 @@ def sim_diff_pointing_per_ch(
             ) for i, filename in enumerate(filenames)
             ]
         with Pool() as pool:
-            #for i,result in enumerate(tqdm(pool.imap(process_pointing, file_args), total=len(file_args), desc=f"Processing {config.channel}")):
             for i,result in enumerate(tqdm(pool.imap(process_pointing, file_args), total=len(file_args),
                                            desc=f"{GREEN}Processing {config.channel}{RESET}",
                                            bar_format='{l_bar}{bar:10}{r_bar}',
@@ -221,12 +277,11 @@ def sim_diff_pointing_per_ch(
                 sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
                 noise_map += _sf.generate_noise(config.mdim, seed=syst.noise_seed)
     else:
-        #for i, filename in enumerate(tqdm(filenames, desc=f"Processing {config.channel}")):
         for i, filename in enumerate(tqdm(filenames,
                                           desc=f"{GREEN}Processing {config.channel}{RESET}",
                                           bar_format='{l_bar}{bar:10}{r_bar}', colour='green')):
             sf = ScanFields.load_det(filename, base_path=dirpath)
-            diff_signal = ScanFields.diff_pointing_field(rho_t[i],rho_b[i],chi_t[i],chi_b[i],P,eth_I,eth_P,o_eth_P)
+            diff_signal = ScanFields.diff_pointing_field(rho_T[i],rho_B[i],chi_T[i],chi_B[i],P,eth_I,eth_P,o_eth_P)
             output = sf.map_make(diff_signal, config.mdim, config.only_iqu)
             xlink2 = np.abs(sf.get_xlink(2,0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
@@ -241,6 +296,16 @@ def sim_noise_per_ch(
     config: Configlation,
     syst: Systematics,
     ):
+    """ Simulate the noise for each channel
+
+    Args:
+        config (Configlation): The configuration class
+
+        syst (Systematics): The systematics class
+
+    Returns:
+        noise_map (np.ndarray): The noise map after the map-making
+    """
     sf = ScanFields.load_channel(config.channel)
     sf.generate_noise_pdf(config.imo, scale=2.0) # scale=2.0 i.e. consider differential detection
     noise_map = sf.generate_noise(config.mdim, seed=syst.noise_seed)

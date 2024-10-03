@@ -31,6 +31,11 @@ def custom_encoder(obj):
     raise TypeError(f"Type {type(obj)} not serializable")
 
 def gen_jsonfile(base_path):
+    """ Generate a JSON file containing the dataset information
+
+    Args:
+        base_path (str): The base path of the dataset
+    """
     dataset = []
     scan_field = None
     for root, dirs, files in os.walk(base_path):
