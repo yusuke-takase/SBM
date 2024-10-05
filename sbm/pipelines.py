@@ -4,6 +4,7 @@ from multiprocessing import Pool
 import healpy as hp
 from tqdm import tqdm
 import os
+import fcntl
 from .main import ScanFields, DB_ROOT_PATH
 
 GREEN = '\033[92m'
@@ -81,6 +82,39 @@ def process_pointing(args):
         }
     return result
 
+def generate_maps(mbs, config, lock=True):
+    """ Generate the maps with the lock file
+
+    Args:
+        mbs (lbs.Mbs): The litebird_sim object
+
+        config (Configlation): The configuration class
+    """
+    if lock:
+        with open('/tmp/sbm_lockfile', 'w') as f:
+            try:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except IOError:
+                print('Another instance is running')
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                map_info = mbs.run_all()
+                fiducial_map = map_info[0][config.channel]
+                input_maps = {
+                    "cmb": mbs.generate_cmb()[0],
+                    "fg": mbs.generate_fg()[0],
+                }
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    else:
+        map_info = mbs.run_all()
+        fiducial_map = map_info[0][config.channel]
+        input_maps = {
+            "cmb": mbs.generate_cmb()[0],
+            "fg": mbs.generate_fg()[0],
+        }
+    return fiducial_map, input_maps
+
 def sim_diff_gain_per_ch(
     config: Configlation,
     syst: Systematics,
@@ -118,11 +152,7 @@ def sim_diff_gain_per_ch(
         parameters=mbsparams,
         channel_list=ch_info
     )
-    fiducial_map = mbs.run_all()[0][config.channel]
-    input_maps = {
-        "cmb": mbs.generate_cmb()[0],
-        "fg": mbs.generate_fg()[0],
-    }
+    fiducial_map, input_maps = generate_maps(mbs, config)
     I = fiducial_map[0]
     P = fiducial_map[1] + 1j*fiducial_map[2]
     dirpath = os.path.join(DB_ROOT_PATH, config.channel)
@@ -141,6 +171,7 @@ def sim_diff_gain_per_ch(
 
     _sf = ScanFields.load_det(filenames[0], base_path=dirpath)
     _sf.generate_noise_pdf(config.imo, scale=2.0)
+    _sf.use_hwp = False
     observed_map = np.zeros([3, npix])
     noise_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
@@ -208,13 +239,7 @@ def sim_diff_pointing_per_ch(
         parameters=mbsparams,
         channel_list=ch_info
     )
-    # 22個のIOが衝突してしまう
-    fiducial_map = mbs.run_all()[0][config.channel]
-
-    input_maps = {
-        "cmb": mbs.generate_cmb()[0],
-        "fg": mbs.generate_fg()[0],
-    }
+    fiducial_map, input_maps = generate_maps(mbs, config)
     I = fiducial_map[0]
     P = fiducial_map[1] + 1j*fiducial_map[2]
     dirpath = os.path.join(DB_ROOT_PATH, config.channel)
@@ -245,6 +270,7 @@ def sim_diff_pointing_per_ch(
     o_eth_P = dQ[2] - dU[1] + 1j*(dQ[1] + dU[2])
 
     _sf = ScanFields.load_det(filenames[0], base_path=dirpath)
+    _sf.use_hwp = False
     _sf.generate_noise_pdf(config.imo, scale=2.0) # scale=2.0 i.e. consider differential detection
     noise_map = np.zeros([3, npix])
     observed_maps = np.zeros([3, npix])

@@ -744,7 +744,6 @@ class ScanFields:
         total_sf.initialize(mdim)
         total_sf.ndet = len(filenames)
         total_sf.use_hwp = False
-        total_sf.spins_n
         assert input_map.shape == (3,len(total_sf.hitmap))
         I = input_map[0]
         P = input_map[1] + 1j*input_map[2]
