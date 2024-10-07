@@ -57,6 +57,8 @@ class Systematics:
         self.sigma_chi_B = None
         self.syst_seed = None
         self.noise_seed = None
+        self.start_seed = None
+        self.end_seed = None
 
 def process_gain(args):
     i, filename, dirpath, gain_T, gain_B, I, P, mdim, only_iqu = args
@@ -91,10 +93,11 @@ def generate_maps(mbs, config, lock=True):
         config (Configlation): The configuration class
     """
     if lock:
-        with open('/tmp/sbm_lockfile', 'w') as f:
+        lockfile = '/tmp/sbm_lockfile'
+        with open(lockfile, 'a') as f:
             try:
                 fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except IOError:
+            except BlockingIOError:
                 print('Another instance is running')
                 fcntl.flock(f.fileno(), fcntl.LOCK_EX)
             try:
@@ -106,6 +109,7 @@ def generate_maps(mbs, config, lock=True):
                 }
             finally:
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                os.remove(lockfile)
     else:
         map_info = mbs.run_all()
         fiducial_map = map_info[0][config.channel]
@@ -152,7 +156,7 @@ def sim_diff_gain_per_ch(
         parameters=mbsparams,
         channel_list=ch_info
     )
-    fiducial_map, input_maps = generate_maps(mbs, config)
+    fiducial_map, input_maps = generate_maps(mbs, config, lock=False)
     I = fiducial_map[0]
     P = fiducial_map[1] + 1j*fiducial_map[2]
     dirpath = os.path.join(DB_ROOT_PATH, config.channel)
@@ -239,7 +243,7 @@ def sim_diff_pointing_per_ch(
         parameters=mbsparams,
         channel_list=ch_info
     )
-    fiducial_map, input_maps = generate_maps(mbs, config)
+    fiducial_map, input_maps = generate_maps(mbs, config, lock=False)
     I = fiducial_map[0]
     P = fiducial_map[1] + 1j*fiducial_map[2]
     dirpath = os.path.join(DB_ROOT_PATH, config.channel)
