@@ -843,19 +843,23 @@ class ScanFields:
                            When the defferential detection is performed, it should be scale = 2.0.
         """
         channel = self.channel
+        hitmap_tmp = self.hitmap.copy()
+        hitmap_tmp[hitmap_tmp == 0] = 1 # avoid zero division
         if channel:
             assert imo is not None, "imo is required when channel is given"
             inst = get_instrument_table(imo, imo_version="v2")
             net_detector_ukrts = inst.loc[inst["channel"] == channel, "net_detector_ukrts"].values[0]
             net_channel_ukrts = inst.loc[inst["channel"] == channel, "net_channel_ukrts"].values[0]
-            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*self.hitmap)
-            # hitがないpixelでzero divになる。最終的にgenerate_noise()で無視される
+
+            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*hitmap_tmp)
+            sigma_i *= np.sign(self.hitmap)
             sigma_p = sigma_i/np.sqrt(2.0)
             self.net_channel_ukrts = net_channel_ukrts
         else:
             assert net_ukrts is not None, "net_ukrts is required when channel is not given"
             net_detector_ukrts = net_ukrts
-            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*self.hitmap)
+            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*hitmap_tmp)
+            sigma_i *= np.sign(self.hitmap)
             sigma_p = sigma_i/np.sqrt(2.0)
         self.net_detector_ukrts = net_detector_ukrts
         self.noise_pdf = np.array([sigma_i, sigma_p])
