@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sbm"
-version = "0.1.0"
+version = "0.1.1"
 license = "GPL3"
 description = "Spin-based map-making (SBM) for CMB experiments"
 authors = ["yusuke-takase <takase_y@s.okayama-u.ac.jp>"]

@@ -671,7 +671,7 @@ class ScanFields:
         elif mdim == 9:
             # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ,Z3^Q      , Z3^U     ,Z1^Q^4    , Z1^U^4   ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag, x[7].real, x[7].imag])
-        elif only_iqu == True:
+        if only_iqu == True:
             if mdim > 3:
                 output_map = np.array([output_map[0], output_map[3], output_map[4]])
         return output_map
