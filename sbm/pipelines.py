@@ -196,7 +196,7 @@ def sim_diff_gain_per_ch(
 
     observed_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
-    if config.parallel:
+    if config.parallel == True:
         file_args = [(
             i,
             filename,
@@ -302,7 +302,7 @@ def sim_diff_pointing_per_ch(
 
     observed_maps = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
-    if config.parallel:
+    if config.parallel == True:
         file_args = [
             (
             i,
@@ -349,7 +349,6 @@ def process_noise(args):
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = use_hwp
     sf.generate_noise_pdf(imo, scale=2.0)
-    print("use_hwp (process_noise): ", use_hwp)
     output = sf.generate_noise(mdim, use_hwp=use_hwp, seed=noise_seed_i)
     result = {
         "hitmap": sf.hitmap,
@@ -380,7 +379,7 @@ def sim_noise_per_ch(
     sky_weight = np.zeros(npix)
 
     noise_seeds = generate_noise_seeds(syst, config, len(filenames))
-    if config.parallel:
+    if config.parallel == True:
         file_args = [
             (
             i,
@@ -408,7 +407,6 @@ def sim_noise_per_ch(
             sf = ScanFields.load_det(filename, base_path=dirpath)
             sf.generate_noise_pdf(config.imo, scale=2.0)
             sf.use_hwp = config.use_hwp
-            print("use_hwp (sim_noise_per_ch non-parallerl): ", use_hwp)
             noise_map += sf.generate_noise(
                 config.mdim,
                 use_hwp=config.use_hwp,
