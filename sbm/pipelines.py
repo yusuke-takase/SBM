@@ -36,6 +36,7 @@ class Configlation:
         self.parallel = True
         self.xlink_threshold = 0.7
         self.only_iqu = True
+        self.use_hwp = None
 
 class Systematics:
     """ Systematics class for the simulation
@@ -62,8 +63,10 @@ class Systematics:
         self.end_seed = None
 
 def process_gain(args):
-    i, filename, dirpath, gain_T, gain_B, I, P, mdim, only_iqu = args
+    i, filename, dirpath, gain_T, gain_B, I, P, mdim, only_iqu, xlink_threshold = args
     sf = ScanFields.load_det(filename, dirpath)
+    sf.xlink_threshold = xlink_threshold
+    sf.use_hwp = False
     diff_gain_signal = ScanFields.diff_gain_field(gain_T[i], gain_B[i], I, P)
     output = sf.map_make(diff_gain_signal, mdim, only_iqu)
     result = {
@@ -74,8 +77,10 @@ def process_gain(args):
     return result
 
 def process_pointing(args):
-    i,filename,dirpath,rho_T,rho_B,chi_T,chi_B,P,eth_I,eth_P,o_eth_P, mdim, only_iqu = args
+    i,filename,dirpath,rho_T,rho_B,chi_T,chi_B,P,eth_I,eth_P,o_eth_P, mdim, only_iqu, xlink_threshold = args
     sf = ScanFields.load_det(filename, dirpath)
+    sf.xlink_threshold = xlink_threshold
+    sf.use_hwp = False
     diff_signal = ScanFields.diff_pointing_field(rho_T[i],rho_B[i],chi_T[i],chi_B[i],P,eth_I,eth_P,o_eth_P)
     output = sf.map_make(diff_signal, mdim, only_iqu)
     result = {
@@ -84,6 +89,7 @@ def process_pointing(args):
         "xlink2": np.abs(sf.get_xlink(2,0)),
         }
     return result
+
 
 def generate_maps(mbs, config, lock=True):
     """ Generate the maps with the lock file
@@ -153,8 +159,6 @@ def sim_diff_gain_per_ch(
     Returns:
         observed_map (np.ndarray): The observed map after the map-making
 
-        noise_map (np.ndarray): The noise map after the map-making
-
         input_maps (dict): The input maps for the simulation
     """
     npix = hp.nside2npix(config.nside)
@@ -190,16 +194,21 @@ def sim_diff_gain_per_ch(
         gain_T = np.random.normal(loc=0.0, scale=syst.sigma_gain_T, size=len(filenames))
         gain_B = np.random.normal(loc=0.0, scale=syst.sigma_gain_B, size=len(filenames))
 
-    _sf = ScanFields.load_det(filenames[0], base_path=dirpath)
-    _sf.generate_noise_pdf(config.imo, scale=2.0)
-    _sf.use_hwp = False
     observed_map = np.zeros([3, npix])
-    noise_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
-
-    noise_seeds = generate_noise_seeds(syst, config, len(filenames))
-    if config.parallel == True:
-        file_args = [(i, filename, dirpath, gain_T, gain_B, I, P, config.mdim, config.only_iqu) for i, filename in enumerate(filenames)]
+    if config.parallel:
+        file_args = [(
+            i,
+            filename,
+            dirpath,
+            gain_T,
+            gain_B,
+            I,
+            P,
+            config.mdim,
+            config.only_iqu,
+            config.xlink_threshold
+            ) for i, filename in enumerate(filenames)]
         with Pool() as pool:
             for i, result in enumerate(tqdm(pool.imap(process_gain, file_args),
                                             total=len(file_args),
@@ -207,7 +216,6 @@ def sim_diff_gain_per_ch(
                                             bar_format='{l_bar}{bar:10}{r_bar}',
                                             colour='green')):
                 observed_map += result["map"]
-                noise_map += _sf.generate_noise(config.mdim, seed=noise_seeds[i])
                 sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
     else:
         for i, filename in enumerate(tqdm(filenames,
@@ -215,15 +223,15 @@ def sim_diff_gain_per_ch(
                                           bar_format='{l_bar}{bar:10}{r_bar}',
                                           colour='green')):
             sf = ScanFields.load_det(filename, base_path=dirpath)
+            sf.xlink_threshold = config.xlink_threshold
+            sf.use_hwp = config.use_hwp
             diff_gain_signal = ScanFields.diff_gain_field(gain_T[i], gain_B[i], I, P)
             output = sf.map_make(diff_gain_signal, config.mdim, config.only_iqu)
             observed_map += output
-            noise_map += _sf.generate_noise(config.mdim, seed=noise_seeds[i])
             xlink2 = np.abs(sf.get_xlink(2,0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
     observed_map = np.array(observed_map)/sky_weight
-    noise_map = np.array(noise_map)/sky_weight
-    return observed_map, noise_map, input_maps
+    return observed_map, input_maps
 
 def sim_diff_pointing_per_ch(
     config: Configlation,
@@ -242,8 +250,6 @@ def sim_diff_pointing_per_ch(
 
     Returns:
         observed_map (np.ndarray): The observed map after the map-making
-
-        noise_map (np.ndarray): The noise map after the map-making
 
         input_maps (dict): The input maps for the simulation
     """
@@ -294,15 +300,9 @@ def sim_diff_pointing_per_ch(
     eth_P   = dQ[2] + dU[1] - 1j*(dQ[1] - dU[2])
     o_eth_P = dQ[2] - dU[1] + 1j*(dQ[1] + dU[2])
 
-    _sf = ScanFields.load_det(filenames[0], base_path=dirpath)
-    _sf.use_hwp = False
-    _sf.generate_noise_pdf(config.imo, scale=2.0) # scale=2.0 i.e. consider differential detection
-    noise_map = np.zeros([3, npix])
     observed_maps = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
-
-    noise_seeds = generate_noise_seeds(syst, config, len(filenames))
-    if config.parallel == True:
+    if config.parallel:
         file_args = [
             (
             i,
@@ -318,6 +318,7 @@ def sim_diff_pointing_per_ch(
             o_eth_P,
             config.mdim,
             config.only_iqu,
+            config.xlink_threshold,
             ) for i, filename in enumerate(filenames)
             ]
         with Pool() as pool:
@@ -327,27 +328,40 @@ def sim_diff_pointing_per_ch(
                                            colour='green')):
                 observed_maps += result["map"]
                 sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
-                noise_map += _sf.generate_noise(config.mdim, seed=noise_seeds[i])
     else:
         for i, filename in enumerate(tqdm(filenames,
                                           desc=f"{GREEN}Processing {config.channel}{RESET}",
                                           bar_format='{l_bar}{bar:10}{r_bar}', colour='green')):
             sf = ScanFields.load_det(filename, base_path=dirpath)
+            sf.xlink_threshold = config.xlink_threshold
+            sf.use_hwp = config.use_hwp
             diff_signal = ScanFields.diff_pointing_field(rho_T[i],rho_B[i],chi_T[i],chi_B[i],P,eth_I,eth_P,o_eth_P)
             output = sf.map_make(diff_signal, config.mdim, config.only_iqu)
             xlink2 = np.abs(sf.get_xlink(2,0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
             observed_maps += output
-            noise_map += _sf.generate_noise(config.mdim, seed=noise_seeds[i])
     observed_maps = np.array(observed_maps)/sky_weight
-    noise_map = np.array(noise_map)/sky_weight
+    return observed_maps, input_maps
 
-    return observed_maps, noise_map, input_maps
+def process_noise(args):
+    i, filename, dirpath, mdim, only_iqu, xlink_threshold, imo, use_hwp, noise_seed_i = args
+    sf = ScanFields.load_det(filename, dirpath)
+    sf.xlink_threshold = xlink_threshold
+    sf.use_hwp = use_hwp
+    sf.generate_noise_pdf(imo, scale=2.0)
+    print("use_hwp (process_noise): ", use_hwp)
+    output = sf.generate_noise(mdim, use_hwp=use_hwp, seed=noise_seed_i)
+    result = {
+        "hitmap": sf.hitmap,
+        "map": output,
+        "xlink2": np.abs(sf.get_xlink(2,0)),
+        }
+    return result
+
 
 def sim_noise_per_ch(
     config: Configlation,
     syst: Systematics,
-    use_hwp: bool,
     ):
     """ Simulate the noise for each channel
 
@@ -356,44 +370,48 @@ def sim_noise_per_ch(
 
         syst (Systematics): The systematics class
     """
+    assert config.use_hwp is not None
+
     npix = hp.nside2npix(config.nside)
     dirpath = os.path.join(DB_ROOT_PATH, config.channel)
     filenames = os.listdir(dirpath)
     filenames = [os.path.splitext(filename)[0] for filename in filenames]
-
-    _sf = ScanFields.load_det(filenames[0], base_path=dirpath)
-    _sf.generate_noise_pdf(config.imo, scale=2.0)
-    _sf.use_hwp = use_hwp
     noise_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
 
     noise_seeds = generate_noise_seeds(syst, config, len(filenames))
-    for i, filename in enumerate(tqdm(filenames,
-                                        desc=f"{GREEN}Processing {config.channel}{RESET}",
-                                        bar_format='{l_bar}{bar:10}{r_bar}',
-                                        colour='green')):
-        sf = ScanFields.load_det(filename, base_path=dirpath)
-        noise_map += _sf.generate_noise(config.mdim, seed=noise_seeds[i])
-        xlink2 = np.abs(sf.get_xlink(2,0))
-        sky_weight[xlink2 < config.xlink_threshold] += 1.0
-    noise_map = np.array(noise_map)/sky_weight
-    return noise_map
-
-def sim_noise_per_ch_total_mapmaker(
-    config: Configlation,
-    syst: Systematics,
-    ):
-    """ Simulate the noise for each channel
-
-    Args:
-        config (Configlation): The configuration class
-
-        syst (Systematics): The systematics class
-
-    Returns:
-        noise_map (np.ndarray): The noise map after the map-making
-    """
-    sf = ScanFields.load_channel(config.channel)
-    sf.generate_noise_pdf(config.imo, scale=2.0) # scale=2.0 i.e. consider differential detection
-    noise_map = sf.generate_noise(config.mdim, seed=syst.noise_seed)
+    if config.parallel:
+        file_args = [
+            (
+            i,
+            filename,
+            dirpath,
+            config.mdim,
+            config.only_iqu,
+            config.xlink_threshold,
+            config.imo,
+            config.use_hwp,
+            noise_seeds[i],
+            ) for i, filename in enumerate(filenames)
+            ]
+        with Pool() as pool:
+            for i,result in enumerate(tqdm(pool.imap(process_noise, file_args), total=len(file_args),
+                                           desc=f"{GREEN}Processing {config.channel}{RESET}",
+                                           bar_format='{l_bar}{bar:10}{r_bar}',
+                                           colour='green')):
+                noise_map += result["map"]
+    else:
+        for i, filename in enumerate(tqdm(filenames,
+                                            desc=f"{GREEN}Processing {config.channel}{RESET}",
+                                            bar_format='{l_bar}{bar:10}{r_bar}',
+                                            colour='green')):
+            sf = ScanFields.load_det(filename, base_path=dirpath)
+            sf.generate_noise_pdf(config.imo, scale=2.0)
+            sf.use_hwp = config.use_hwp
+            print("use_hwp (sim_noise_per_ch non-parallerl): ", use_hwp)
+            noise_map += sf.generate_noise(
+                config.mdim,
+                use_hwp=config.use_hwp,
+                seed=noise_seeds[i]
+                )
     return noise_map

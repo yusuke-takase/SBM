@@ -10,7 +10,6 @@ class TestSBM(unittest.TestCase):
     def setUp(self):
         print(f"Current directory: {os.getcwd()}")
         self.scan_field = ScanFields.load_det("nside_32_boresight_hwp", "tests")
-        #inputmap = hp.read_map("maps/cmb_0000_nside_128_seed_33.fits", field=(0,1,2)) * 1e6
         inputmap = sbm.generate_cmb(128, r=0., cmb_seed=33)
         self.input_map = hp.ud_grade(inputmap, self.scan_field.nside)
         self.nside = hp.npix2nside(len(self.input_map[0]))
@@ -79,7 +78,7 @@ class TestSBM(unittest.TestCase):
             print(f"reference.shape: {reference.shape}")
             self.assertTrue(np.allclose(output_map, reference))
 
-    def test_hwpip_(self, save_output_map=False):
+    def test_hwpip(self, save_output_map=False):
         epsilon = 1e-5
         phi_qi = 0.0
         signal_field = self.scan_field.hwp_ip_field(epsilon, phi_qi, self.I)
@@ -96,13 +95,29 @@ class TestSBM(unittest.TestCase):
             print(f"reference.shape: {reference.shape}")
             self.assertTrue(np.allclose(output_map, reference))
 
-
-    def test_noise_generation(self, save_output_map=False):
+    def test_noise_generation_with_HWP(self, save_output_map=False):
         net_ukrts = 100
         self.scan_field.generate_noise_pdf(net_ukrts=net_ukrts)
         mdim = 3
         seed = 12345
-        output_map = self.scan_field.generate_noise(mdim, seed)
+        use_hwp = True
+        output_map = self.scan_field.generate_noise(mdim, use_hwp, seed)
+
+        if save_output_map==True:
+            hp.write_map(f"tests/reference/noise_map_{net_ukrts}ukrts_hwp.fits", output_map, overwrite=True)
+            print("Noise map is saved.")
+        else:
+            reference = hp.read_map(f"tests/reference/noise_map_{net_ukrts}ukrts_hwp.fits", field=(0,1,2))
+            print(f"reference.shape: {reference.shape}")
+            self.assertTrue(np.allclose(output_map, reference))
+
+    def test_noise_generation_without_HWP(self, save_output_map=False):
+        net_ukrts = 100
+        self.scan_field.generate_noise_pdf(net_ukrts=net_ukrts)
+        mdim = 3
+        seed = 12345
+        use_hwp = False
+        output_map = self.scan_field.generate_noise(mdim, use_hwp, seed)
 
         if save_output_map==True:
             hp.write_map(f"tests/reference/noise_map_{net_ukrts}ukrts.fits", output_map, overwrite=True)

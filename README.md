@@ -16,7 +16,7 @@ This code assesses the impact of differential systematics on CMB polarisation ob
 
 ```
 git clone https://github.com/yusuke-takase/SBM.git
-cd sbm
+cd SBM
 pip install -e .
 ```
 

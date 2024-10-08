@@ -158,6 +158,7 @@ class ScanFields:
         self.net_channel_ukrts = None
         self.noise_pdf = None
         self.covmat_inv = None
+        self.xlink_threshold = 0.7
 
     @classmethod
     def load_det(cls, det_name: str, base_path=DB_ROOT_PATH):
@@ -337,42 +338,41 @@ class ScanFields:
             result = self.h[:, idx_m, idx_n].conj()
         return result
 
-    def get_covmat(self, mdim):
+    def get_covmat(self, mdim, use_hwp):
         """ Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
 
         Args:
             mdim (int): dimension of the covariance matrix.
         """
-        if self.use_hwp == False:
+        if use_hwp == True:
+            #print("HWP on (get_covmat): ", use_hwp)
             if mdim == 2:
-                covmat = self.create_covmat([2,-2], [0,0])
+                covmat = self.create_covmat([-2,2], [4,-4], use_hwp)
             elif mdim == 3:
-                covmat = self.create_covmat([0,2,-2], [0,0,0])
+                covmat = self.create_covmat([0,-2,2], [0,4,-4], use_hwp)
             elif mdim == 5:
-                covmat = self.create_covmat([0,1,-1,2,-2], [0,0,0,0,0])
+                covmat = self.create_covmat([0,-1,1,-2, 2],
+                                            [0, 0,0, 4,-4], use_hwp)
+            elif mdim == 9:
+                covmat = self.create_covmat([0,-1, 1,-2, 2,-3, 3,-1, 1],
+                                            [0, 0, 0, 4,-4, 4,-4, 4,-4], use_hwp)
+            else:
+                raise ValueError("mdim is 2, 3, 5 and 9 are only supported")
+        else:
+            #print("HWP off (get_covmat): ", use_hwp)
+            if mdim == 2:
+                covmat = self.create_covmat([2,-2], [0,0], use_hwp)
+            elif mdim == 3:
+                covmat = self.create_covmat([0,2,-2], [0,0,0], use_hwp)
+            elif mdim == 5:
+                covmat = self.create_covmat([0,1,-1,2,-2], [0,0,0,0,0], use_hwp)
             elif mdim == 7:
-                covmat = self.create_covmat([0,1,-1,2,-2,3,-3], [0,0,0,0,0,0,0])
+                covmat = self.create_covmat([0,1,-1,2,-2,3,-3], [0,0,0,0,0,0,0], use_hwp)
             else:
                 raise ValueError("mdim is 2, 3, 5 and 7 are only supported")
-            return covmat
-        else:
-            if mdim == 3:
-                covmat = self.create_covmat([0,-2,2], [0,4,-4])
-            elif mdim == 5:
-                    covmat = self.create_covmat([0,-1,1,-2, 2],
-                                                [0, 0,0, 4,-4])
-                    # HWPIP
-                    # covmat = self.create_covmat([0,-4,4,-2, 2],
-                    #                            [0, 4,-4, 4,-4])
-                    # (n,m)=(8,-8)まで必要
-            elif mdim == 9:
-                    covmat = self.create_covmat([0,-1, 1,-2, 2,-3, 3,-1, 1],
-                                                [0, 0, 0, 4,-4, 4,-4, 4,-4])
-            else:
-                raise ValueError("mdim is 3, 5 and 9 are only supported")
         return covmat
 
-    def create_covmat(self, base_spin_n: list, base_spin_m: list):
+    def create_covmat(self, base_spin_n: list, base_spin_m: list, use_hwp: bool):
         """ Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
 
         Args:
@@ -386,7 +386,7 @@ class ScanFields:
         waits = np.array([0.5 if x != 0 else 1.0 for x in base_spin_n])
         spin_n_mat =  base_spin_n[:,np.newaxis] - base_spin_n[np.newaxis,:]
         spin_m_mat =  base_spin_m[:,np.newaxis] - base_spin_m[np.newaxis,:]
-        if self.use_hwp == True:
+        if use_hwp == True:
             spin_n_mat = -spin_n_mat
             spin_m_mat = -spin_m_mat
         wait_mat = np.abs(waits[np.newaxis,:]) * np.abs(waits[:,np.newaxis])
@@ -579,25 +579,8 @@ class ScanFields:
             self.use_hwp = False
         else:
             self.use_hwp = True
-        if self.use_hwp == False:
-            sp2 = self.get_coupled_field(signal_fields, spin_n_out=2, spin_m_out=0)
-            if self.mdim==2:
-                coupled_fields = np.array([sp2/2.0, sp2.conj()/2.0])
-            elif self.mdim==3:
-                s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
-                coupled_fields = np.array([s_0, sp2/2.0, sp2.conj()/2.0])
-            elif self.mdim==5:
-                s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
-                sp1 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
-                coupled_fields = np.array([s_0, sp1/2.0, sp1.conj()/2.0, sp2/2.0, sp2.conj()/2.0])
-            elif self.mdim==7:
-                s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
-                sp1 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
-                sp3 = self.get_coupled_field(signal_fields, spin_n_out=3, spin_m_out=0)
-                coupled_fields = np.array([s_0, sp1/2.0, sp1.conj()/2.0, sp2/2.0, sp2.conj()/2.0, sp3/2.0, sp3.conj()/2.0])
-            else:
-                raise ValueError("mdim is 2, 3, 5 and 7 only supported")
-        else:
+
+        if self.use_hwp == True:
             s_00 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
             sp2m4 = self.get_coupled_field(signal_fields, spin_n_out=2, spin_m_out=-4)
             if self.mdim==3:
@@ -624,6 +607,24 @@ class ScanFields:
                     ])
             else:
                 raise ValueError("mdim is 2, 3, 5 and 7 only supported")
+        else:
+            sp2 = self.get_coupled_field(signal_fields, spin_n_out=2, spin_m_out=0)
+            if self.mdim==2:
+                coupled_fields = np.array([sp2/2.0, sp2.conj()/2.0])
+            elif self.mdim==3:
+                s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+                coupled_fields = np.array([s_0, sp2/2.0, sp2.conj()/2.0])
+            elif self.mdim==5:
+                s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+                sp1 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
+                coupled_fields = np.array([s_0, sp1/2.0, sp1.conj()/2.0, sp2/2.0, sp2.conj()/2.0])
+            elif self.mdim==7:
+                s_0 = self.get_coupled_field(signal_fields, spin_n_out=0, spin_m_out=0)
+                sp1 = self.get_coupled_field(signal_fields, spin_n_out=1, spin_m_out=0)
+                sp3 = self.get_coupled_field(signal_fields, spin_n_out=3, spin_m_out=0)
+                coupled_fields = np.array([s_0, sp1/2.0, sp1.conj()/2.0, sp2/2.0, sp2.conj()/2.0, sp3/2.0, sp3.conj()/2.0])
+            else:
+                raise ValueError("mdim is 2, 3, 5 and 7 only supported")
         self.coupled_fields = coupled_fields
 
     def map_make(self, signal_fields, mdim, only_iqu=True):
@@ -641,35 +642,38 @@ class ScanFields:
             output_map (np.ndarray, [`mdim`, `npix`])
         """
         self.mdim = mdim
-        self.couple(signal_fields, mdim=mdim)
+        self.couple(signal_fields, mdim=self.mdim)
         b = self.coupled_fields
         x = np.zeros_like(b)
-        A = self.get_covmat(mdim)
-        if self.use_hwp == False:
-            xlink2 = np.abs(self.get_xlink(2,0))
-            for i in range(self.npix):
-                if xlink2[i] < 0.7:
-                    x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
-        else:
+
+        if self.use_hwp == True:
+            A = self.get_covmat(self.mdim, use_hwp=True)
             for i in range(self.npix):
                 if self.hitmap[i] != 0:
                     x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+        else:
+            A = self.get_covmat(self.mdim, use_hwp=False)
+            xlink2 = np.abs(self.get_xlink(2,0))
+            for i in range(self.npix):
+                if xlink2[i] < self.xlink_threshold:
+                    x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+
         if mdim == 2:
             # output_map =        [Fake I                  , Q        , U        ]
             output_map = np.array([np.zeros_like(x[0].real), x[0].real, x[0].imag])
-        if mdim == 3:
+        elif mdim == 3:
             # output_map =        [I        , Q        , U        ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag])
-        if mdim == 5:
+        elif mdim == 5:
             # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag])
-        if mdim == 7:
+        elif mdim == 7:
             # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ,Z3^Q      , Z3^U     ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag])
-        if mdim == 9:
+        elif mdim == 9:
             # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ,Z3^Q      , Z3^U     ,Z1^Q^4    , Z1^U^4   ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag, x[7].real, x[7].imag])
-        if only_iqu == True:
+        elif only_iqu == True:
             if mdim > 3:
                 output_map = np.array([output_map[0], output_map[3], output_map[4]])
         return output_map
@@ -682,30 +686,31 @@ class ScanFields:
         b = self.coupled_fields
         x = np.zeros_like(b)
 
-        if self.use_hwp == False:
-            A = self.get_covmat(self.mdim)
-            xlink2 = np.abs(self.get_xlink(2,0))
-            for i in range(b.shape[1]):
-                if xlink2[i] < 0.7:
-                    x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
-        else:
-            A = self.get_covmat(self.mdim)
+        if self.use_hwp == True:
+            A = self.get_covmat(self.mdim, use_hwp=True)
             for i in range(b.shape[1]):
                 if self.hitmap[i] != 0:
                     x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+        else:
+            A = self.get_covmat(self.mdim, use_hwp=True)
+            xlink2 = np.abs(self.get_xlink(2,0))
+            for i in range(b.shape[1]):
+                if xlink2[i] < self.xlink_threshold:
+                    x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+
         if self.mdim == 2:
             # output_map =        [Fake I                  , Q        , U        ]
             output_map = np.array([np.zeros_like(x[0].real), x[0].real, x[0].imag])
-        if self.mdim == 3:
+        elif self.mdim == 3:
             # output_map =        [I        , Q        , U        ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag])
-        if self.mdim == 5:
+        elif self.mdim == 5:
             # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag])
-        if self.mdim == 7:
+        elif self.mdim == 7:
             # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ,Z3^Q      , Z3^U     ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag])
-        if mdim == 9:
+        elif mdim == 9:
             # output_map =        [I        , Z1^Q     , Z1^U     , Q        , U        ,Z3^Q      , Z3^U     ,Z1^Q^4    , Z1^U^4   ]
             output_map = np.array([x[0].real, x[1].real, x[1].imag, x[3].real, x[3].imag, x[5].real, x[5].imag, x[7].real, x[7].imag])
         return output_map
@@ -866,7 +871,7 @@ class ScanFields:
         if return_pdf:
             return self.noise_pdf
 
-    def generate_noise(self, mdim, seed=None):
+    def generate_noise(self, mdim, use_hwp, seed=None):
         """ Generate observed noise map with the noise PDF.
 
         Args:
@@ -878,20 +883,42 @@ class ScanFields:
             noise (np.ndarray) [3,npix]: noise map
         """
         assert self.noise_pdf is not None, "Generate noise pdf first by `ScanField.generate_noise_pdf()` method."
-        if self.covmat_inv is None or self.covmat_inv.shape[0] != mdim:
-            cov = self.get_covmat(mdim)
-            covmat_inv = np.empty_like(cov)
+        xlink2 = np.abs(self.get_xlink(2,0))
+
+        cov = self.get_covmat(mdim, use_hwp)
+        covmat_inv = np.empty_like(cov)
+        #("use_hwp (generate_noise| initial): ", use_hwp)
+        if use_hwp == True:
+            #print("HWP on (generate_noise): ", use_hwp)
             for i in range(self.npix):
                 if self.hitmap[i] != 0:
                     covmat_inv[:,:,i] = np.linalg.inv(cov[:,:,i])
                 else:
                     covmat_inv[:,:,i] = np.zeros_like(cov[:,:,i])
-            self.covmat_inv = np.sqrt(covmat_inv)
+        else:
+            #print("HWP off (generate_noise): ", use_hwp)
+            for i in range(self.npix):
+                if xlink2[i] < self.xlink_threshold:
+                    covmat_inv[:,:,i] = np.linalg.inv(cov[:,:,i])
+                else:
+                    covmat_inv[:,:,i] = np.zeros_like(cov[:,:,i])
+        self.covmat_inv = np.sqrt(covmat_inv)
+
         if seed:
             np.random.seed(seed)
         n_i = np.random.normal(loc=0., scale=self.noise_pdf[0], size=[self.npix])
         n_q = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
         n_u = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
+
+        if use_hwp == True:
+            n_i[self.hitmap == 0] = 0.0
+            n_q[self.hitmap == 0] = 0.0
+            n_u[self.hitmap == 0] = 0.0
+        else:
+            n_i[xlink2 > self.xlink_threshold] = 0.0
+            n_q[xlink2 > self.xlink_threshold] = 0.0
+            n_u[xlink2 > self.xlink_threshold] = 0.0
+
         if mdim == 2:
             noise = np.array([
                 np.zeros_like(n_i),
