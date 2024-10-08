@@ -417,6 +417,7 @@ def sim_noise_per_ch(
                 use_hwp=config.use_hwp,
                 seed=noise_seeds[i]
                 )
+            xlink2 = np.abs(sf.get_xlink(2,0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
     noise_map /= sky_weight
     return noise_map
