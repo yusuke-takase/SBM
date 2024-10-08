@@ -345,7 +345,6 @@ class ScanFields:
             mdim (int): dimension of the covariance matrix.
         """
         if use_hwp == True:
-            #print("HWP on (get_covmat): ", use_hwp)
             if mdim == 2:
                 covmat = self.create_covmat([-2,2], [4,-4], use_hwp)
             elif mdim == 3:
@@ -359,7 +358,6 @@ class ScanFields:
             else:
                 raise ValueError("mdim is 2, 3, 5 and 9 are only supported")
         else:
-            #print("HWP off (get_covmat): ", use_hwp)
             if mdim == 2:
                 covmat = self.create_covmat([2,-2], [0,0], use_hwp)
             elif mdim == 3:
@@ -887,16 +885,13 @@ class ScanFields:
 
         cov = self.get_covmat(mdim, use_hwp)
         covmat_inv = np.empty_like(cov)
-        #("use_hwp (generate_noise| initial): ", use_hwp)
         if use_hwp == True:
-            #print("HWP on (generate_noise): ", use_hwp)
             for i in range(self.npix):
                 if self.hitmap[i] != 0:
                     covmat_inv[:,:,i] = np.linalg.inv(cov[:,:,i])
                 else:
                     covmat_inv[:,:,i] = np.zeros_like(cov[:,:,i])
         else:
-            #print("HWP off (generate_noise): ", use_hwp)
             for i in range(self.npix):
                 if xlink2[i] < self.xlink_threshold:
                     covmat_inv[:,:,i] = np.linalg.inv(cov[:,:,i])
@@ -904,8 +899,10 @@ class ScanFields:
                     covmat_inv[:,:,i] = np.zeros_like(cov[:,:,i])
         self.covmat_inv = np.sqrt(covmat_inv)
 
-        if seed:
+        if seed is not None:
             np.random.seed(seed)
+        else:
+            np.random.seed()
         n_i = np.random.normal(loc=0., scale=self.noise_pdf[0], size=[self.npix])
         n_q = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
         n_u = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])

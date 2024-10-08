@@ -126,21 +126,6 @@ def generate_maps(mbs, config, lock=True):
         }
     return fiducial_map, input_maps
 
-def generate_noise_seeds(
-    syst: Systematics,
-    config: Configlation,
-    num_of_dets: int
-    ):
-    channel_id = np.where(np.array(channel_list) == config.channel)[0][0]
-    if syst.noise_seed is not None:
-        seed_range = list(range(0, int(1e4)))
-        random.seed(channel_id + syst.noise_seed)
-        random.seed(random.randint(0, 1e4))
-        noise_seeds = random.choices(seed_range, k=num_of_dets)
-    else:
-        noise_seeds = [None]*num_of_dets
-    return noise_seeds
-
 def sim_diff_gain_per_ch(
     config: Configlation,
     syst: Systematics,
@@ -343,13 +328,32 @@ def sim_diff_pointing_per_ch(
     observed_maps = np.array(observed_maps)/sky_weight
     return observed_maps, input_maps
 
+def generate_noise_seeds(
+    config: Configlation,
+    syst: Systematics,
+    num_of_dets: int
+    ):
+    channel_id = np.where(np.array(channel_list) == config.channel)[0][0]
+    if syst.noise_seed is not None:
+        _max = int(1e5)
+        seed_range = list(range(0, int(_max)))
+        random.seed(channel_id + syst.noise_seed)
+        random.seed(random.randint(0, _max))
+        noise_seeds = random.choices(seed_range, k=num_of_dets)
+    else:
+        noise_seeds = [None]*num_of_dets
+    return noise_seeds
+
 def process_noise(args):
     i, filename, dirpath, mdim, only_iqu, xlink_threshold, imo, use_hwp, noise_seed_i = args
     sf = ScanFields.load_det(filename, dirpath)
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = use_hwp
     sf.generate_noise_pdf(imo, scale=2.0)
-    output = sf.generate_noise(mdim, use_hwp=use_hwp, seed=noise_seed_i)
+    output = sf.generate_noise(mdim,
+                               use_hwp=use_hwp,
+                               seed=noise_seed_i
+                               )
     result = {
         "hitmap": sf.hitmap,
         "map": output,
@@ -378,7 +382,7 @@ def sim_noise_per_ch(
     noise_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
 
-    noise_seeds = generate_noise_seeds(syst, config, len(filenames))
+    noise_seeds = generate_noise_seeds(config, syst, len(filenames))
     if config.parallel == True:
         file_args = [
             (
@@ -399,6 +403,7 @@ def sim_noise_per_ch(
                                            bar_format='{l_bar}{bar:10}{r_bar}',
                                            colour='green')):
                 noise_map += result["map"]
+                sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
     else:
         for i, filename in enumerate(tqdm(filenames,
                                             desc=f"{GREEN}Processing {config.channel}{RESET}",
@@ -412,4 +417,6 @@ def sim_noise_per_ch(
                 use_hwp=config.use_hwp,
                 seed=noise_seeds[i]
                 )
+            sky_weight[xlink2 < config.xlink_threshold] += 1.0
+    noise_map /= sky_weight
     return noise_map
