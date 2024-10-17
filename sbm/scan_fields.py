@@ -10,6 +10,7 @@ import litebird_sim as lbs
 from pathlib import Path
 import toml
 from .signal_fields import Field, SignalFields
+from .tools import get_instrument_table
 
 CONFIG_PATH = Path.home() / ".config" / "sbm_dataset"
 CONFIG_FILE_PATH = CONFIG_PATH / "sbm_dataset.toml"
@@ -386,7 +387,9 @@ class ScanFields:
         """ Generate observed noise map with the noise PDF.
 
         Args:
-            mdim (int): dimension of the linear system in the map-making equation
+            spin_n_basis (list): list of spin_n to create the covariance matrix
+
+            spin_m_basis (list): list of spin_m to create the covariance matrix
 
             seed (int): seed for the random number generator
 

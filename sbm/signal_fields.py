@@ -14,15 +14,15 @@ import toml
 
 class Field:
     """ Class to store the field data of detectors """
-    def __init__(self, field: np.ndarray, spin_n: int, spin_m: int):
+    def __init__(self, field: np.ndarray, spin_n: float, spin_m: float):
         """ Initialize the class with field and spin data
 
         Args:
             field (np.ndarray): field data of the detector
 
-            spin_n (int): spin number of the crossing angle
+            spin_n (float): spin number of the crossing angle
 
-            spin_m (int): spin number of the HWP angle
+            spin_m (float): spin number of the HWP angle
         """
         if all(isinstance(x, float) for x in field):
             self.field = field + 1j*np.zeros(len(field))
@@ -66,13 +66,13 @@ class SignalFields:
         self.spin_n_basis = []
         self.spin_m_basis = []
 
-    def get_field(self, spin_n, spin_m):
+    def get_field(self, spin_n: float, spin_m: float):
         """ Get the field of the given spin number
 
         Args:
-            spin_n (int): spin number for which the field is to be obtained
+            spin_n (float): spin number for which the field is to be obtained
 
-            spin_m (int): spin number for which the field is to be obtained
+            spin_m (float): spin number for which the field is to be obtained
 
         Returns:
             field (np.ndarray): field of the detector for the given spin number
@@ -98,16 +98,16 @@ class SignalFields:
             result.fields[i].field += other.fields[i].field
         return result
 
-    def get_coupled_field(self, scan_field, spin_n_out: int, spin_m_out: int):
+    def get_coupled_field(self, scan_field, spin_n_out: float, spin_m_out: float):
         """ Multiply the scan fields and signal fields to get the detected fields by
         given cross-linking
 
         Args:
-            signal_fields (SignalFields): signal fields data of the detector
+            scan_fields (ScanFields): scan fields instance
 
-            spin_n_out (int): spin_n of the output field
+            spin_n_out (float): spin_n of the output field
 
-            spin_m_out (int): spin_m of the output field
+            spin_m_out (float): spin_m of the output field
 
         Returns:
             results (np.ndarray): detected fields by the given cross-linking
@@ -134,6 +134,10 @@ class SignalFields:
         """" Get the differential gain field of the detector
 
         Args:
+            scan_field (ScanFields): scan field instance
+
+            mdim (int): dimension of the map-making liner system
+
             gain_T (float): gain of the `Top` detector
 
             gain_B (float): gain of the `Bottom` detector
@@ -184,6 +188,10 @@ class SignalFields:
         """ Get the differential pointing field of the detector
 
         Args:
+            scan_field (ScanFields): scan field instance
+
+            mdim (int): dimension of the map-making liner system
+
             rho_T (float): magnitude of pointing offset of the `Top` detector in radian
 
             rho_B (float): magnitude of pointing offset of the `Bottom` detector in radian
@@ -253,9 +261,13 @@ class SignalFields:
         """ Get the HWP instrumental polarization field of the detector
 
         Args:
-            epsilon (float): Amplitude of the HWP Meuller matrix element varying at 4f
+            scan_field (ScanFields): scan field instance
 
-            phi_qi (float): Phase shift in the HWP
+            mdim (int): dimension of the map-making liner system
+
+            epsilon (float): amplitude of the HWP Meuller matrix element varying at 4f
+
+            phi_qi (float): phase shift in the HWP
 
             I (np.ndarray): temperature map
         """
@@ -292,6 +304,10 @@ class SignalFields:
         """ Get the absolute pointing field of the detector
 
         Args:
+            scan_field (ScanFields): scan field instance
+
+            mdim (int): dimension of the map-making liner system
+
             rho (float): magnitude of pointing offset in radian
 
             chi (float): direction of the pointing offset in radian
