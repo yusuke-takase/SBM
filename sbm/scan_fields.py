@@ -21,7 +21,6 @@ def extract_location_from_toml(file_path):
         loc = data['repositories'][0]['location']
     return loc
 
-
 if not CONFIG_FILE_PATH.exists():
     DB_ROOT_PATH = None
 else:
@@ -78,7 +77,6 @@ class ScanFields:
         self.noise_pdf = None
         self.covmat_inv = None
         self.xlink_threshold = 0.7
-
 
     @classmethod
     def load_det(cls, det_name: str, base_path=DB_ROOT_PATH):

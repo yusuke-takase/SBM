@@ -10,7 +10,6 @@ import litebird_sim as lbs
 from litebird_sim import Imo
 from pathlib import Path
 import toml
-#from .scan_fields import ScanFields
 
 class Field:
     """ Class to store the field data of detectors """
@@ -173,6 +172,7 @@ class SignalFields:
         signal_fields.spin_m_basis = spin_m_basis
         return signal_fields
 
+    @staticmethod
     def diff_pointing_field(
         scan_field,
         mdim: int,
