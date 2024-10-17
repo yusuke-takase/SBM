@@ -13,7 +13,7 @@ import os
 import json
 import numpy as np
 import toml
-from .main import ScanFields
+from .scan_fields import ScanFields
 
 CONFIG_PATH = Path.home() / ".config" / "sbm_dataset"
 CONFIG_FILE_PATH = CONFIG_PATH / "sbm_dataset.toml"
