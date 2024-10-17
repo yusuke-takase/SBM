@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import litebird_sim as lbs
+from litebird_sim import Imo
 import healpy as hp
 from matplotlib.colors import ListedColormap
 
@@ -81,3 +82,68 @@ def generate_cmb(nside, r=0., cmb_seed=None):
         np.random.seed(cmb_seed)
     cmb = hp.synfast(cl_cmb, nside=nside, new=True)
     return cmb
+
+
+def get_instrument_table(imo:Imo, imo_version="v2"):
+    """
+    This function generates DataFrame which is used for FGBuster as `instrument` from IMo.
+
+    Args:
+        imo (Imo): IMo object which contains the instrument information given by the `litebird_sim`
+
+        imo_version (str): version of the IMo. Default is "v2"
+
+    Returns:
+        instrument (pd.DataFrame): DataFrame which contains the instrument information
+    """
+    telescopes     = ["LFT", "MFT", "HFT"]
+    channel_list   = []
+    freq           = []
+    depth_p        = []
+    fwhm           = []
+    telescope_list = []
+    bandwidth      = []
+    numOfdets      = []
+    net_detector_ukrts = []
+    net_channel_ukrts = []
+
+    for i in telescopes:
+        inst_info = imo.query("/releases/"+imo_version+"/satellite/"+i+"/instrument_info")
+        channel_list.append(inst_info.metadata["channel_names"])
+    channel_list = [item for sublist in channel_list for item in sublist]
+
+    for i in channel_list:
+        if i[0]   == "L":
+            telescope = "LFT"
+        elif i[0] == "M":
+            telescope = "MFT"
+        elif i[0] == "H":
+            telescope = "HFT"
+        chinfo = lbs.FreqChannelInfo.from_imo(imo,
+                  "/releases/{}/satellite/{}/{}/channel_info".format(imo_version, telescope, i))
+        freq.append(chinfo.band.bandcenter_ghz)
+        depth_p.append(chinfo.pol_sensitivity_channel_ukarcmin)
+        fwhm.append(chinfo.fwhm_arcmin)
+        telescope_list.append(telescope)
+        bandwidth.append(chinfo.bandwidth_ghz)
+        net_detector_ukrts.append(chinfo.net_detector_ukrts)
+        net_channel_ukrts.append(chinfo.net_channel_ukrts)
+        numOfdets.append(len(chinfo.detector_names))
+
+    instrument = pd.DataFrame(data = {
+        'channel'    : channel_list,
+        'frequency'  : freq,
+        'bandwidth'  : bandwidth,
+        'depth_p'    : depth_p,
+        'fwhm'       : fwhm,
+        'net_detector_ukrts' : net_detector_ukrts,
+        'net_channel_ukrts'  : net_channel_ukrts,
+        'ndet'       : numOfdets,
+        'f_sky'      : [1.0                  for i in range(len(channel_list))],
+        'status'     : ["forecast"           for i in range(len(channel_list))],
+        'reference'  : ["IMo-" + imo_version for i in range(len(channel_list))],
+        'type'       : ["satellite"          for i in range(len(channel_list))],
+        'experiment' : ["LiteBIRD"           for i in range(len(channel_list))],
+        'telescope'  : telescope_list
+    })
+    return instrument

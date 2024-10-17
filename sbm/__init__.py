@@ -1,14 +1,15 @@
 # -*- encoding: utf-8 -*-
 
-from .main import (
-    Field,
-    SignalFields,
+from .scan_fields import (
     ScanFields,
-    plot_maps,
-    get_instrument_table,
     DB_ROOT_PATH,
     channel_list,
     fwhms,
+)
+
+from .signal_fields import (
+    Field,
+    SignalFields,
 )
 from .pipelines import (
     Configlation,
@@ -16,6 +17,7 @@ from .pipelines import (
     sim_diff_gain_per_ch,
     sim_diff_pointing_per_ch,
     sim_noise_per_ch,
+    generate_maps,
 )
 from .tools import (
     get_cmap,
@@ -23,6 +25,7 @@ from .tools import (
     d2c,
     load_fiducial_cl,
     generate_cmb,
+    get_instrument_table,
 )
 from .version import (
     __author__,
@@ -34,25 +37,26 @@ __all__ = [
     # version.py
     "__author__",
     "__version__",
-    # main.py
-    "Field",
-    "SignalFields",
+    # scan_fields.py
     "ScanFields",
-    "plot_maps",
-    "get_instrument_table",
     "DB_ROOT_PATH",
     "channel_list",
     "fwhms",
+    # signal_fields.py
+    "Field",
+    "SignalFields",
     # pipelines.py
     "Configlation",
     "Systematics",
     "sim_diff_gain_per_ch",
     "sim_diff_pointing_per_ch",
     "sim_noise_per_ch",
+    "generate_maps",
     # tools.py
     "get_cmap",
     "c2d",
     "d2c",
     "load_fiducial_cl",
     "generate_cmb",
+    "get_instrument_table",
 ]

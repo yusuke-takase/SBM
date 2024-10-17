@@ -6,7 +6,8 @@ from tqdm import tqdm
 import os
 import fcntl
 import random
-from .main import ScanFields, DB_ROOT_PATH, channel_list
+from .scan_fields import ScanFields, DB_ROOT_PATH, channel_list
+from .signal_fields import SignalFields
 
 GREEN = '\033[92m'
 RESET = '\033[0m'
@@ -67,7 +68,7 @@ def process_gain(args):
     sf = ScanFields.load_det(filename, dirpath)
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = False
-    diff_gain_signal = ScanFields.diff_gain_field(gain_T[i], gain_B[i], I, P)
+    diff_gain_signal = SignalFields.diff_gain_field(sf, mdim, gain_T[i], gain_B[i], I, P)
     output = sf.map_make(diff_gain_signal, mdim, only_iqu)
     result = {
         "hitmap": sf.hitmap,
@@ -81,7 +82,7 @@ def process_pointing(args):
     sf = ScanFields.load_det(filename, dirpath)
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = False
-    diff_signal = ScanFields.diff_pointing_field(rho_T[i],rho_B[i],chi_T[i],chi_B[i],P,eth_I,eth_P,o_eth_P)
+    diff_signal = SignalFields.diff_pointing_field(sf, mdim, rho_T[i],rho_B[i],chi_T[i],chi_B[i],P,eth_I,eth_P,o_eth_P)
     output = sf.map_make(diff_signal, mdim, only_iqu)
     result = {
         "hitmap": sf.hitmap,
@@ -210,7 +211,7 @@ def sim_diff_gain_per_ch(
             sf = ScanFields.load_det(filename, base_path=dirpath)
             sf.xlink_threshold = config.xlink_threshold
             sf.use_hwp = config.use_hwp
-            diff_gain_signal = ScanFields.diff_gain_field(gain_T[i], gain_B[i], I, P)
+            diff_gain_signal = SignalFields.diff_gain_field(sf, config.mdim, gain_T[i], gain_B[i], I, P)
             output = sf.map_make(diff_gain_signal, config.mdim, config.only_iqu)
             observed_map += output
             xlink2 = np.abs(sf.get_xlink(2,0))
@@ -320,7 +321,7 @@ def sim_diff_pointing_per_ch(
             sf = ScanFields.load_det(filename, base_path=dirpath)
             sf.xlink_threshold = config.xlink_threshold
             sf.use_hwp = config.use_hwp
-            diff_signal = ScanFields.diff_pointing_field(rho_T[i],rho_B[i],chi_T[i],chi_B[i],P,eth_I,eth_P,o_eth_P)
+            diff_signal = SignalFields.diff_pointing_field(sf, config.mdim, rho_T[i],rho_B[i],chi_T[i],chi_B[i],P,eth_I,eth_P,o_eth_P)
             output = sf.map_make(diff_signal, config.mdim, config.only_iqu)
             xlink2 = np.abs(sf.get_xlink(2,0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
@@ -345,12 +346,12 @@ def generate_noise_seeds(
     return noise_seeds
 
 def process_noise(args):
-    i, filename, dirpath, mdim, only_iqu, xlink_threshold, imo, use_hwp, noise_seed_i = args
+    i, filename, dirpath, spin_basis, only_iqu, xlink_threshold, imo, use_hwp, noise_seed_i = args
     sf = ScanFields.load_det(filename, dirpath)
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = use_hwp
     sf.generate_noise_pdf(imo, scale=2.0)
-    output = sf.generate_noise(mdim,
+    output = sf.generate_noise(spin_basis,
                                use_hwp=use_hwp,
                                seed=noise_seed_i
                                )
@@ -389,7 +390,7 @@ def sim_noise_per_ch(
             i,
             filename,
             dirpath,
-            config.mdim,
+            config.spin_basis,
             config.only_iqu,
             config.xlink_threshold,
             config.imo,
@@ -413,7 +414,7 @@ def sim_noise_per_ch(
             sf.generate_noise_pdf(config.imo, scale=2.0)
             sf.use_hwp = config.use_hwp
             noise_map += sf.generate_noise(
-                config.mdim,
+                np.array(config.spin_basis),
                 use_hwp=config.use_hwp,
                 seed=noise_seeds[i]
                 )
