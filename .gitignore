@@ -1,4 +1,5 @@
 notebooks/__pycache__/
+notebooks/figures/
 sbm/__pycache__/
 .ipynb_checkpoints/
 __pycache__/
