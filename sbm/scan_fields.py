@@ -331,7 +331,6 @@ class ScanFields:
                 if xlink2[i] < self.xlink_threshold:
                     x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if only_iqu == True:
-            print(pol_idx)
             output_map = [np.zeros_like(x[pol_idx].real), x[pol_idx].real, x[pol_idx].imag]
         else:
             output_map = x
