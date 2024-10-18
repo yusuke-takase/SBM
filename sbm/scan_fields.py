@@ -410,7 +410,7 @@ class ScanFields:
         covmat_inv = np.empty_like(cov)
 
         if self.use_hwp == True:
-            pol_idx = np.where((spin_n_basis == 2) & (spin_m_basis == -4))[0][0]
+            pol_idx = np.where((spin_n_basis == -2) & (spin_m_basis == 4))[0][0]
             for i in range(self.npix):
                 if self.hitmap[i] != 0:
                     covmat_inv[:,:,i] = np.linalg.inv(cov[:,:,i])
