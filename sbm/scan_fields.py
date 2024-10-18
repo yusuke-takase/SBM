@@ -312,7 +312,7 @@ class ScanFields:
         b = signal_fields.coupled_fields
         x = np.zeros_like(b)
         if self.use_hwp == True:
-            pol_idx = np.where((spin_n_basis == 2) & (spin_m_basis == -4))[0][0]
+            pol_idx = np.where((spin_n_basis == -2) & (spin_m_basis == 4))[0][0]
             A = self.create_covmat(
                 spin_n_basis,
                 spin_m_basis,
@@ -331,6 +331,7 @@ class ScanFields:
                 if xlink2[i] < self.xlink_threshold:
                     x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
         if only_iqu == True:
+            print(pol_idx)
             output_map = [np.zeros_like(x[pol_idx].real), x[pol_idx].real, x[pol_idx].imag]
         else:
             output_map = x
