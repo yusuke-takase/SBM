@@ -140,7 +140,12 @@ class SignalFields:
             return Field(results.sum(0), spin_n_out, spin_m_out)
 
     def build_linear_system(self, fields: list):
-        """ Get the linear system information """
+        """ Build the information to solve the linear system of map-making
+        This method has to be called befure map_make() method.
+
+        Args:
+            fields (list): list of coupled fields, its element must be `Field` instance
+        """
         coupled_fields = []
         spin_n_basis = []
         spin_m_basis = []
