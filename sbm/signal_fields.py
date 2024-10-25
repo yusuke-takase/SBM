@@ -97,7 +97,7 @@ class SignalFields:
             result.fields[i].field += other.fields[i].field
         return result
 
-    def get_coupled_field(self, scan_field, spin_n_out: float, spin_m_out: float):
+    def get_coupled_field(self, scan_field, spin_n_out: float, spin_m_out: float, output_all=False):
         """ Multiply the scan fields and signal fields to get the detected fields by
         given cross-linking
 
@@ -112,6 +112,10 @@ class SignalFields:
             results (np.ndarray): detected fields by the given cross-linking
         """
         results = []
+        h_name = []
+        S_name = []
+        delta_nm = []
+        nm = []
         for i in range(len(self.spins_n)):
             n = self.spins_n[i]
             m = self.spins_m[i]
@@ -119,7 +123,45 @@ class SignalFields:
             delta_m = spin_m_out - m
             hS = scan_field.get_xlink(delta_n,delta_m) * self.get_field(n,m)
             results.append(hS)
-        return np.array(results).sum(0)
+            h_name.append(fr"${{}}_{{{delta_n},{delta_m}}}\tilde{{h}}$")
+            S_name.append(fr"${{}}_{{{n},{m}}}\tilde{{S}}$")
+            delta_nm.append((delta_n,delta_m))
+            nm.append((n,m))
+        results = np.array(results)
+        if output_all==True:
+            return {
+                "results": results,
+                "h_name": h_name,
+                "S_name": S_name,
+                "delta_nm": delta_nm,
+                "nm": nm,
+            }
+        else:
+            return Field(results.sum(0), spin_n_out, spin_m_out)
+
+    def build_linear_system(self, fields: list):
+        """ Get the linear system information """
+        coupled_fields = []
+        spin_n_basis = []
+        spin_m_basis = []
+        for field in fields:
+            assert isinstance(field, Field), "element of `fields` must be Field instance"
+            if field.spin_n == 0 and field.spin_m == 0:
+                coupled_fields.append(field.field)
+            else:
+                coupled_fields.append(field.field/2.0)
+            spin_n_basis.append(field.spin_n)
+            spin_m_basis.append(field.spin_m)
+        spin_n_basis = np.array(spin_n_basis)
+        spin_m_basis = np.array(spin_m_basis)
+        self.coupled_fields = np.array(coupled_fields)
+        if all(spin_m_basis == 0):
+            self.spin_n_basis = spin_n_basis
+            self.spin_m_basis = spin_m_basis
+        else:
+            # HWP on, the sign of spin basis is flipped
+            self.spin_n_basis = -spin_n_basis
+            self.spin_m_basis = -spin_m_basis
 
     @staticmethod
     def diff_gain_field(
@@ -158,18 +200,12 @@ class SignalFields:
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
         if mdim == 2:
-            coupled_fields = np.array([sp2/2.0, sp2.conj()/2.0])
-            spin_n_basis = [2, -2]
-            spin_m_basis = [0 for _ in range(len(spin_n_basis))]
+            fields = [sp2, sp2.conj()]
         elif mdim == 3:
-            coupled_fields = np.array([s_0, sp2/2.0, sp2.conj()/2.0])
-            spin_n_basis = [0, 2, -2]
-            spin_m_basis = [0 for _ in range(len(spin_n_basis))]
+            fields = [s_0, sp2, sp2.conj()]
         else:
             raise ValueError("mdim is 2 and 3 only supported")
-        signal_fields.coupled_fields = coupled_fields
-        signal_fields.spin_n_basis = spin_n_basis
-        signal_fields.spin_m_basis = spin_m_basis
+        signal_fields.build_linear_system(fields)
         return signal_fields
 
     @staticmethod
@@ -229,25 +265,17 @@ class SignalFields:
         signal_fields.syst_field_name = "diff_pointing_field"
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
         if mdim == 2:
-            coupled_fields = np.array([sp2/2.0, sp2.conj()/2.0])
-            spin_n_basis = [2, -2]
-            spin_m_basis = [0 for _ in range(len(spin_n_basis))]
+            fields = [sp2, sp2.conj()]
         elif mdim == 4: # T grad. mitigation
             sp1 = signal_fields.get_coupled_field(scan_field, spin_n_out=1, spin_m_out=0)
-            coupled_fields = np.array([sp1/2.0, sp1.conj()/2.0, sp2/2.0, sp2.conj()/2.0])
-            spin_n_basis = [1, -1, 2, -2]
-            spin_m_basis = [0 for _ in range(len(spin_n_basis))]
+            fields = [sp1, sp1.conj(), sp2, sp2.conj()]
         elif mdim == 6: # T and P grad. mitigation
             sp1 = signal_fields.get_coupled_field(scan_field, spin_n_out=1, spin_m_out=0)
             sp3 = signal_fields.get_coupled_field(scan_field, spin_n_out=3, spin_m_out=0)
-            coupled_fields = np.array([sp1/2.0, sp1.conj()/2.0, sp2/2.0, sp2.conj()/2.0, sp3/2.0, sp3.conj()/2.0])
-            spin_n_basis = [1, -1, 2, -2, 3, -3]
-            spin_m_basis = [0 for _ in range(len(spin_n_basis))]
+            fields = [sp1, sp1.conj(), sp2, sp2.conj(), sp3, sp3.conj()]
         else:
             raise ValueError("mdim is 2,4 and 6 only supported")
-        signal_fields.coupled_fields = coupled_fields
-        signal_fields.spin_n_basis = spin_n_basis
-        signal_fields.spin_m_basis = spin_m_basis
+        signal_fields.build_linear_system(fields)
         return signal_fields
 
     @staticmethod
@@ -279,14 +307,10 @@ class SignalFields:
         s_00 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2m4 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=-4)
         if mdim == 3:
-            coupled_fields = np.array([s_00, sp2m4/2.0, sp2m4.conj()/2.0])
-            spin_n_basis = [0, -2, 2]
-            spin_m_basis = [0, 4, -4]
+            fields = [s_00, sp2m4, sp2m4.conj()]
         else:
             raise ValueError("mdim is 3 only supported")
-        signal_fields.coupled_fields = coupled_fields
-        signal_fields.spin_n_basis = spin_n_basis
-        signal_fields.spin_m_basis = spin_m_basis
+        signal_fields.build_linear_system(fields)
         return signal_fields
 
     @staticmethod
@@ -346,34 +370,26 @@ class SignalFields:
         s_00 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2m4 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=-4)
         if mdim == 3:
-            coupled_fields = np.array([s_00, sp2m4/2.0, sp2m4.conj()/2.0])
-            spin_n_basis = [0, -2, 2]
-            spin_m_basis = [0, 4, -4]
+            fields = [s_00, sp2m4, sp2m4.conj()]
         elif mdim == 5:
             sp10 = signal_fields.get_coupled_field(scan_field, spin_n_out=1, spin_m_out=0)
-            coupled_fields = np.array([s_00, sp10/2.0, sp10.conj()/2.0, sp2m4/2.0, sp2m4.conj()/2.0])
-            spin_n_basis = [0,-1,1,-2, 2]
-            spin_m_basis = [0, 0,0, 4,-4]
+            fields = [s_00, sp10, sp10.conj(), sp2m4, sp2m4.conj()]
         elif mdim == 9:
             sp10 = signal_fields.get_coupled_field(scan_field, spin_n_out=1, spin_m_out=0)
             sp3m4 = signal_fields.get_coupled_field(scan_field, spin_n_out=3, spin_m_out=-4)
             sp1m4 = signal_fields.get_coupled_field(scan_field, spin_n_out=1, spin_m_out=-4)
-            coupled_fields = np.array([
+            fields = [
                 s_00,
-                sp10/2.0,
-                sp10.conj()/2.0,
-                sp2m4/2.0,
-                sp2m4.conj()/2.0,
-                sp3m4/2.0,
-                sp3m4.conj()/2.0,
-                sp1m4/2.0,
-                sp1m4.conj()/2.0,
-                ])
-            spin_n_basis = [0,-1, 1,-2, 2,-3, 3,-1, 1]
-            spin_m_basis = [0, 0, 0, 4,-4, 4,-4, 4,-4]
+                sp10,
+                sp10.conj(),
+                sp2m4,
+                sp2m4.conj(),
+                sp3m4,
+                sp3m4.conj(),
+                sp1m4,
+                sp1m4.conj(),
+                ]
         else:
             raise ValueError("mdim is 3,5 and 9 only supported")
-        signal_fields.coupled_fields = coupled_fields
-        signal_fields.spin_n_basis = spin_n_basis
-        signal_fields.spin_m_basis = spin_m_basis
+        signal_fields.build_linear_system(fields)
         return signal_fields

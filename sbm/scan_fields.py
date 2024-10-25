@@ -273,6 +273,8 @@ class ScanFields:
         waits = np.array([0.5 if x != 0 else 1.0 for x in base_spin_n])
         spin_n_mat =  base_spin_n[:,np.newaxis] - base_spin_n[np.newaxis,:]
         spin_m_mat =  base_spin_m[:,np.newaxis] - base_spin_m[np.newaxis,:]
+        #print(spin_n_mat)
+        #print(spin_m_mat)
         if self.use_hwp == True:
             spin_n_mat = -spin_n_mat
             spin_m_mat = -spin_m_mat

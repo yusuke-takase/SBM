@@ -31,7 +31,6 @@ class TestSBM(unittest.TestCase):
         for mdim in mdims:
             signal_field = SignalFields.diff_gain_field(self.scan_field, mdim, g_a, g_b, self.I, self.P)
             output_map = self.scan_field.map_make(signal_field)
-
             if save_output_map==True:
                 hp.write_map(f"tests/reference/diff_gain_output_map_mdim_{mdim}.fits", output_map, overwrite=True)
                 print("Diff gain output map is saved.")
@@ -48,7 +47,6 @@ class TestSBM(unittest.TestCase):
         for mdim in mdims:
             signal_field = SignalFields.diff_pointing_field(self.scan_field, mdim, rho_T, chi_T, rho_B, chi_B, self.P, self.eth_I, self.eth_P, self.o_eth_P)
             output_map = self.scan_field.map_make(signal_field)
-
             if save_output_map==True:
                 hp.write_map(f"tests/reference/diff_pointing_output_map_mdim_{mdim}.fits", output_map, overwrite=True)
                 print("Diff pointing output map is saved.")
@@ -59,7 +57,6 @@ class TestSBM(unittest.TestCase):
     def test_abs_pointing(self, save_output_map=save):
         rho = np.deg2rad(1/60)
         chi = np.deg2rad(0)
-
         mdims = [3,5,9]
         for mdim in mdims:
             signal_field = SignalFields.abs_pointing_field(self.scan_field, mdim, rho, chi, self.I, self.P, self.eth_I, self.eth_P, self.o_eth_P)
@@ -122,7 +119,6 @@ class TestSBM(unittest.TestCase):
         net_ukrts = 100
         seed = 12345
         self.scan_field.generate_noise_pdf(net_ukrts=net_ukrts)
-
         for spin_n_basis, spin_m_basis in zip(spin_n_basis_list, spin_m_basis_list):
             mdim = len(spin_n_basis)
             output_map = self.scan_field.generate_noise(spin_n_basis, spin_m_basis, seed)
