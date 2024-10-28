@@ -26,6 +26,7 @@ from .tools import (
     load_fiducial_cl,
     generate_cmb,
     get_instrument_table,
+    forecast,
 )
 from .version import (
     __author__,
@@ -59,4 +60,5 @@ __all__ = [
     "load_fiducial_cl",
     "generate_cmb",
     "get_instrument_table",
+    "forecast",
 ]

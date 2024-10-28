@@ -6,6 +6,8 @@ import litebird_sim as lbs
 from litebird_sim import Imo
 import healpy as hp
 from matplotlib.colors import ListedColormap
+from iminuit import Minuit
+
 
 def get_cmap():
     """ This function generates color scheme which is often used Planck paper. """
@@ -83,7 +85,6 @@ def generate_cmb(nside, r=0., cmb_seed=None):
     cmb = hp.synfast(cl_cmb, nside=nside, new=True)
     return cmb
 
-
 def get_instrument_table(imo:Imo, imo_version="v2"):
     """
     This function generates DataFrame which is used for FGBuster as `instrument` from IMo.
@@ -147,3 +148,75 @@ def get_instrument_table(imo:Imo, imo_version="v2"):
         'telescope'  : telescope_list
     })
     return instrument
+
+def _get_likelihood(x, ell, cl_tens, cl_lens, cl_syst, n_ell, fsky): #x is r
+    Cl_hat = cl_syst[ell-2] + cl_lens[ell-2] + n_ell[ell-2] #there should be the noise cl_noise (noise and fg residuals), now assuming noiseless case
+    Cl = x*cl_tens[ell-2] + cl_lens[ell-2] + n_ell[ell-2] #there should be the noise cl_noise (noise and fg residuals), now assuming noiseless case
+    return ( - np.sum((-0.5) * fsky * (2.*ell + 1.) * ((Cl_hat / Cl) + np.log(Cl) - ((2.*ell - 1.) / (2.*ell + 1.)) * np.log(Cl_hat))) )
+
+def forecast(cl_syst, n_ell=None, fsky=1.0, lmax=191, r0=1e-3, tol=1e-8, rmin=1e-9, rmax=0.1, rresol=100):
+    """
+    This function estimates the bias on the tensor-to-scalar ratio due to pointing systematics
+    This function based on the paper: https://academic.oup.com/ptep/article/2023/4/042F01/6835420, P88, Sec. (5.3.2)
+
+    Args:
+        cl_syst (1d array): residual B-modes power spectrum
+
+        fsky (float): sky fraction
+
+        lmax (int): maximum multipole considered in the maximization
+
+        rmin (float): minimum value of r considered in the maximization
+
+        rmax (float): maximum value of r considered in the maximization
+
+        rresol (int): how many value of r in delta_r*1e-3 < delta_r < delta_r*3 to use for saving
+    """
+
+    # l range, from 2 to lmax
+    ell = np.arange(2, lmax+1)
+
+    # the [2] selects the BB spectra and the [2:lmax+1] excludes multipoles 0 and 1,
+    # that are null, and multipole above lmax
+    cl_tens = load_fiducial_cl(r=1.0)[2][2:lmax+1]
+    cl_lens = load_fiducial_cl(r=0.0)[2][2:lmax+1]
+    cl_syst = cl_syst[2:lmax+1]
+    if n_ell is None:
+        n_ell = np.zeros_like(cl_lens)
+    else:
+        n_ell = n_ell[2:lmax+1]
+    '''
+    res = minimize(
+        fun=_get_likelihood,
+        x0=r0,
+        method="L-BFGS-B",
+        bounds=Bounds(rmin,rmax),
+        tol=tol,
+        args=(ell,cl_tens,cl_lens,cl_syst,n_ell,fsky),
+    )
+    delta_r = res.x[0]      # delta_r value
+    '''
+
+    #m = Minuit(_get_likelihood, r0, ell, cl_tens, cl_lens, cl_syst, n_ell, fsky)
+    def wrapped_likelihood(r):
+        return _get_likelihood(r, ell, cl_tens, cl_lens, cl_syst, n_ell, fsky)
+
+    # Use iminuit to minimize the likelihood function
+    m = Minuit(wrapped_likelihood, r0)
+    m.limits = (rmin, rmax)
+    m.errordef = Minuit.LIKELIHOOD
+    m.tol = tol
+    m.migrad()
+    delta_r = m.values[0]  # delta_r value
+
+    # Calculate likelihood function one last time in the range delta_r*1e-3 < delta_r < delta_r*3
+    # Note that delta_r has already been estimated, this likelihood is just used for display
+    r_grid_display = np.linspace(delta_r*1e-3, delta_r*3., rresol)
+    likelihood = np.zeros(rresol)
+
+    for i,r in enumerate(r_grid_display):
+        likelihood[i] = wrapped_likelihood(r)
+
+    likelihood = np.exp(likelihood - np.max(likelihood))
+    data = {"delta_r":delta_r, "grid_r":r_grid_display, "likelihood":likelihood}
+    return data
