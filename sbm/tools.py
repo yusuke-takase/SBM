@@ -49,7 +49,7 @@ def d2c(dl, ell_start=2.):
     ell = np.arange(ell_start, len(dl)+ell_start)
     return dl*(2.*np.pi)/(ell*(ell+1.))
 
-def load_fiducial_cl(r):
+def load_fiducial_cl(r, lmax=None):
     """ This function loads the fiducial CMB power spectrum used in the map base simulation of litebird_sim.
 
     Args:
@@ -63,6 +63,8 @@ def load_fiducial_cl(r):
     cl_cmb_scalar = hp.read_cl(datautils_dir / "Cls_Planck2018_for_PTEP_2020_r0.fits")
     cl_cmb_tensor = hp.read_cl(datautils_dir / "Cls_Planck2018_for_PTEP_2020_tensor_r1.fits") * r
     cl_cmb = cl_cmb_scalar + cl_cmb_tensor
+    if lmax is not None:
+        cl_cmb = cl_cmb[:,:lmax+1]
     return cl_cmb
 
 def generate_cmb(nside, r=0., cmb_seed=None):
@@ -154,7 +156,8 @@ def _get_likelihood(x, ell, cl_tens, cl_lens, cl_syst, n_ell, fsky): #x is r
     Cl = x*cl_tens[ell-2] + cl_lens[ell-2] + n_ell[ell-2] #there should be the noise cl_noise (noise and fg residuals), now assuming noiseless case
     return ( - np.sum((-0.5) * fsky * (2.*ell + 1.) * ((Cl_hat / Cl) + np.log(Cl) - ((2.*ell - 1.) / (2.*ell + 1.)) * np.log(Cl_hat))) )
 
-def forecast(cl_syst, n_ell=None, fsky=1.0, lmax=191, r0=1e-3, tol=1e-8, rmin=1e-9, rmax=0.1, rresol=100):
+
+def forecast(cl_syst, n_el=None, fsky=1.0, lmax=191, r0=1e-3, tol=1e-8, rmin=1e-10, rmax=1, rresol=100):
     """
     This function estimates the bias on the tensor-to-scalar ratio due to pointing systematics
     This function based on the paper: https://academic.oup.com/ptep/article/2023/4/042F01/6835420, P88, Sec. (5.3.2)
@@ -172,46 +175,36 @@ def forecast(cl_syst, n_ell=None, fsky=1.0, lmax=191, r0=1e-3, tol=1e-8, rmin=1e
 
         rresol (int): how many value of r in delta_r*1e-3 < delta_r < delta_r*3 to use for saving
     """
+    assert cl_syst[0] == cl_syst[1] == 0.0, "First and second elements must be 0 because it is recognized as monopole and dipole"
 
     # l range, from 2 to lmax
     ell = np.arange(2, lmax+1)
 
     # the [2] selects the BB spectra and the [2:lmax+1] excludes multipoles 0 and 1,
     # that are null, and multipole above lmax
-    cl_tens = load_fiducial_cl(r=1.0)[2][2:lmax+1]
-    cl_lens = load_fiducial_cl(r=0.0)[2][2:lmax+1]
+    cl_tens = load_fiducial_cl(r=1.0, lmax=lmax)[2][2:]
+    cl_lens = load_fiducial_cl(r=0.0, lmax=lmax)[2][2:]
     cl_syst = cl_syst[2:lmax+1]
-    if n_ell is None:
-        n_ell = np.zeros_like(cl_lens)
+    if n_el is None:
+        n_el = np.zeros_like(cl_lens)
     else:
-        n_ell = n_ell[2:lmax+1]
-    '''
-    res = minimize(
-        fun=_get_likelihood,
-        x0=r0,
-        method="L-BFGS-B",
-        bounds=Bounds(rmin,rmax),
-        tol=tol,
-        args=(ell,cl_tens,cl_lens,cl_syst,n_ell,fsky),
-    )
-    delta_r = res.x[0]      # delta_r value
-    '''
+        assert n_el[0] == n_el[1] == 0.0, "First and second elements must be 0 because it is recognized as monopole and dipole"
+        n_el = n_el[2:lmax+1]
 
-    #m = Minuit(_get_likelihood, r0, ell, cl_tens, cl_lens, cl_syst, n_ell, fsky)
     def wrapped_likelihood(r):
-        return _get_likelihood(r, ell, cl_tens, cl_lens, cl_syst, n_ell, fsky)
+        return _get_likelihood(r, ell, cl_tens, cl_lens, cl_syst, n_el, fsky)
 
-    # Use iminuit to minimize the likelihood function
     m = Minuit(wrapped_likelihood, r0)
     m.limits = (rmin, rmax)
     m.errordef = Minuit.LIKELIHOOD
     m.tol = tol
     m.migrad()
     delta_r = m.values[0]  # delta_r value
+    #print("Δr: ", delta_r)
 
     # Calculate likelihood function one last time in the range delta_r*1e-3 < delta_r < delta_r*3
     # Note that delta_r has already been estimated, this likelihood is just used for display
-    r_grid_display = np.linspace(delta_r*1e-3, delta_r*3., rresol)
+    r_grid_display = np.linspace(delta_r*1e-2, delta_r*3., rresol)
     likelihood = np.zeros(rresol)
 
     for i,r in enumerate(r_grid_display):
