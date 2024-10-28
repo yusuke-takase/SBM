@@ -8,7 +8,6 @@ import healpy as hp
 from matplotlib.colors import ListedColormap
 from iminuit import Minuit
 
-
 def get_cmap():
     """ This function generates color scheme which is often used Planck paper. """
     datautils_dir = Path(__file__).parent / "datautils"
@@ -157,7 +156,7 @@ def _get_likelihood(x, ell, cl_tens, cl_lens, cl_syst, n_el, fsky): #x is r
     return ( - np.sum((-0.5) * fsky * (2.*ell + 1.) * ((Cl_hat / Cl) + np.log(Cl) - ((2.*ell - 1.) / (2.*ell + 1.)) * np.log(Cl_hat))) )
 
 
-def forecast(cl_syst, n_el=None, fsky=1.0, lmax=191, r0=1e-3, tol=1e-8, rmin=1e-10, rmax=1, rresol=100):
+def forecast(cl_syst, n_el=None, fsky=1.0, lmax=191, r0=0.0, tol=1e-8, rmin=1e-10, rmax=100, rresol=1000):
     """
     This function estimates the bias on the tensor-to-scalar ratio due to pointing systematics
     This function based on the paper: https://academic.oup.com/ptep/article/2023/4/042F01/6835420, P88, Sec. (5.3.2)
@@ -200,11 +199,9 @@ def forecast(cl_syst, n_el=None, fsky=1.0, lmax=191, r0=1e-3, tol=1e-8, rmin=1e-
     m.tol = tol
     m.migrad()
     delta_r = m.values[0]  # delta_r value
-    print("Δr: ", delta_r)
-
     # Calculate likelihood function one last time in the range delta_r*1e-3 < delta_r < delta_r*3
     # Note that delta_r has already been estimated, this likelihood is just used for display
-    r_grid_display = np.linspace(delta_r*1e-2, delta_r*10.0, rresol)
+    r_grid_display = np.linspace(delta_r*1e-2, delta_r*3.0, rresol)
     likelihood = np.zeros(rresol)
     for i,r in enumerate(r_grid_display):
         likelihood[i] = wrapped_likelihood(r)
