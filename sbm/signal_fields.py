@@ -390,3 +390,84 @@ class SignalFields:
             raise ValueError("mdim is 3,5 and 9 only supported")
         signal_fields.build_linear_system(fields)
         return signal_fields
+
+    @staticmethod
+    def circular_pointing_field(
+        scan_field,
+        mdim: int,
+        rho: float,
+        chi: float,
+        I: np.ndarray,
+        P: np.ndarray,
+        eth_I: np.ndarray,
+        eth_P: np.ndarray,
+        o_eth_P: np.ndarray,
+        ):
+        """ Get the absolute pointing field of the detector
+
+        Args:
+            scan_field (ScanFields): scan field instance
+
+            mdim (int): dimension of the map-making liner system
+
+            rho (float): magnitude of pointing offset in radian
+
+            chi (float): direction of the pointing offset in radian
+
+            I (np.ndarray): temperature map
+
+            P (np.ndarray): polarization map (i.e. Q+iU)
+
+            eth_I (np.ndarray): spin up gradient of the temperature map
+
+            eth_P (np.ndarray): spin up gradient of the polarization map
+
+            o_eth_P (np.ndarray): spin down gradient of the polarization map
+        """
+        spin_00_field   = Field(I, spin_n=0, spin_m=0)
+        spin_p2m4_field = Field(P/2.0, spin_n=2, spin_m=-4)
+        spin_m2p4_field = spin_p2m4_field.conj()
+        spin_p1p1_field  = Field(-rho/2.0*np.exp(1j*chi)*eth_I, spin_n=1, spin_m=1)
+        spin_m1m1_field  = spin_p1p1_field.conj()
+        spin_p1m5_field = Field(-rho/4.0*np.exp(-1j*chi)*o_eth_P, spin_n=1, spin_m=-5)
+        spin_m1p5_field = spin_p1m5_field.conj()
+        spin_p3m3_field = Field(-rho/4.0*np.exp(1j*chi)*eth_P, spin_n=3, spin_m=-3)
+        spin_m3p3_field = spin_p3m3_field.conj()
+        signal_fields = SignalFields(
+            spin_00_field,
+            spin_p2m4_field,
+            spin_m2p4_field,
+            spin_p1p1_field,
+            spin_m1m1_field,
+            spin_p3m3_field,
+            spin_m3p3_field,
+            spin_p1m5_field,
+            spin_m1p5_field,
+            )
+        signal_fields.syst_field_name = "hwp_wedge_field"
+        s_00 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
+        sp2m4 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=-4)
+        if mdim == 3:
+            fields = np.array([s_00, sp2m4, sp2m4.conj()])
+        elif mdim == 5:
+            sp1p1 = signal_fields.get_coupled_field(scan_field, spin_n_out=1, spin_m_out=1)
+            fields = np.array([s_00, sp1p1, sp1p1.conj(), sp2m4, sp2m4.conj()])
+        elif mdim == 9:
+            sp1p1 = signal_fields.get_coupled_field(scan_field, spin_n_out=1, spin_m_out=1)
+            sp1m5 = signal_fields.get_coupled_field(scan_field, spin_n_out=1, spin_m_out=-5)
+            sp3m3 = signal_fields.get_coupled_field(scan_field, spin_n_out=3, spin_m_out=-3)
+            fields = np.array([
+                s_00,
+                sp1p1,
+                sp1p1.conj(),
+                sp2m4,
+                sp2m4.conj(),
+                sp3m3,
+                sp3m3.conj(),
+                sp1m5,
+                sp1m5.conj(),
+                ])
+        else:
+            raise ValueError("mdim is 3,5 and 9 only supported")
+        signal_fields.build_linear_system(fields)
+        return signal_fields
