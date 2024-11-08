@@ -10,6 +10,7 @@ Welcome to sbm's documentation!
    :maxdepth: 1
    :caption: Contents:
 
+   installation
    reference
 
 

@@ -1,6 +1,6 @@
-sbm.sim_diff_gain_per_ch
-======================
+﻿sbm.sim\_diff\_gain\_per\_ch
+============================
 
 .. currentmodule:: sbm
 
-.. automethod:: sim_diff_gain_per_ch
+.. autofunction:: sim_diff_gain_per_ch

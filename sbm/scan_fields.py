@@ -1,3 +1,5 @@
+# -*- encoding: utf-8 -*-
+
 import h5py
 import numpy as np
 import healpy as hp
@@ -83,9 +85,9 @@ class ScanFields:
         """ Load the scan fields data of a detector from a .h5 file
 
         Args:
-            filename (str): name of the *.h5 file containing the scan fields data simulated by Falcons.jl
+            filename (str): name of the \*.h5 file containing the scan fields data simulated by Falcons.jl
 
-            base_path (str): path to the directory containing the *.h5 file
+            base_path (str): path to the directory containing the \*.h5 file
 
         Returns:
             instance (ScanFields): instance of the ScanFields class containing
@@ -118,10 +120,10 @@ class ScanFields:
 
     @classmethod
     def load_channel(cls, channel: str, base_path=DB_ROOT_PATH):
-        """ Load the scan fields data of a channel from the directory containing the *.h5 files
+        """ Load the scan fields data of a channel from the directory containing the \*.h5 files
 
         Args:
-            base_path (str): path to the directory containing the *.h5 files
+            base_path (str): path to the directory containing the \*.h5 files
 
             channel (str): name of the channel to load the scan fields data from
 
@@ -159,7 +161,7 @@ class ScanFields:
     @classmethod
     def load_full_FPU(cls, channel_list: list, base_path=DB_ROOT_PATH, max_workers=None):
         """ Load the scan fields data of all the channels in the FPU from
-        the directory containing the *.h5 files
+        the directory containing the \*.h5 files
 
         Args:
             base_path (str): path to the directory containing the channel's data
@@ -219,7 +221,7 @@ class ScanFields:
         return result
 
     def initialize(self, mdim):
-        """ Initialize the scan fields data """
+        """Initialize the scan fields data """
         self.hitmap = np.zeros_like(self.hitmap)
         self.h = np.zeros_like(self.h)
         self.nside = hp.npix2nside(len(self.hitmap))
@@ -229,15 +231,15 @@ class ScanFields:
         self.coupled_fields = np.zeros([self.mdim, self.npix], dtype=np.complex128)
 
     def get_xlink(self, spin_n, spin_m):
-        """ Get the cross-link of the detector for a given spin number
+        """Get the cross-link of the detector for a given spin number
 
         Args:
             spin_n (int): spin number for which the cross-link is to be obtained
 
             spin_m (int): spin number for which the cross-link is to be obtained
 
-            If `spin_n` and `spin_m` are 0, the cross-link for the spin number 0 is returned, i.e,
-            the map which has 1 in the real part and zero in the imaginary part.
+        If `spin_n` and `spin_m` are 0, the cross-link for the spin number 0 is returned, i.e,
+        the map which has 1 in the real part and zero in the imaginary part.
 
         Returns:
             xlink (1d-np.ndarray): cross-link of the detector for the given spin numbers
@@ -291,18 +293,18 @@ class ScanFields:
         only_iqu=True
         ):
         """ Get the output map by solving the linear equation Ax=b
-        This operation gives us an equivalent result of the simple binning map-making aproach
+        This operation gives us an equivalent result of the simple binning map-making aproach.
 
         Args:
             signal_fields (SignalFields): signal fields data of the detector
 
             only_iqu (bool): if True, return only I, Q, U map
 
+        If only_iqu is True, the output map has [3, `npix`] shape.
+        If only_iqu is False, the output map has [len(signal_fields.spin_n_basis), `npix`] shape.
+
         Returns:
-            if only_iqu == True:
-                output_map (np.ndarray, [3, `npix`])
-            if only_iqu == False:
-                output_map (np.ndarray, [len(signal_fields.spin_n_basis), `npix`])
+            output_map (np.ndarray, [3, `npix`])
         """
         assert signal_fields.coupled_fields is not None, "No coupled field in the SignalFields.coupled_fields"
         if np.all(signal_fields.spins_m == 0):

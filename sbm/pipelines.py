@@ -1,3 +1,5 @@
+# -*- encoding: utf-8 -*-
+
 import litebird_sim as lbs
 import numpy as np
 from multiprocessing import Pool
@@ -13,19 +15,22 @@ GREEN = '\033[92m'
 RESET = '\033[0m'
 
 class Configlation:
-    """ Configuration class for the simulation
+    """Configuration class for the simulation.
 
-    imo (str): imo instance given by the litebird_sim
-    channel (str): The name of the channel
-    lbs_base_path (str): The base path of the litebird_sim
-    imo_version (str): The version of the imo
-    nside (int): The nside of the healpix map
-    mdim (int): The dimension to perform the map-making
-    parallel (bool): If True, the simulation is performed in thread parallel
-    xlink_threshold (float): The threshold of the cross-linking.
-        The pixel with the value less than this threshold is ignored when
-        the map-making is performed.
-    only_iqu (bool): If True, only I, Q, and U are returned after the map-making
+    Args:
+        imo (str): imo instance given by the litebird_sim
+        channel (str): The name of the channel
+
+    Attributes:
+        lbs_base_path (str): The base path of the litebird_sim
+        imo_version (str): The version of the imo
+        nside (int): The nside of the healpix map
+        mdim (int): The dimension to perform the map-making
+        parallel (bool): If True, the simulation is performed in thread parallel
+        xlink_threshold (float): The threshold of the cross-linking.
+            The pixel with the value less than this threshold is ignored when
+            the map-making is performed.
+        only_iqu (bool): If True, only I, Q, and U are returned after the map-making
     """
     def __init__(self, imo, channel):
         self.imo = imo
@@ -40,16 +45,17 @@ class Configlation:
         self.use_hwp = None
 
 class Systematics:
-    """ Systematics class for the simulation
+    """Systematics class for the simulation
 
-    sigma_gain_T (float): The standard deviation of the gain for the top detectors
-    sigma_gain_B (float): The standard deviation of the gain for the bottom detectors
-    sigma_rho_T (float): The standard deviation of the pointing for the top detectors
-    sigma_rho_B (float): The standard deviation of the pointing for the bottom detectors
-    sigma_chi_T (float): The standard deviation of the polarization angle for the top detectors
-    sigma_chi_B (float): The standard deviation of the polarization angle for the bottom detectors
-    syst_seed (int): The seed for the random number generator for the systematics
-    noise_seed (int): The seed for the random number generator for the noise
+    Attributes:
+        sigma_gain_T (float): The standard deviation of the gain for the top detectors
+        sigma_gain_B (float): The standard deviation of the gain for the bottom detectors
+        sigma_rho_T (float): The standard deviation of the pointing for the top detectors
+        sigma_rho_B (float): The standard deviation of the pointing for the bottom detectors
+        sigma_chi_T (float): The standard deviation of the polarization angle for the top detectors
+        sigma_chi_B (float): The standard deviation of the polarization angle for the bottom detectors
+        syst_seed (int): The seed for the random number generator for the systematics
+        noise_seed (int): The seed for the random number generator for the noise
     """
     def __init__(self):
         self.sigma_gain_T = None
@@ -93,12 +99,12 @@ def process_pointing(args):
 
 
 def generate_maps(mbs, config, lock=True):
-    """ Generate the maps with the lock file
+    """Generate the maps with the lock file
 
     Args:
         mbs (lbs.Mbs): The litebird_sim object
-
         config (Configlation): The configuration class
+        lock (bool): If True, the lock file is used
     """
     if lock:
         lockfile = '/tmp/sbm_lockfile'
@@ -132,7 +138,7 @@ def sim_diff_gain_per_ch(
     syst: Systematics,
     mbsparams: lbs.MbsParameters,
     ):
-    """ Simulate the differential gain systematics for each channel
+    """Simulate the differential gain systematics for each channel
     The map-making is performed for each detector in the channel
 
     Args:
@@ -224,7 +230,7 @@ def sim_diff_pointing_per_ch(
     syst: Systematics,
     mbsparams: lbs.MbsParameters,
     ):
-    """ Simulate the differential pointing systematics for each channel
+    """Simulate the differential pointing systematics for each channel
     The map-making is performed for each detector in the channel
 
     Args:
