@@ -6,6 +6,7 @@
   </h1>
 </p>
 
+[![docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://yusuke-takase.github.io/SBM/index.html)
 ![build status](https://github.com/yusuke-takase/SBM/actions/workflows/test.yml/badge.svg?branch=master)
 
 This code assesses the impact of differential systematics on CMB polarisation observations.
