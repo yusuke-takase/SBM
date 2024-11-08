@@ -38,8 +38,6 @@ pandas = "<=2.2.2"
 tqdm = "^4.66.5"
 iminuit = "^2.30.1"
 toml = "^0.10.2"
-nbsphinx = "^0.9.5"
-pydata-sphinx-theme = "^0.16.0"
 
 [build-system]
 requires = ["poetry-core"]
