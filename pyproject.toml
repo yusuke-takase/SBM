@@ -37,6 +37,7 @@ litebird_sim = "^0.13.0"
 pandas = "<=2.2.2"
 tqdm = "^4.66.5"
 iminuit = "^2.30.1"
+toml = "^0.10.2"
 
 [build-system]
 requires = ["poetry-core"]
