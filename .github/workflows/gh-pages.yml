@@ -48,10 +48,10 @@ jobs:
           poetry config --list
 
       - name: Install sphinx
-        run: pip install sphinx
+        run: pip install sphinx pydata-sphinx-theme
 
-      - name: Install dependencies
-        run: poetry install
+      #- name: Install dependencies
+      #  run: poetry install
 
       - name: Setup pandoc
         uses: nikeee/setup-pandoc@v1
