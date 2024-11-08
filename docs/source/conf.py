@@ -10,8 +10,9 @@ import sys
 import toml
 
 module_path = os.path.abspath(os.path.join('..','..','sbm'))
-pyproject_path = os.path.abspath(os.path.join('..','..','pyproject.toml'))
+print("module_path: ", module_path)
 sys.path.insert(0, module_path)
+pyproject_path = os.path.abspath(os.path.join('..','..','pyproject.toml'))
 
 with open(pyproject_path, 'r') as f:
     pyproject_data = toml.load(f)
@@ -32,6 +33,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
     'sphinx.ext.autosectionlabel',
+    'nbsphinx',
     'pydata_sphinx_theme'
 ]
 
@@ -40,7 +42,6 @@ autosummary_imported_members = True
 autosectionlabel_prefix_document = True
 autoclass_content = "class"
 
-templates_path = ['_templates']
 exclude_patterns = []
 
 
