@@ -34,7 +34,6 @@ autosummary_generate = True
 autosummary_imported_members = True
 autosectionlabel_prefix_document = True
 autoclass_content = "class"
-
 templates_path = ['_templates']
 exclude_patterns = []
 
