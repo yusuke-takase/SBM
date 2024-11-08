@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
 
-from base64 import b64decode
-import getpass
 from pathlib import Path
 from time import sleep
-from github import Github
 from rich import print
 from rich.table import Table
 import tomlkit
 import os
 import json
 import numpy as np
-import toml
 from .scan_fields import ScanFields
 
 CONFIG_PATH = Path.home() / ".config" / "sbm_dataset"

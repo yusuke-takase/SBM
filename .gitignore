@@ -6,4 +6,7 @@ __pycache__/
 notebooks/cmb/
 .pytest_cache/
 tests/__pycache__/
-/test/
+docs/build/
+docs/source/_build/
+docs/source/_static/
+

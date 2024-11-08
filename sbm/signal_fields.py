@@ -1,15 +1,7 @@
-import h5py
+# -*- encoding: utf-8 -*-
+
 import numpy as np
-import healpy as hp
-import os
 import copy
-import matplotlib.pyplot as plt
-from multiprocessing import Pool
-import pandas as pd
-import litebird_sim as lbs
-from litebird_sim import Imo
-from pathlib import Path
-import toml
 
 class Field:
     """ Class to store the field data of detectors """
