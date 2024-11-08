@@ -48,7 +48,7 @@ jobs:
           poetry config --list
 
       - name: Install sphinx
-        run: pip install sphinx pydata-sphinx-theme
+        run: pip install sphinx pydata-sphinx-theme nbsphinx
 
       #- name: Install dependencies
       #  run: poetry install
