@@ -16,6 +16,7 @@ CONFIG_FILE_PATH = CONFIG_PATH / "sbm_dataset.toml"
 
 repositories = []
 
+
 # Convert numpy.int64 to Python int
 def custom_encoder(obj):
     if isinstance(obj, np.ndarray):
@@ -23,11 +24,12 @@ def custom_encoder(obj):
     if isinstance(obj, np.int64):
         return int(obj)
     if isinstance(obj, bytes):
-        return obj.decode('utf-8')
+        return obj.decode("utf-8")
     raise TypeError(f"Type {type(obj)} not serializable")
 
+
 def gen_jsonfile(base_path):
-    """ Generate a JSON file containing the dataset information
+    """Generate a JSON file containing the dataset information
 
     Args:
         base_path (str): The base path of the dataset
@@ -35,12 +37,9 @@ def gen_jsonfile(base_path):
     dataset = []
     scan_field = None
     for root, dirs, files in os.walk(base_path):
-        ch = root.split('/')[-1]
+        ch = root.split("/")[-1]
         if files:
-            data = {
-                "channel": ch,
-                "detectors": files
-            }
+            data = {"channel": ch, "detectors": files}
             dataset.append(data)
         if ch == "boresight":
             scan_field = ScanFields.load_det("boresight", base_path=root)
@@ -57,7 +56,7 @@ def gen_jsonfile(base_path):
         "considered_spin_n": considered_spin_n,
         "considered_spin_m": considered_spin_m,
     }
-    with open(os.path.join(base_path, "sim_config.json"), 'w') as f:
+    with open(os.path.join(base_path, "sim_config.json"), "w") as f:
         json.dump(scaninfo, f, indent=4, default=custom_encoder)
         json.dump(dataset, f, indent=4)
 
@@ -69,9 +68,13 @@ def retrieve_local_source():
     ).absolute()
 
     if not (path / "sim_config.json").is_file():
-        print(f'[red]Error:[/red] {path} does not seem to contain a "sim_config.json" file')
-        create_file = input('Would you like to create a "sim_config.json" file? (y/n): ')
-        if create_file.lower() == 'y':
+        print(
+            f'[red]Error:[/red] {path} does not seem to contain a "sim_config.json" file'
+        )
+        create_file = input(
+            'Would you like to create a "sim_config.json" file? (y/n): '
+        )
+        if create_file.lower() == "y":
             gen_jsonfile(path)
             print(f'[green]"sim_config.json" has been created at {path}.[/green]')
         else:
@@ -88,6 +91,7 @@ def retrieve_local_source():
 
 """
     )
+
 
 def run_main_loop() -> bool:
     prompt = """Choose a source for the database:

@@ -5,23 +5,22 @@ import numpy as np
 import healpy as hp
 import os
 import copy
-import matplotlib.pyplot as plt
 from multiprocessing import Pool
-import pandas as pd
-import litebird_sim as lbs
 from pathlib import Path
 import toml
-from .signal_fields import Field, SignalFields
+from .signal_fields import SignalFields
 from .tools import get_instrument_table
 
 CONFIG_PATH = Path.home() / ".config" / "sbm_dataset"
 CONFIG_FILE_PATH = CONFIG_PATH / "sbm_dataset.toml"
 
+
 def extract_location_from_toml(file_path):
-    with open(file_path, 'r') as file:
+    with open(file_path, "r") as file:
         data = toml.load(file)
-        loc = data['repositories'][0]['location']
+        loc = data["repositories"][0]["location"]
     return loc
+
 
 if not CONFIG_FILE_PATH.exists():
     DB_ROOT_PATH = None
@@ -29,17 +28,61 @@ else:
     DB_ROOT_PATH = extract_location_from_toml(CONFIG_FILE_PATH)
 
 channel_list = [
-    'L1-040','L2-050','L1-060','L3-068','L2-068','L4-078','L1-078','L3-089','L2-089','L4-100','L3-119','L4-140',
-    'M1-100','M2-119','M1-140','M2-166','M1-195',
-    'H1-195','H2-235','H1-280','H2-337','H3-402'
+    "L1-040",
+    "L2-050",
+    "L1-060",
+    "L3-068",
+    "L2-068",
+    "L4-078",
+    "L1-078",
+    "L3-089",
+    "L2-089",
+    "L4-100",
+    "L3-119",
+    "L4-140",
+    "M1-100",
+    "M2-119",
+    "M1-140",
+    "M2-166",
+    "M1-195",
+    "H1-195",
+    "H2-235",
+    "H1-280",
+    "H2-337",
+    "H3-402",
 ]
 
-fwhms = [70.5,58.5,51.1,41.6,47.1,36.9,43.8,33.0,41.5,30.2,26.3,23.7,37.8,33.6,30.8,28.9,28.0,28.6,24.7,22.5,20.9,17.9]
+fwhms = [
+    70.5,
+    58.5,
+    51.1,
+    41.6,
+    47.1,
+    36.9,
+    43.8,
+    33.0,
+    41.5,
+    30.2,
+    26.3,
+    23.7,
+    37.8,
+    33.6,
+    30.8,
+    28.9,
+    28.0,
+    28.6,
+    24.7,
+    22.5,
+    20.9,
+    17.9,
+]
+
 
 class ScanFields:
-    """ Class to store the scan fields data of detectors """
+    """Class to store the scan fields data of detectors"""
+
     def __init__(self):
-        """ Initialize the class with empty data
+        """Initialize the class with empty data
 
         ss (dict):  of the scanning strategy parameters
         hitmap (np.ndarray): hitmap of the detector
@@ -82,7 +125,7 @@ class ScanFields:
 
     @classmethod
     def load_det(cls, det_name: str, base_path=DB_ROOT_PATH):
-        """ Load the scan fields data of a detector from a .h5 file
+        """Load the scan fields data of a detector from a .h5 file
 
         Args:
             filename (str): name of the \*.h5 file containing the scan fields data simulated by Falcons.jl
@@ -103,24 +146,28 @@ class ScanFields:
             det_name = det_name[:-1] + "T"
         filename = det_name + ".h5"
 
-        with h5py.File(os.path.join(base_path, filename), 'r') as f:
-            instance.ss = {key: value[()] for key, value in zip(f['ss'].keys(), f['ss'].values()) if key != "quat"}
-            instance.hitmap = f['hitmap'][:]
-            instance.h = f['h'][:,:,:]
+        with h5py.File(os.path.join(base_path, filename), "r") as f:
+            instance.ss = {
+                key: value[()]
+                for key, value in zip(f["ss"].keys(), f["ss"].values())
+                if key != "quat"
+            }
+            instance.hitmap = f["hitmap"][:]
+            instance.h = f["h"][:, :, :]
             instance.h[np.isnan(instance.h)] = 1.0
-            instance.spins_n = f['toml']['spin_n'][()]
-            instance.spins_m = f['toml']['spin_m'][()]
+            instance.spins_n = f["toml"]["spin_n"][()]
+            instance.spins_m = f["toml"]["spin_m"][()]
         instance.nside = instance.ss["nside"]
         instance.duration = instance.ss["duration"]
         instance.sampling_rate = instance.ss["sampling_rate"]
         instance.npix = hp.nside2npix(instance.nside)
-        if t2b == True:
+        if t2b is True:
             instance = instance.t2b()
         return instance
 
     @classmethod
     def load_channel(cls, channel: str, base_path=DB_ROOT_PATH):
-        """ Load the scan fields data of a channel from the directory containing the \*.h5 files
+        """Load the scan fields data of a channel from the directory containing the \*.h5 files
 
         Args:
             base_path (str): path to the directory containing the \*.h5 files
@@ -159,8 +206,10 @@ class ScanFields:
         return cls.load_channel(ch, base_path)
 
     @classmethod
-    def load_full_FPU(cls, channel_list: list, base_path=DB_ROOT_PATH, max_workers=None):
-        """ Load the scan fields data of all the channels in the FPU from
+    def load_full_FPU(
+        cls, channel_list: list, base_path=DB_ROOT_PATH, max_workers=None
+    ):
+        """Load the scan fields data of all the channels in the FPU from
         the directory containing the \*.h5 files
 
         Args:
@@ -180,7 +229,9 @@ class ScanFields:
             max_workers = os.cpu_count()
         print(f"Using {max_workers} processes")
         with Pool(processes=max_workers) as pool:
-            crosslink_channels = pool.map(cls._load_channel_task, [(base_path, ch) for ch in channel_list])
+            crosslink_channels = pool.map(
+                cls._load_channel_task, [(base_path, ch) for ch in channel_list]
+            )
         instance = cls()
         hitmap = np.zeros_like(crosslink_channels[0].hitmap)
         h = np.zeros_like(crosslink_channels[0].h)
@@ -201,7 +252,7 @@ class ScanFields:
         return instance
 
     def t2b(self):
-        """ Transform Top detector cross-link to Bottom detector cross-link
+        """Transform Top detector cross-link to Bottom detector cross-link
         It assume top and bottom detector make a orthogonal pair.
         """
         class_copy = copy.deepcopy(self)
@@ -209,7 +260,7 @@ class ScanFields:
         return class_copy
 
     def __add__(self, other):
-        """ Add `hitmap` and `h` of two Scanfield instances
+        """Add `hitmap` and `h` of two Scanfield instances
         For the `hitmap`, it adds the `hitmap` of the two instances
         For `h`, it adds the cross-link of the two instances weighted by the hitmap
         """
@@ -217,11 +268,14 @@ class ScanFields:
             return NotImplemented
         result = copy.deepcopy(self)
         result.hitmap += other.hitmap
-        result.h = (self.h*self.hitmap[:,np.newaxis,np.newaxis] + other.h*other.hitmap[:,np.newaxis,np.newaxis])/result.hitmap[:,np.newaxis,np.newaxis]
+        result.h = (
+            self.h * self.hitmap[:, np.newaxis, np.newaxis]
+            + other.h * other.hitmap[:, np.newaxis, np.newaxis]
+        ) / result.hitmap[:, np.newaxis, np.newaxis]
         return result
 
     def initialize(self, mdim):
-        """Initialize the scan fields data """
+        """Initialize the scan fields data"""
         self.hitmap = np.zeros_like(self.hitmap)
         self.h = np.zeros_like(self.h)
         self.nside = hp.npix2nside(len(self.hitmap))
@@ -244,8 +298,12 @@ class ScanFields:
         Returns:
             xlink (1d-np.ndarray): cross-link of the detector for the given spin numbers
         """
-        assert abs(spin_n) in self.spins_n, f"spin_n={spin_n} is not in the spins_n={self.spins_n}"
-        assert spin_m in self.spins_m, f"spin_m={spin_m} is not in the spins_m={self.spins_m}"
+        assert (
+            abs(spin_n) in self.spins_n
+        ), f"spin_n={spin_n} is not in the spins_n={self.spins_n}"
+        assert (
+            spin_m in self.spins_m
+        ), f"spin_m={spin_m} is not in the spins_m={self.spins_m}"
         if spin_n == 0 and spin_m == 0:
             return np.ones_like(self.h[:, 0, 0]) + 1j * np.zeros_like(self.h[:, 0, 0])
         if spin_n > 0:
@@ -259,7 +317,7 @@ class ScanFields:
         return result
 
     def create_covmat(self, spin_n_basis: list, spin_m_basis: list):
-        """ Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
+        """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
 
         Args:
             base_spin_n (list): list of spin_n to create the covariance matrix
@@ -273,26 +331,26 @@ class ScanFields:
         else:
             self.use_hwp = True
         waits = np.array([0.5 if x != 0 else 1.0 for x in base_spin_n])
-        spin_n_mat =  base_spin_n[:,np.newaxis] - base_spin_n[np.newaxis,:]
-        spin_m_mat =  base_spin_m[:,np.newaxis] - base_spin_m[np.newaxis,:]
-        #print(spin_n_mat)
-        #print(spin_m_mat)
-        if self.use_hwp == True:
+        spin_n_mat = base_spin_n[:, np.newaxis] - base_spin_n[np.newaxis, :]
+        spin_m_mat = base_spin_m[:, np.newaxis] - base_spin_m[np.newaxis, :]
+        # print(spin_n_mat)
+        # print(spin_m_mat)
+        if self.use_hwp is True:
             spin_n_mat = -spin_n_mat
             spin_m_mat = -spin_m_mat
-        wait_mat = np.abs(waits[np.newaxis,:]) * np.abs(waits[:,np.newaxis])
-        covmat = np.zeros([len(base_spin_n),len(base_spin_m),self.npix], dtype=complex)
+        wait_mat = np.abs(waits[np.newaxis, :]) * np.abs(waits[:, np.newaxis])
+        covmat = np.zeros(
+            [len(base_spin_n), len(base_spin_m), self.npix], dtype=complex
+        )
         for i in range(len(base_spin_n)):
             for j in range(len(base_spin_m)):
-                covmat[i,j,:] = self.get_xlink(spin_n_mat[i,j], spin_m_mat[i,j])*wait_mat[i,j]
+                covmat[i, j, :] = (
+                    self.get_xlink(spin_n_mat[i, j], spin_m_mat[i, j]) * wait_mat[i, j]
+                )
         return covmat
 
-    def map_make(
-        self,
-        signal_fields: SignalFields,
-        only_iqu=True
-        ):
-        """ Get the output map by solving the linear equation Ax=b
+    def map_make(self, signal_fields: SignalFields, only_iqu=True):
+        """Get the output map by solving the linear equation Ax=b
         This operation gives us an equivalent result of the simple binning map-making aproach.
 
         Args:
@@ -306,7 +364,9 @@ class ScanFields:
         Returns:
             output_map (np.ndarray, [3, `npix`])
         """
-        assert signal_fields.coupled_fields is not None, "No coupled field in the SignalFields.coupled_fields"
+        assert (
+            signal_fields.coupled_fields is not None
+        ), "No coupled field in the SignalFields.coupled_fields"
         if np.all(signal_fields.spins_m == 0):
             self.use_hwp = False
         else:
@@ -315,31 +375,34 @@ class ScanFields:
         spin_m_basis = np.array(signal_fields.spin_m_basis)
         b = signal_fields.coupled_fields
         x = np.zeros_like(b)
-        if self.use_hwp == True:
+        if self.use_hwp is True:
             pol_idx = np.where((spin_n_basis == -2) & (spin_m_basis == 4))[0][0]
             A = self.create_covmat(
                 spin_n_basis,
                 spin_m_basis,
-                )
+            )
             for i in range(self.npix):
                 if self.hitmap[i] != 0:
-                    x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
+                    x[:, i] = np.linalg.solve(A[:, :, i], b[:, i])
         else:
             pol_idx = np.where((spin_n_basis == 2) & (spin_m_basis == 0))[0][0]
             A = self.create_covmat(
                 spin_n_basis,
                 spin_m_basis,
-                )
-            xlink2 = np.abs(self.get_xlink(2,0))
+            )
+            xlink2 = np.abs(self.get_xlink(2, 0))
             for i in range(self.npix):
                 if xlink2[i] < self.xlink_threshold:
-                    x[:,i] = np.linalg.solve(A[:,:,i], b[:,i])
-        if only_iqu == True:
-            output_map = [np.zeros_like(x[pol_idx].real), x[pol_idx].real, x[pol_idx].imag]
+                    x[:, i] = np.linalg.solve(A[:, :, i], b[:, i])
+        if only_iqu is True:
+            output_map = [
+                np.zeros_like(x[pol_idx].real),
+                x[pol_idx].real,
+                x[pol_idx].imag,
+            ]
         else:
             output_map = x
         return output_map
-
 
     def generate_noise_pdf(
         self,
@@ -347,8 +410,8 @@ class ScanFields:
         net_ukrts=None,
         return_pdf=False,
         scale=1.0,
-        ):
-        """ Generate probability density function (PDF) of the noise.
+    ):
+        """Generate probability density function (PDF) of the noise.
         The function store the noise PDF in the `self.noise_pdf` attribute.
 
         Args:
@@ -363,30 +426,44 @@ class ScanFields:
         """
         channel = self.channel
         hitmap_tmp = self.hitmap.copy()
-        hitmap_tmp[hitmap_tmp == 0] = 1 # avoid zero division
+        hitmap_tmp[hitmap_tmp == 0] = 1  # avoid zero division
         if channel:
             assert imo is not None, "imo is required when channel is given"
             inst = get_instrument_table(imo, imo_version="v2")
-            net_detector_ukrts = inst.loc[inst["channel"] == channel, "net_detector_ukrts"].values[0]
-            net_channel_ukrts = inst.loc[inst["channel"] == channel, "net_channel_ukrts"].values[0]
+            net_detector_ukrts = inst.loc[
+                inst["channel"] == channel, "net_detector_ukrts"
+            ].values[0]
+            net_channel_ukrts = inst.loc[
+                inst["channel"] == channel, "net_channel_ukrts"
+            ].values[0]
 
-            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*hitmap_tmp)
+            sigma_i = (
+                net_detector_ukrts
+                * np.sqrt(self.sampling_rate)
+                / np.sqrt(scale * hitmap_tmp)
+            )
             sigma_i *= np.sign(self.hitmap)
-            sigma_p = sigma_i/np.sqrt(2.0)
+            sigma_p = sigma_i / np.sqrt(2.0)
             self.net_channel_ukrts = net_channel_ukrts
         else:
-            assert net_ukrts is not None, "net_ukrts is required when channel is not given"
+            assert (
+                net_ukrts is not None
+            ), "net_ukrts is required when channel is not given"
             net_detector_ukrts = net_ukrts
-            sigma_i = net_detector_ukrts * np.sqrt(self.sampling_rate) / np.sqrt(scale*hitmap_tmp)
+            sigma_i = (
+                net_detector_ukrts
+                * np.sqrt(self.sampling_rate)
+                / np.sqrt(scale * hitmap_tmp)
+            )
             sigma_i *= np.sign(self.hitmap)
-            sigma_p = sigma_i/np.sqrt(2.0)
+            sigma_p = sigma_i / np.sqrt(2.0)
         self.net_detector_ukrts = net_detector_ukrts
         self.noise_pdf = np.array([sigma_i, sigma_p])
         if return_pdf:
             return self.noise_pdf
 
     def generate_noise(self, spin_n_basis: list, spin_m_basis: list, seed=None):
-        """ Generate observed noise map with the noise PDF.
+        """Generate observed noise map with the noise PDF.
 
         Args:
             spin_n_basis (list): list of spin_n to create the covariance matrix
@@ -398,10 +475,12 @@ class ScanFields:
         Returns:
             noise (np.ndarray) [3,npix]: noise map
         """
-        assert self.noise_pdf is not None, "Generate noise pdf first by `ScanField.generate_noise_pdf()` method."
+        assert (
+            self.noise_pdf is not None
+        ), "Generate noise pdf first by `ScanField.generate_noise_pdf()` method."
         spin_n_basis = np.array(spin_n_basis)
         spin_m_basis = np.array(spin_m_basis)
-        xlink2 = np.abs(self.get_xlink(2,0))
+        xlink2 = np.abs(self.get_xlink(2, 0))
         if np.all(spin_m_basis == 0):
             self.use_hwp = False
         else:
@@ -410,34 +489,34 @@ class ScanFields:
         cov = self.create_covmat(
             spin_n_basis,
             spin_m_basis,
-            )
+        )
         covmat_inv = np.empty_like(cov)
 
-        if self.use_hwp == True:
+        if self.use_hwp is True:
             pol_idx = np.where((spin_n_basis == -2) & (spin_m_basis == 4))[0][0]
             for i in range(self.npix):
                 if self.hitmap[i] != 0:
-                    covmat_inv[:,:,i] = np.linalg.inv(cov[:,:,i])
+                    covmat_inv[:, :, i] = np.linalg.inv(cov[:, :, i])
                 else:
-                    covmat_inv[:,:,i] = np.zeros_like(cov[:,:,i])
+                    covmat_inv[:, :, i] = np.zeros_like(cov[:, :, i])
         else:
             pol_idx = np.where((spin_n_basis == 2) & (spin_m_basis == 0))[0][0]
             for i in range(self.npix):
                 if xlink2[i] < self.xlink_threshold:
-                    covmat_inv[:,:,i] = np.linalg.inv(cov[:,:,i])
+                    covmat_inv[:, :, i] = np.linalg.inv(cov[:, :, i])
                 else:
-                    covmat_inv[:,:,i] = np.zeros_like(cov[:,:,i])
+                    covmat_inv[:, :, i] = np.zeros_like(cov[:, :, i])
         self.covmat_inv = np.sqrt(covmat_inv)
 
         if seed is not None:
             np.random.seed(seed)
         else:
             np.random.seed()
-        n_i = np.random.normal(loc=0., scale=self.noise_pdf[0], size=[self.npix])
-        n_q = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
-        n_u = np.random.normal(loc=0., scale=self.noise_pdf[1], size=[self.npix])
+        n_i = np.random.normal(loc=0.0, scale=self.noise_pdf[0], size=[self.npix])
+        n_q = np.random.normal(loc=0.0, scale=self.noise_pdf[1], size=[self.npix])
+        n_u = np.random.normal(loc=0.0, scale=self.noise_pdf[1], size=[self.npix])
 
-        if self.use_hwp == True:
+        if self.use_hwp is True:
             n_i[self.hitmap == 0] = 0.0
             n_q[self.hitmap == 0] = 0.0
             n_u[self.hitmap == 0] = 0.0
@@ -445,9 +524,11 @@ class ScanFields:
             n_i[xlink2 > self.xlink_threshold] = 0.0
             n_q[xlink2 > self.xlink_threshold] = 0.0
             n_u[xlink2 > self.xlink_threshold] = 0.0
-        noise = np.array([
+        noise = np.array(
+            [
                 np.zeros_like(n_i),
-                n_q * self.covmat_inv[pol_idx,pol_idx,:].real,
-                n_u * self.covmat_inv[pol_idx,pol_idx,:].real,
-                ])
+                n_q * self.covmat_inv[pol_idx, pol_idx, :].real,
+                n_u * self.covmat_inv[pol_idx, pol_idx, :].real,
+            ]
+        )
         return noise
