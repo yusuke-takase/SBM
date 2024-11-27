@@ -16,6 +16,7 @@
       ~SignalFields.__init__
       ~SignalFields.abs_pointing_field
       ~SignalFields.build_linear_system
+      ~SignalFields.circular_pointing_field
       ~SignalFields.diff_gain_field
       ~SignalFields.diff_pointing_field
       ~SignalFields.get_coupled_field
