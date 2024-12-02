@@ -5,7 +5,7 @@ from sbm import ScanFields, SignalFields
 import healpy as hp
 import os
 
-save = True
+save = False
 
 
 class TestSBM(unittest.TestCase):
