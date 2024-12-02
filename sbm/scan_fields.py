@@ -394,9 +394,19 @@ class ScanFields:
             for i in range(self.npix):
                 if xlink2[i] < self.xlink_threshold:
                     x[:, i] = np.linalg.solve(A[:, :, i], b[:, i])
-        if only_iqu is True:
+        if only_iqu:
+            temp_idx = next(
+                (
+                    i
+                    for i, (n, m) in enumerate(zip(spin_n_basis, spin_m_basis))
+                    if n == 0 and m == 0
+                ),
+                None,
+            )
             output_map = [
-                np.zeros_like(x[pol_idx].real),
+                x[temp_idx].real
+                if temp_idx is not None
+                else np.zeros_like(x[pol_idx].real),
                 x[pol_idx].real,
                 x[pol_idx].imag,
             ]
@@ -491,7 +501,10 @@ class ScanFields:
             spin_m_basis,
         )
         covmat_inv = np.empty_like(cov)
-
+        try:
+            temp_idx = np.where((spin_n_basis == 0) & (spin_m_basis == 0))[0][0]
+        except IndexError:
+            temp_idx = None
         if self.use_hwp is True:
             pol_idx = np.where((spin_n_basis == -2) & (spin_m_basis == 4))[0][0]
             for i in range(self.npix):
@@ -524,11 +537,21 @@ class ScanFields:
             n_i[xlink2 > self.xlink_threshold] = 0.0
             n_q[xlink2 > self.xlink_threshold] = 0.0
             n_u[xlink2 > self.xlink_threshold] = 0.0
-        noise = np.array(
-            [
-                np.zeros_like(n_i),
-                n_q * self.covmat_inv[pol_idx, pol_idx, :].real,
-                n_u * self.covmat_inv[pol_idx, pol_idx, :].real,
-            ]
-        )
+
+        if temp_idx is None:
+            noise = np.array(
+                [
+                    np.zeros_like(n_i),
+                    n_q * self.covmat_inv[pol_idx, pol_idx, :].real,
+                    n_u * self.covmat_inv[pol_idx, pol_idx, :].real,
+                ]
+            )
+        else:
+            noise = np.array(
+                [
+                    n_i * self.covmat_inv[temp_idx, temp_idx, :].real,
+                    n_q * self.covmat_inv[pol_idx, pol_idx, :].real,
+                    n_u * self.covmat_inv[pol_idx, pol_idx, :].real,
+                ]
+            )
         return noise

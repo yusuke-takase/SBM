@@ -5,7 +5,7 @@ from sbm import ScanFields, SignalFields
 import healpy as hp
 import os
 
-save = False
+save = True
 
 
 class TestSBM(unittest.TestCase):
@@ -27,14 +27,13 @@ class TestSBM(unittest.TestCase):
     def test_diff_gain(self, save_output_map=save):
         g_a = 0.01
         g_b = 0.0
-        delta_g = g_a - g_b
         mdims = [2, 3]
         for mdim in mdims:
             signal_field = SignalFields.diff_gain_field(
                 self.scan_field, mdim, g_a, g_b, self.I, self.P
             )
             output_map = self.scan_field.map_make(signal_field)
-            if save_output_map == True:
+            if save_output_map is True:
                 hp.write_map(
                     f"tests/reference/diff_gain_output_map_mdim_{mdim}.fits",
                     output_map,
@@ -68,7 +67,7 @@ class TestSBM(unittest.TestCase):
                 self.o_eth_P,
             )
             output_map = self.scan_field.map_make(signal_field)
-            if save_output_map == True:
+            if save_output_map is True:
                 hp.write_map(
                     f"tests/reference/diff_pointing_output_map_mdim_{mdim}.fits",
                     output_map,
@@ -100,7 +99,7 @@ class TestSBM(unittest.TestCase):
             )
             output_map = self.scan_field.map_make(signal_field)
 
-            if save_output_map == True:
+            if save_output_map is True:
                 hp.write_map(
                     f"tests/reference/abs_pointing_output_map_mdim_{mdim}.fits",
                     output_map,
@@ -123,7 +122,7 @@ class TestSBM(unittest.TestCase):
                 self.scan_field, mdim, epsilon, phi_qi, self.I
             )
             output_map = self.scan_field.map_make(signal_field)
-            if save_output_map == True:
+            if save_output_map is True:
                 hp.write_map(
                     f"tests/reference/hwpip_output_map_mdim_{mdim}.fits",
                     output_map,
@@ -156,7 +155,7 @@ class TestSBM(unittest.TestCase):
             output_map = self.scan_field.generate_noise(
                 spin_n_basis, spin_m_basis, seed
             )
-            if save_output_map == True:
+            if save_output_map is True:
                 hp.write_map(
                     f"tests/reference/noise_map_{net_ukrts}ukrts_hwp_mdim_{mdim}.fits",
                     output_map,
@@ -187,7 +186,7 @@ class TestSBM(unittest.TestCase):
             output_map = self.scan_field.generate_noise(
                 spin_n_basis, spin_m_basis, seed
             )
-            if save_output_map == True:
+            if save_output_map is True:
                 hp.write_map(
                     f"tests/reference/noise_map_{net_ukrts}ukrts_mdim_{mdim}.fits",
                     output_map,
