@@ -55,8 +55,10 @@ Methods
    sbm.ScanFields.t2b
    sbm.SignalFields.abs_pointing_field
    sbm.SignalFields.build_linear_system
+   sbm.SignalFields.circular_pointing_field
    sbm.SignalFields.diff_gain_field
    sbm.SignalFields.diff_pointing_field
+   sbm.SignalFields.extract_iqu
    sbm.SignalFields.get_coupled_field
    sbm.SignalFields.get_field
    sbm.SignalFields.hwp_ip_field

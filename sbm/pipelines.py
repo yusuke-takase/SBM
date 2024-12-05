@@ -31,7 +31,7 @@ class Configlation:
         xlink_threshold (float): The threshold of the cross-linking.
             The pixel with the value less than this threshold is ignored when
             the map-making is performed.
-        only_iqu (bool): If True, only I, Q, and U are returned after the map-making
+        only_iqu (bool): If True, only P, Q, and U are returned after the map-making
     """
 
     def __init__(self, imo, channel):
@@ -75,12 +75,23 @@ class Systematics:
 
 
 def process_gain(args):
-    i, filename, dirpath, gain_T, gain_B, I, P, mdim, only_iqu, xlink_threshold = args
+    (
+        i,
+        filename,
+        dirpath,
+        gain_T,
+        gain_B,
+        temp_map,
+        pol_map,
+        mdim,
+        only_iqu,
+        xlink_threshold,
+    ) = args
     sf = ScanFields.load_det(filename, dirpath)
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = False
     diff_gain_signal = SignalFields.diff_gain_field(
-        sf, mdim, gain_T[i], gain_B[i], I, P
+        sf, mdim, gain_T[i], gain_B[i], temp_map, pol_map
     )
     output = sf.map_make(diff_gain_signal, only_iqu)
     result = {
@@ -100,7 +111,7 @@ def process_pointing(args):
         rho_B,
         chi_T,
         chi_B,
-        P,
+        pol_map,
         eth_I,
         eth_P,
         o_eth_P,
@@ -112,7 +123,7 @@ def process_pointing(args):
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = False
     diff_signal = SignalFields.diff_pointing_field(
-        sf, mdim, rho_T[i], rho_B[i], chi_T[i], chi_B[i], P, eth_I, eth_P, o_eth_P
+        sf, mdim, rho_T[i], rho_B[i], chi_T[i], chi_B[i], pol_map, eth_I, eth_P, o_eth_P
     )
     output = sf.map_make(diff_signal, only_iqu)
     result = {
@@ -200,8 +211,8 @@ def sim_diff_gain_per_ch(
     )
     mbs = lbs.Mbs(simulation=sim, parameters=mbsparams, channel_list=ch_info)
     fiducial_map, input_maps = generate_maps(mbs, config, lock=False)
-    I = fiducial_map[0]
-    P = fiducial_map[1] + 1j * fiducial_map[2]
+    temp_map = fiducial_map[0]
+    pol_map = fiducial_map[1] + 1j * fiducial_map[2]
     dirpath = os.path.join(DB_ROOT_PATH, config.channel)
     filenames = os.listdir(dirpath)
     filenames = [os.path.splitext(filename)[0] for filename in filenames]
@@ -219,7 +230,7 @@ def sim_diff_gain_per_ch(
 
     observed_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
-    if config.parallel == True:
+    if config.parallel is True:
         file_args = [
             (
                 i,
@@ -227,8 +238,8 @@ def sim_diff_gain_per_ch(
                 dirpath,
                 gain_T,
                 gain_B,
-                I,
-                P,
+                temp_map,
+                pol_map,
                 config.mdim,
                 config.only_iqu,
                 config.xlink_threshold,
@@ -260,7 +271,7 @@ def sim_diff_gain_per_ch(
             sf.xlink_threshold = config.xlink_threshold
             sf.use_hwp = config.use_hwp
             diff_gain_signal = SignalFields.diff_gain_field(
-                sf, config.mdim, gain_T[i], gain_B[i], I, P
+                sf, config.mdim, gain_T[i], gain_B[i], temp_map, pol_map
             )
             output = sf.map_make(diff_gain_signal, config.only_iqu)
             observed_map += output
@@ -311,8 +322,7 @@ def sim_diff_pointing_per_ch(
     )
     mbs = lbs.Mbs(simulation=sim, parameters=mbsparams, channel_list=ch_info)
     fiducial_map, input_maps = generate_maps(mbs, config, lock=False)
-    I = fiducial_map[0]
-    P = fiducial_map[1] + 1j * fiducial_map[2]
+    pol_map = fiducial_map[1] + 1j * fiducial_map[2]
     dirpath = os.path.join(DB_ROOT_PATH, config.channel)
     filenames = os.listdir(dirpath)
     filenames = [os.path.splitext(filename)[0] for filename in filenames]
@@ -344,7 +354,7 @@ def sim_diff_pointing_per_ch(
 
     observed_maps = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
-    if config.parallel == True:
+    if config.parallel is True:
         file_args = [
             (
                 i,
@@ -354,7 +364,7 @@ def sim_diff_pointing_per_ch(
                 rho_B,
                 chi_T,
                 chi_B,
-                P,
+                pol_map,
                 eth_I,
                 eth_P,
                 o_eth_P,
@@ -395,7 +405,7 @@ def sim_diff_pointing_per_ch(
                 rho_B[i],
                 chi_T[i],
                 chi_B[i],
-                P,
+                pol_map,
                 eth_I,
                 eth_P,
                 o_eth_P,
@@ -468,7 +478,7 @@ def sim_noise_per_ch(
     sky_weight = np.zeros(npix)
 
     noise_seeds = generate_noise_seeds(config, syst, len(filenames))
-    if config.parallel == True:
+    if config.parallel is True:
         file_args = [
             (
                 i,

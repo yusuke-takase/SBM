@@ -127,12 +127,12 @@ class ScanFields:
 
     @classmethod
     def load_det(cls, det_name: str, base_path=DB_ROOT_PATH):
-        """Load the scan fields data of a detector from a .h5 file
+        """Load the scan fields data of a detector from a HDF5 file
 
         Args:
-            filename (str): name of the \*.h5 file containing the scan fields data simulated by Falcons.jl
+            filename (str): name of the HDF5 file containing the scan fields data simulated by Falcons.jl
 
-            base_path (str): path to the directory containing the \*.h5 file
+            base_path (str): path to the directory containing the HDF5 file
 
         Returns:
             instance (ScanFields): instance of the ScanFields class containing
@@ -169,10 +169,10 @@ class ScanFields:
 
     @classmethod
     def load_channel(cls, channel: str, base_path=DB_ROOT_PATH):
-        """Load the scan fields data of a channel from the directory containing the \*.h5 files
+        """Load the scan fields data of a channel from the directory containing the HDF5 files
 
         Args:
-            base_path (str): path to the directory containing the \*.h5 files
+            base_path (str): path to the directory containing the HDF5 files
 
             channel (str): name of the channel to load the scan fields data from
 
@@ -212,7 +212,7 @@ class ScanFields:
         cls, channel_list: list, base_path=DB_ROOT_PATH, max_workers=None
     ):
         """Load the scan fields data of all the channels in the FPU from
-        the directory containing the \*.h5 files
+        the directory containing the HDF5 files
 
         Args:
             base_path (str): path to the directory containing the channel's data
