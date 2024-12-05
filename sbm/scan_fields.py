@@ -356,7 +356,7 @@ class ScanFields:
                 if n == 0 and m == 0:
                     h = sp.symbols("1")
                 else:
-                    h = sp.symbols(rf"_{{{n}\,{m}}}\tilde{{h}}")
+                    h = sp.symbols(rf"{{}}_{{{n}\,{m}}}\tilde{{h}}")
                 model_covmat[i, j] = w * h
         self.model_covmat = model_covmat
         return covmat
