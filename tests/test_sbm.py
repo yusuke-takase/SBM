@@ -23,7 +23,6 @@ class TestSBM(unittest.TestCase):
         self.eth_I = dI[2] - 1j * dI[1]
         self.eth_P = dQ[2] + dU[1] - 1j * (dQ[1] - dU[2])
         self.o_eth_P = dQ[2] - dU[1] + 1j * (dQ[1] + dU[2])
-        
 
     def test_diff_gain(self, save_output_map=save):
         g_a = 0.01
@@ -47,7 +46,7 @@ class TestSBM(unittest.TestCase):
                     field=(0, 1, 2),
                 )
                 self.assertTrue(np.allclose(output_map, reference))
-                
+
     def test_elliptical_beam(self, save_output_map=save):
         alm = hp.map2alm(self.input_map)
         q = 0.9

@@ -1,9 +1,5 @@
 # -*- encoding: utf-8 -*-
 
-from .convolver import (
-    Convolver,
-    elliptical_beam,
-)
 
 from .scan_fields import (
     ScanFields,
@@ -16,6 +12,12 @@ from .signal_fields import (
     Field,
     SignalFields,
 )
+
+from .convolver import (
+    Convolver,
+    elliptical_beam,
+)
+
 from .pipelines import (
     Configlation,
     Systematics,
@@ -24,6 +26,7 @@ from .pipelines import (
     sim_noise_per_ch,
     generate_maps,
 )
+
 from .tools import (
     get_cmap,
     c2d,
@@ -33,6 +36,8 @@ from .tools import (
     get_instrument_table,
     forecast,
 )
+
+
 from .version import (
     __author__,
     __version__,
@@ -66,4 +71,7 @@ __all__ = [
     "generate_cmb",
     "get_instrument_table",
     "forecast",
+    # convolver.py
+    "Convolver",
+    "elliptical_beam",
 ]
