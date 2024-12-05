@@ -23,6 +23,7 @@ class TestSBM(unittest.TestCase):
         self.eth_I = dI[2] - 1j * dI[1]
         self.eth_P = dQ[2] + dU[1] - 1j * (dQ[1] - dU[2])
         self.o_eth_P = dQ[2] - dU[1] + 1j * (dQ[1] + dU[2])
+        
 
     def test_diff_gain(self, save_output_map=save):
         g_a = 0.01
@@ -43,6 +44,32 @@ class TestSBM(unittest.TestCase):
             else:
                 reference = hp.read_map(
                     f"tests/reference/diff_gain_output_map_mdim_{mdim}.fits",
+                    field=(0, 1, 2),
+                )
+                self.assertTrue(np.allclose(output_map, reference))
+                
+    def test_elliptical_beam(self, save_output_map=save):
+        alm = hp.map2alm(self.input_map)
+        q = 0.9
+        fwhm = np.deg2rad(1.0)
+        beam = sbm.elliptical_beam(self.nside, fwhm, q)
+        blm = hp.map2alm(beam)
+        mdims = [2, 3]
+        for mdim in mdims:
+            signal_field = SignalFields.elliptical_beam_convolution(
+                self.scan_field, mdim, alm, blm
+            )
+            output_map = self.scan_field.map_make(signal_field)
+            if save_output_map is True:
+                hp.write_map(
+                    f"tests/reference/elliptical_beam_conv_output_map_mdim_{mdim}.fits",
+                    output_map,
+                    overwrite=True,
+                )
+                print("Beam convolved output map is saved.")
+            else:
+                reference = hp.read_map(
+                    f"tests/reference/elliptical_beam_conv_output_map_mdim_{mdim}.fits",
                     field=(0, 1, 2),
                 )
                 self.assertTrue(np.allclose(output_map, reference))

@@ -1,5 +1,10 @@
 # -*- encoding: utf-8 -*-
 
+from .convolver import (
+    Convolver,
+    elliptical_beam,
+)
+
 from .scan_fields import (
     ScanFields,
     DB_ROOT_PATH,
