@@ -47,9 +47,9 @@ Methods
    :toctree: generated/
    :recursive:
 
-   sbm.Convolver._eb2spin
-   sbm.Convolver._make_blk
-   sbm.Convolver._make_clm
+   sbm.Convolver.eb2spin
+   sbm.Convolver.make_blk
+   sbm.Convolver.make_clm
    sbm.Field.conj
    sbm.ScanFields.create_covmat
    sbm.ScanFields.generate_noise
