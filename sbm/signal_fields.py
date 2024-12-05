@@ -4,10 +4,16 @@ import numpy as np
 import copy
 import healpy as hp
 <<<<<<< HEAD
+<<<<<<< HEAD
 from .convolver import Convolver
 =======
 import sympy as sp
 >>>>>>> master
+=======
+from .convolver import Convolver
+import sympy as sp
+
+>>>>>>> e17aa2a6237f03b7200e49232199435992348abe
 
 
 class Field:
