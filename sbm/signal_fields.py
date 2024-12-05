@@ -587,13 +587,13 @@ class SignalFields:
 
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=-2, spin_m_out=0)
-        sp4 = signal_fields.get_coupled_field(scan_field, spin_n_out=-4, spin_m_out=0)
         signal_fields.syst_field_name = "diff_beam_ellipticity_field"
         if mdim == 2:
             fields = [sp2, sp2.conj()]
         elif mdim == 3:
             fields = [s_0, sp2, sp2.conj()]
         elif mdim == 5:
+            sp4 = signal_fields.get_coupled_field(scan_field, spin_n_out=-4, spin_m_out=0)
             fields = [s_0, sp2, sp2.conj() ,sp4, sp4.conj()]
         else:
             raise ValueError("mdim is 2,3 and 5 only supported")
