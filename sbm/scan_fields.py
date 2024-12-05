@@ -7,7 +7,9 @@ import os
 import copy
 from multiprocessing import Pool
 from pathlib import Path
+import sympy as sp
 import toml
+from IPython.display import display, Math
 from .signal_fields import SignalFields, Field
 from .tools import get_instrument_table
 
@@ -333,8 +335,6 @@ class ScanFields:
         waits = np.array([0.5 if x != 0 else 1.0 for x in base_spin_n])
         spin_n_mat = base_spin_n[:, np.newaxis] - base_spin_n[np.newaxis, :]
         spin_m_mat = base_spin_m[:, np.newaxis] - base_spin_m[np.newaxis, :]
-        # print(spin_n_mat)
-        # print(spin_m_mat)
         if self.use_hwp is True:
             spin_n_mat = -spin_n_mat
             spin_m_mat = -spin_m_mat
@@ -347,9 +347,21 @@ class ScanFields:
                 covmat[i, j, :] = (
                     self.get_xlink(spin_n_mat[i, j], spin_m_mat[i, j]) * wait_mat[i, j]
                 )
+        model_covmat = sp.zeros(len(base_spin_n), len(base_spin_m))
+        for i in range(len(base_spin_n)):
+            for j in range(len(base_spin_m)):
+                w = sp.Rational(wait_mat[i, j])
+                n = spin_n_mat[i, j]
+                m = spin_m_mat[i, j]
+                if n == 0 and m == 0:
+                    h = sp.symbols("1")
+                else:
+                    h = sp.symbols(rf"_{{{n}\,{m}}}\tilde{{h}}")
+                model_covmat[i, j] = w * h
+        self.model_covmat = model_covmat
         return covmat
 
-    def map_make(self, signal_fields: SignalFields, only_iqu=True):
+    def map_make(self, signal_fields: SignalFields, only_iqu=True, show_eq=False):
         """Get the output map by solving the linear equation Ax=b
         This operation gives us an equivalent result of the simple binning map-making aproach.
 
@@ -425,6 +437,11 @@ class ScanFields:
             output.spin_n_basis = signal_fields.spin_n_basis
             output.spin_m_basis = signal_fields.spin_m_basis
             output.field_name = signal_fields.field_name
+        map_maker = rf"{sp.latex(signal_fields.solved_vector)} = {sp.latex(self.model_covmat)}^{{-1}} {sp.latex(signal_fields.model_vector)}"
+
+        self.map_maker = map_maker
+        if show_eq is True:
+            display(Math(map_maker))
         return output
 
     def generate_noise_pdf(

@@ -3,6 +3,7 @@
 import numpy as np
 import copy
 import healpy as hp
+import sympy as sp
 
 
 class Field:
@@ -163,7 +164,7 @@ class SignalFields:
 
     def build_linear_system(self, fields: list):
         """Build the information to solve the linear system of map-making
-        This method has to be called befure map_make() method.
+        This method has to be called before map_make() method.
 
         Args:
             fields (list): list of coupled fields, its element must be `Field` instance
@@ -191,6 +192,33 @@ class SignalFields:
             # HWP on, the sign of spin basis is flipped
             self.spin_n_basis = -spin_n_basis
             self.spin_m_basis = -spin_m_basis
+        model_vector = sp.zeros(len(self.spin_n_basis), 1)
+        solved_vector = sp.zeros(len(self.spin_n_basis), 1)
+        for i in range(len(spin_n_basis)):
+            n = spin_n_basis[i]
+            m = spin_m_basis[i]
+            model_vector[i] = sp.Symbol(rf"_{{{n}\,,{m}}}\tilde{{S^d}}")
+            if all(spin_m_basis == 0):
+                if n == 0:
+                    stokes_element = sp.Symbol(r"_{0,0}\hat{{Z}}")
+                elif n == 2:
+                    stokes_element = sp.Symbol(r"\hat{P}")
+                elif n == -2:
+                    stokes_element = sp.Symbol(r"\hat{P^*}")
+                else:
+                    stokes_element = sp.Symbol(rf"_{{{n}\,,{m}}}\hat{{Z}}")
+            else:
+                if n == 0:
+                    stokes_element = sp.Symbol(r"\hat{I}")
+                elif n == 2:
+                    stokes_element = sp.Symbol(r"\hat{P}")
+                elif n == -2:
+                    stokes_element = sp.Symbol(r"\hat{P^*}")
+                else:
+                    stokes_element = sp.Symbol(rf"_{{{n}\,,{m}}}\hat{{Z}}")
+            solved_vector[i] = stokes_element
+        self.model_vector = model_vector
+        self.solved_vector = solved_vector
 
     @staticmethod
     def diff_gain_field(
@@ -340,7 +368,9 @@ class SignalFields:
 
             temp_map (np.ndarray): temperature map
         """
-        spin_4m4_field = Field(epsilon / 2.0 * np.exp(-1j * phi_qi) * temp_map, spin_n=4, spin_m=-4)
+        spin_4m4_field = Field(
+            epsilon / 2.0 * np.exp(-1j * phi_qi) * temp_map, spin_n=4, spin_m=-4
+        )
         signal_fields = SignalFields(
             spin_4m4_field,
             spin_4m4_field.conj(),
