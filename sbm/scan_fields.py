@@ -8,7 +8,7 @@ import copy
 from multiprocessing import Pool
 from pathlib import Path
 import toml
-from .signal_fields import SignalFields
+from .signal_fields import SignalFields, Field
 from .tools import get_instrument_table
 
 CONFIG_PATH = Path.home() / ".config" / "sbm_dataset"
@@ -403,16 +403,29 @@ class ScanFields:
                 ),
                 None,
             )
-            output_map = [
-                x[temp_idx].real
-                if temp_idx is not None
-                else np.zeros_like(x[pol_idx].real),
-                x[pol_idx].real,
-                x[pol_idx].imag,
-            ]
+            output = np.array(
+                [
+                    x[temp_idx].real
+                    if temp_idx is not None
+                    else np.zeros_like(x[pol_idx].real),
+                    x[pol_idx].real,
+                    x[pol_idx].imag,
+                ]
+            )
         else:
-            output_map = x
-        return output_map
+            fields = [
+                Field(
+                    x[i],
+                    spin_n=signal_fields.spin_n_basis[i],
+                    spin_m=signal_fields.spin_m_basis[i],
+                )
+                for i in range(len(signal_fields.spin_n_basis))
+            ]
+            output = SignalFields(fields)
+            output.spin_n_basis = signal_fields.spin_n_basis
+            output.spin_m_basis = signal_fields.spin_m_basis
+            output.field_name = signal_fields.field_name
+        return output
 
     def generate_noise_pdf(
         self,

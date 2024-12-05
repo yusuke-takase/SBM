@@ -2,6 +2,7 @@
 
 import numpy as np
 import copy
+import healpy as hp
 
 
 class Field:
@@ -21,6 +22,8 @@ class Field:
             self.field = field + 1j * np.zeros(len(field))
         else:
             self.field = field
+        self.npix = len(field)
+        self.nside = hp.npix2nside(self.npix)
         self.spin_n = spin_n
         self.spin_m = spin_m
 
@@ -53,7 +56,12 @@ class SignalFields:
         Args:
             fields (Field): field (map) data of the signal
         """
+        # Expand if fields are passed in a list
+        if len(fields) == 1 and isinstance(fields[0], list):
+            fields = fields[0]
         self.fields = sorted(fields, key=lambda field: (field.spin_n, field.spin_m))
+        self.nside = self.fields[0].nside
+        self.npix = self.fields[0].npix
         self.spins_n = np.array([field.spin_n for field in self.fields])
         self.spins_m = np.array([field.spin_m for field in self.fields])
         self.field_name = None
@@ -72,10 +80,26 @@ class SignalFields:
         Returns:
             field (np.ndarray): field of the detector for the given spin number
         """
-        for i, field in enumerate(self.fields):
+        for field in self.fields:
             if field.spin_n == spin_n and field.spin_m == spin_m:
                 return field.field
-        return None
+        assert False, f"Field with spin_n={spin_n} and spin_m={spin_m} not found"
+
+    def extract_iqu(self):
+        """Extract I, Q and U maps from the signal fields"""
+        try:
+            stokes_i = self.get_field(0, 0)
+        except AssertionError:
+            stokes_i = np.zeros(self.npix)
+        if np.all(self.spin_m_basis == 0):
+            # without HWP
+            stokes_q = self.get_field(2, 0).real
+            stokes_u = self.get_field(2, 0).imag
+        else:
+            # with HWP
+            stokes_q = self.get_field(-2, 4).real
+            stokes_u = self.get_field(-2, 4).imag
+        return np.array([stokes_i, stokes_q, stokes_u])
 
     def __add__(self, other):
         """Add the signal fieldd
@@ -89,7 +113,7 @@ class SignalFields:
         if not isinstance(other, SignalFields):
             return NotImplemented
         result = copy.deepcopy(self)
-        for i in range(len(self.spins_n)):  # この足し方でいいのか？
+        for i in range(len(self.spins_n)):
             result.fields[i].field += other.fields[i].field
         return result
 
@@ -126,7 +150,7 @@ class SignalFields:
             delta_nm.append((delta_n, delta_m))
             nm.append((n, m))
         results = np.array(results)
-        if output_all == True:
+        if output_all is True:
             return {
                 "results": results,
                 "h_name": h_name,
@@ -174,8 +198,8 @@ class SignalFields:
         mdim: int,
         gain_T: float,
         gain_B: float,
-        I: np.ndarray,
-        P: np.ndarray,
+        temp_map: np.ndarray,
+        pol_map: np.ndarray,
     ):
         """ " Get the differential gain field of the detector
 
@@ -188,18 +212,18 @@ class SignalFields:
 
             gain_B (float): gain of the `Bottom` detector
 
-            I (np.ndarray): temperature map
+            temp_map (np.ndarray): temperature map
 
-            P (np.ndarray): polarization map (i.e. Q+iU)
+            pol_map (np.ndarray): polarization map (i.e. Q+iU)
 
         Returns:
             signal_fields (SignalFields): differential gain field of the detector
         """
         delta_g = gain_T - gain_B
         signal_fields = SignalFields(
-            Field(delta_g * I / 2.0, spin_n=0, spin_m=0),
-            Field((2.0 + gain_T + gain_B) * P / 4.0, spin_n=2, spin_m=0),
-            Field((2.0 + gain_T + gain_B) * P.conj() / 4.0, spin_n=-2, spin_m=0),
+            Field(delta_g * temp_map / 2.0, spin_n=0, spin_m=0),
+            Field((2.0 + gain_T + gain_B) * pol_map / 4.0, spin_n=2, spin_m=0),
+            Field((2.0 + gain_T + gain_B) * pol_map.conj() / 4.0, spin_n=-2, spin_m=0),
         )
         signal_fields.syst_field_name = "diff_gain_field"
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
@@ -221,10 +245,10 @@ class SignalFields:
         rho_B: float,
         chi_T: float,
         chi_B: float,
-        P: np.ndarray,
-        eth_I: np.ndarray,
-        eth_P: np.ndarray,
-        o_eth_P: np.ndarray,
+        pol_map: np.ndarray,
+        eth_temp_map: np.ndarray,
+        eth_pol_map: np.ndarray,
+        o_eth_pol_map: np.ndarray,
     ):
         """Get the differential pointing field of the detector
 
@@ -241,13 +265,13 @@ class SignalFields:
 
             chi_B (float): direction of the pointing offset of the `Bottom` detector in radian
 
-            P (np.ndarray): polarization map (i.e. Q+iU)
+            pol_map (np.ndarray): polarization map (i.e. Q+iU)
 
-            eth_I (np.ndarray): spin up gradient of the temperature map
+            eth_temp_map (np.ndarray): spin up gradient of the temperature map
 
-            eth_P (np.ndarray): spin up gradient of the polarization map
+            eth_pol_map (np.ndarray): spin up gradient of the polarization map
 
-            o_eth_P (np.ndarray): spin down gradient of the polarization map
+            o_eth_pol_map (np.ndarray): spin down gradient of the polarization map
         """
         zeta = rho_T * np.exp(1j * chi_T) - 1j * rho_B * np.exp(1j * chi_B)
         o_zeta = rho_T * np.exp(1j * chi_T) + 1j * rho_B * np.exp(
@@ -255,12 +279,14 @@ class SignalFields:
         )  # \overline{\zeta}
 
         spin_1_field = Field(
-            -1.0 / 4.0 * (zeta * eth_I + o_zeta.conj() * o_eth_P), spin_n=1, spin_m=0
+            -1.0 / 4.0 * (zeta * eth_temp_map + o_zeta.conj() * o_eth_pol_map),
+            spin_n=1,
+            spin_m=0,
         )
         spin_m1_field = spin_1_field.conj()
-        spin_2_field = Field(P / 2.0, spin_n=2, spin_m=0)
+        spin_2_field = Field(pol_map / 2.0, spin_n=2, spin_m=0)
         spin_m2_field = spin_2_field.conj()
-        spin_3_field = Field(-1.0 / 4.0 * o_zeta * eth_P, spin_n=3, spin_m=0)
+        spin_3_field = Field(-1.0 / 4.0 * o_zeta * eth_pol_map, spin_n=3, spin_m=0)
         spin_m3_field = spin_3_field.conj()
 
         signal_fields = SignalFields(
@@ -280,7 +306,7 @@ class SignalFields:
                 scan_field, spin_n_out=1, spin_m_out=0
             )
             fields = [sp1, sp1.conj(), sp2, sp2.conj()]
-        elif mdim == 6:  # T and P grad. mitigation
+        elif mdim == 6:  # Temp. and Pol. grad. mitigation
             sp1 = signal_fields.get_coupled_field(
                 scan_field, spin_n_out=1, spin_m_out=0
             )
@@ -299,7 +325,7 @@ class SignalFields:
         mdim: int,
         epsilon: float,
         phi_qi: float,
-        I: np.ndarray,
+        temp_map: np.ndarray,
     ):
         """Get the HWP instrumental polarization field of the detector
 
@@ -312,19 +338,25 @@ class SignalFields:
 
             phi_qi (float): phase shift in the HWP
 
-            I (np.ndarray): temperature map
+            temp_map (np.ndarray): temperature map
         """
+        spin_4m4_field = Field(epsilon / 2.0 * np.exp(-1j * phi_qi) * temp_map, spin_n=4, spin_m=-4)
         signal_fields = SignalFields(
-            Field(epsilon / 2.0 * np.exp(-1j * phi_qi) * I, spin_n=4, spin_m=-4),
-            Field(epsilon / 2.0 * np.exp(1j * phi_qi) * I, spin_n=-4, spin_m=4),
+            spin_4m4_field,
+            spin_4m4_field.conj(),
         )
         signal_fields.syst_field_name = "hwp_ip_field"
         s_00 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2m4 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=-4)
         if mdim == 3:
             fields = [s_00, sp2m4, sp2m4.conj()]
+        elif mdim == 5:
+            sp4m4 = signal_fields.get_coupled_field(
+                scan_field, spin_n_out=4, spin_m_out=-4
+            )
+            fields = [s_00, sp2m4, sp2m4.conj(), sp4m4, sp4m4.conj()]
         else:
-            raise ValueError("mdim is 3 only supported")
+            raise ValueError("mdim is 3 and 5 only supported")
         signal_fields.build_linear_system(fields)
         return signal_fields
 
@@ -334,11 +366,11 @@ class SignalFields:
         mdim: int,
         rho: float,
         chi: float,
-        I: np.ndarray,
-        P: np.ndarray,
-        eth_I: np.ndarray,
-        eth_P: np.ndarray,
-        o_eth_P: np.ndarray,
+        temp_map: np.ndarray,
+        pol_map: np.ndarray,
+        eth_temp_map: np.ndarray,
+        eth_pol_map: np.ndarray,
+        o_eth_pol_map: np.ndarray,
     ):
         """Get the absolute pointing field of the detector
 
@@ -351,29 +383,29 @@ class SignalFields:
 
             chi (float): direction of the pointing offset in radian
 
-            I (np.ndarray): temperature map
+            temp_map (np.ndarray): temperature map
 
-            P (np.ndarray): polarization map (i.e. Q+iU)
+            pol_map (np.ndarray): polarization map (i.e. Q+iU)
 
-            eth_I (np.ndarray): spin up gradient of the temperature map
+            eth_temp_map (np.ndarray): spin up gradient of the temperature map
 
-            eth_P (np.ndarray): spin up gradient of the polarization map
+            eth_pol_map (np.ndarray): spin up gradient of the polarization map
 
-            o_eth_P (np.ndarray): spin down gradient of the polarization map
+            o_eth_pol_map (np.ndarray): spin down gradient of the polarization map
         """
-        spin_00_field = Field(I, spin_n=0, spin_m=0)
-        spin_p2m4_field = Field(P / 2.0, spin_n=2, spin_m=-4)
+        spin_00_field = Field(temp_map, spin_n=0, spin_m=0)
+        spin_p2m4_field = Field(pol_map / 2.0, spin_n=2, spin_m=-4)
         spin_m2p4_field = spin_p2m4_field.conj()
         spin_p10_field = Field(
-            -rho / 2.0 * np.exp(1j * chi) * eth_I, spin_n=1, spin_m=0
+            -rho / 2.0 * np.exp(1j * chi) * eth_temp_map, spin_n=1, spin_m=0
         )
         spin_m10_field = spin_p10_field.conj()
         spin_p1m4_field = Field(
-            -rho / 4.0 * np.exp(-1j * chi) * o_eth_P, spin_n=1, spin_m=-4
+            -rho / 4.0 * np.exp(-1j * chi) * o_eth_pol_map, spin_n=1, spin_m=-4
         )
         spin_m1p4_field = spin_p1m4_field.conj()
         spin_p3m4_field = Field(
-            -rho / 4.0 * np.exp(1j * chi) * eth_P, spin_n=3, spin_m=-4
+            -rho / 4.0 * np.exp(1j * chi) * eth_pol_map, spin_n=3, spin_m=-4
         )
         spin_m3p4_field = spin_p3m4_field.conj()
         signal_fields = SignalFields(
@@ -429,11 +461,11 @@ class SignalFields:
         mdim: int,
         rho: float,
         chi: float,
-        I: np.ndarray,
-        P: np.ndarray,
-        eth_I: np.ndarray,
-        eth_P: np.ndarray,
-        o_eth_P: np.ndarray,
+        temp_map: np.ndarray,
+        pol_map: np.ndarray,
+        eth_temp_map: np.ndarray,
+        eth_pol_map: np.ndarray,
+        o_eth_pol_map: np.ndarray,
     ):
         """Get the absolute pointing field of the detector
 
@@ -446,29 +478,29 @@ class SignalFields:
 
             chi (float): direction of the pointing offset in radian
 
-            I (np.ndarray): temperature map
+            temp_map (np.ndarray): temperature map
 
-            P (np.ndarray): polarization map (i.e. Q+iU)
+            pol_map (np.ndarray): polarization map (i.e. Q+iU)
 
-            eth_I (np.ndarray): spin up gradient of the temperature map
+            eth_temp_map (np.ndarray): spin up gradient of the temperature map
 
-            eth_P (np.ndarray): spin up gradient of the polarization map
+            eth_pol_map (np.ndarray): spin up gradient of the polarization map
 
-            o_eth_P (np.ndarray): spin down gradient of the polarization map
+            o_eth_pol_map (np.ndarray): spin down gradient of the polarization map
         """
-        spin_00_field = Field(I, spin_n=0, spin_m=0)
-        spin_p2m4_field = Field(P / 2.0, spin_n=2, spin_m=-4)
+        spin_00_field = Field(temp_map, spin_n=0, spin_m=0)
+        spin_p2m4_field = Field(pol_map / 2.0, spin_n=2, spin_m=-4)
         spin_m2p4_field = spin_p2m4_field.conj()
         spin_p1p1_field = Field(
-            -rho / 2.0 * np.exp(1j * chi) * eth_I, spin_n=1, spin_m=1
+            -rho / 2.0 * np.exp(1j * chi) * eth_temp_map, spin_n=1, spin_m=1
         )
         spin_m1m1_field = spin_p1p1_field.conj()
         spin_p1m5_field = Field(
-            -rho / 4.0 * np.exp(-1j * chi) * o_eth_P, spin_n=1, spin_m=-5
+            -rho / 4.0 * np.exp(-1j * chi) * o_eth_pol_map, spin_n=1, spin_m=-5
         )
         spin_m1p5_field = spin_p1m5_field.conj()
         spin_p3m3_field = Field(
-            -rho / 4.0 * np.exp(1j * chi) * eth_P, spin_n=3, spin_m=-3
+            -rho / 4.0 * np.exp(1j * chi) * eth_pol_map, spin_n=3, spin_m=-3
         )
         spin_m3p3_field = spin_p3m3_field.conj()
         signal_fields = SignalFields(
