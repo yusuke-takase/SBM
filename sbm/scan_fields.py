@@ -79,6 +79,17 @@ fwhms = [
     17.9,
 ]
 
+def read_scanfiled(file_path):
+    """Read the scan fields data of a detector from a HDF5 file
+
+    Args:
+        file_path (str): file path of the HDF5 file containing the scan fields data simulated by Falcons.jl
+
+    Returns:
+        instance (ScanFields): instance of the ScanFields class containing
+        the scan fields data of the detector
+    """
+    return ScanFields.load_hdf5(file_path)
 
 class ScanFields:
     """Class to store the scan fields data of detectors"""
@@ -124,6 +135,36 @@ class ScanFields:
         self.noise_pdf = None
         self.covmat_inv = None
         self.xlink_threshold = 0.7
+
+    @classmethod
+    def load_hdf5(cls, file_path: str):
+        """Load the scan fields data of a detector from a HDF5 file
+
+        Args:
+            file_path (str): file path of the HDF5 file containing the scan fields data simulated by Falcons.jl
+
+        Returns:
+            instance (ScanFields): instance of the ScanFields class containing
+            the scan fields data of the detector
+        """
+        instance = cls()
+
+        with h5py.File(os.path.join(file_path), "r") as f:
+            instance.ss = {
+                key: value[()]
+                for key, value in zip(f["ss"].keys(), f["ss"].values())
+                if key != "quat"
+            }
+            instance.hitmap = f["hitmap"][:]
+            instance.h = f["h"][:, :, :]
+            instance.h[np.isnan(instance.h)] = 1.0
+            instance.spins_n = f["toml"]["spin_n"][()]
+            instance.spins_m = f["toml"]["spin_m"][()]
+        instance.nside = instance.ss["nside"]
+        instance.duration = instance.ss["duration"]
+        instance.sampling_rate = instance.ss["sampling_rate"]
+        instance.npix = hp.nside2npix(instance.nside)
+        return instance
 
     @classmethod
     def load_det(cls, det_name: str, base_path=DB_ROOT_PATH):

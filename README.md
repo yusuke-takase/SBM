@@ -21,9 +21,29 @@ cd SBM
 pip install -e .
 ```
 
+# How to load cross-link HDF5 file 
+SBM assumes the HDF5 file includes cross-link is generated `Falcons.jl`'s [pipelines.jl](https://github.com/yusuke-takase/Falcons.jl/blob/master/src/function/pipelines.jl)
+In order to load the HDF5 file, SBM surpports two methods:
+
+1. Specify directpath
+  - `sbm.read_scanfiled(file_path)`
+  - This way is usefull if you don't need to do multiple detector's simulation
+2. Specify channel and detector name of LiteBIRD
+  - `sbm.ScanFields.load_det(filename=f"{channel}/{detector_name}", base_path="<root path of your dataset>")`
+  - In this way, if you don't specify the `base_path`, the code will read `~/.config/sbm_dataset/sbm_dataset.toml`.
+  The `base_path` is written in this toml file. 
+  This toml file is generated after you installed the cross-link dataset's `base_path` by:
+  ```
+  python -m sbm.install_db
+  ```
+  This way makes you free to put long file path to specify a detector. 
+
 # Database instllation
 
-The SBM needs a database which includes cross-link data in HDF5 format.
+The SBM can access to a database which includes cross-link data in HDF5 format.
+This way is useful people who wants to do full-scale detector simulation.
+Not in that case, it may be better to use just `sbm.read_scanfiled(file_path)`.
+
 By following command, you can install the path of database in local storage.
 
 ```
