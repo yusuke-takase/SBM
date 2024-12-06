@@ -9,6 +9,7 @@ from multiprocessing import Pool
 from pathlib import Path
 import sympy as sp
 import toml
+from rich import print
 from IPython.display import display, Math
 from .signal_fields import SignalFields, Field
 from .tools import get_instrument_table
@@ -20,14 +21,18 @@ CONFIG_FILE_PATH = CONFIG_PATH / "sbm_dataset.toml"
 def extract_location_from_toml(file_path):
     with open(file_path, "r") as file:
         data = toml.load(file)
-        loc = data["repositories"][0]["location"]
-    return loc
+        location = data["repositories"][0]["location"]
+    return location
 
 
-if not CONFIG_FILE_PATH.exists():
-    DB_ROOT_PATH = None
+if CONFIG_FILE_PATH.exists():
+    try:
+        DB_ROOT_PATH = extract_location_from_toml(CONFIG_FILE_PATH)
+    except Exception as e:
+        print(f"[red]Error:[/red] Extracting database location from TOML was fail: {e}\nYou should check '~/.config/sbm_dataset/sbm_dataset.toml'\nDB_ROOT_PATH set as `None`")
+        DB_ROOT_PATH = None
 else:
-    DB_ROOT_PATH = extract_location_from_toml(CONFIG_FILE_PATH)
+    DB_ROOT_PATH = None
 
 channel_list = [
     "L1-040",
@@ -79,6 +84,7 @@ fwhms = [
     17.9,
 ]
 
+
 def read_scanfiled(file_path):
     """Read the scan fields data of a detector from a HDF5 file
 
@@ -91,6 +97,7 @@ def read_scanfiled(file_path):
     """
     return ScanFields.load_hdf5(file_path)
 
+
 class ScanFields:
     """Class to store the scan fields data of detectors"""
 
@@ -98,30 +105,49 @@ class ScanFields:
         """Initialize the class with empty data
 
         ss (dict):  of the scanning strategy parameters
+
         hitmap (np.ndarray): hitmap of the detector
+
         h (np.ndarray): cross-link (orientation function) of the detector
+
         spins_n (np.ndarray): array of spin_n numbers
+
         spins_m (np.ndarray): array of spin_m number
+
         compled_fields (np.ndarray): coupled fields between scan fields and signal fields
+
         use_hwp (bool): whether the observation uses HWP or not
+
         nside (int): nside of the map
+
         npix (int): number of pixels in the map
+
         mdim (int): dimension of the liner system to do the map-making
+
         ndet (int): number of detectors
+
         duration (float): duration [s] of the observation
+
         sampling_rate (float): sampling rate [Hz] of the observation
+
         channel (str): name of the channel
+
         net_detector_ukrts (float): net detector noise level [uKrts] of the detector
+
         net_channel_ukrts (float): net channel noise level [uKrts] of the detectors
+
         noise_pdf (np.ndarray): probability density function of the noise per sky pixel
+
         covmat_inv (np.ndarray): inverse of the covariance matrix of the stokes parameters
+
+        xlink_threshold (float): threshold value to decide whether stokes parameter estimation is
+        performed or not in the map-making. The sky pixel with the cross-link value larger than this threshold is ignored in the map-making. Default is 1.0 i.e. all the sky pixels stokes paramters are estimated.
         """
         self.ss = {}
         self.hitmap = []
         self.h = []
         self.spins_n = []
         self.spins_m = []
-        self.compled_fields = None
         self.use_hwp = None
         self.nside = None
         self.npix = None
@@ -134,7 +160,7 @@ class ScanFields:
         self.net_channel_ukrts = None
         self.noise_pdf = None
         self.covmat_inv = None
-        self.xlink_threshold = 0.7
+        self.xlink_threshold = 1.0
 
     @classmethod
     def load_hdf5(cls, file_path: str):
@@ -147,6 +173,7 @@ class ScanFields:
             instance (ScanFields): instance of the ScanFields class containing
             the scan fields data of the detector
         """
+        assert os.path.exists(file_path), f"File not found: {file_path}"
         instance = cls()
 
         with h5py.File(os.path.join(file_path), "r") as f:
@@ -179,6 +206,9 @@ class ScanFields:
             instance (ScanFields): instance of the ScanFields class containing
             the scan fields data of the detector
         """
+        assert os.path.exists(
+            base_path
+        ), f"Directory not found: {base_path}\nPlease check the path to the database: {DB_ROOT_PATH}"
         instance = cls()
         if base_path.split("/")[-1] in channel_list:
             instance.channel = base_path.split("/")[-1]
@@ -188,8 +218,12 @@ class ScanFields:
             t2b = True
             det_name = det_name[:-1] + "T"
         filename = det_name + ".h5"
+        hdf5_file_path = os.path.join(base_path, filename)
 
-        with h5py.File(os.path.join(base_path, filename), "r") as f:
+        assert os.path.exists(
+            hdf5_file_path
+        ), f"File not found: {hdf5_file_path}\nPlease check the path to the database: {DB_ROOT_PATH}"
+        with h5py.File(hdf5_file_path, "r") as f:
             instance.ss = {
                 key: value[()]
                 for key, value in zip(f["ss"].keys(), f["ss"].values())

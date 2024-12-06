@@ -60,3 +60,14 @@ Now, following systematics are implemented:
 - Differential pointing
 - Absolute pointing offset with HWP [Y. Takase et al.](https://arxiv.org/abs/2408.03040)
 - HWP non-ideality [G. Patanchon et al.](https://iopscience.iop.org/article/10.1088/1475-7516/2024/04/074)
+- Diff. beam
+- Diff. beam ellip.
+- Bandpass mismatch (related with diff. gain)
+- Pointing disturbance due to HWP
+  - wedge effect (THWP)
+  - tilted effect (RHWP)
+- Non-uniform white noise
+
+# How to cite the code
+The basic formalism is published in [Y. Takase et al.](https://arxiv.org/abs/2408.03040). 
+Please cite the paper when you use the SBM for your publications. 
