@@ -16,6 +16,7 @@ Main functions
    sbm.get_cmap
    sbm.get_instrument_table
    sbm.load_fiducial_cl
+   sbm.read_scanfiled
    sbm.sim_diff_gain_per_ch
    sbm.sim_diff_pointing_per_ch
    sbm.sim_noise_per_ch
