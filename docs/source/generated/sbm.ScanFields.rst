@@ -22,6 +22,7 @@
       ~ScanFields.load_channel
       ~ScanFields.load_det
       ~ScanFields.load_full_FPU
+      ~ScanFields.load_hdf5
       ~ScanFields.map_make
       ~ScanFields.t2b
    

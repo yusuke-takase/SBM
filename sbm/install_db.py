@@ -95,6 +95,10 @@ def retrieve_local_source():
 
 def run_main_loop() -> bool:
     prompt = """Choose a source for the database:
+This is installation is useful when you have a multiple
+detector's cross-liking data in your base directory.
+If you have a boresight-only data, you can use the function
+`read_scanfield()` directly.
 
 1.   [cyan]Local source[/cyan]
 

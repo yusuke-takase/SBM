@@ -2,6 +2,7 @@
 
 
 from .scan_fields import (
+    read_scanfiled,
     ScanFields,
     DB_ROOT_PATH,
     channel_list,
@@ -49,6 +50,7 @@ __all__ = [
     "__author__",
     "__version__",
     # scan_fields.py
+    "read_scanfiled",
     "ScanFields",
     "DB_ROOT_PATH",
     "channel_list",
