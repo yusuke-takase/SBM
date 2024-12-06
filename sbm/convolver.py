@@ -77,8 +77,11 @@ class Convolver:
         Returns:
             Convolution map corresponding to spin k
         """
-        all_maps = np.zeros((len(self.spin_k), 2, self.npix), np.complex128)
         if self.use_hwp is False:
+            all_maps = np.zeros((len(self.spin_k), 2, self.npix), np.complex128)
+            assert (
+                self.alm[0,:].size == other.alm[0,:].size
+            ), "The array sizes of alm and blm are different."
             for k_idx, k in enumerate(self.spin_k):
                 blk = other.make_blk(k)
                 clm = self.make_clm(blk, k)
@@ -98,6 +101,8 @@ class Convolver:
                     all_maps[k_idx,0,:] = s0_sk_map[0] - s0_sk_map[1]*1j
                     all_maps[k_idx,1,:] = s2_sk_map[0] - s2_sk_map[1]*1j
             return all_maps
+        else:
+            return NotImplemented
     
     
 def elliptical_beam(nside: int, fwhm: float, q: float):

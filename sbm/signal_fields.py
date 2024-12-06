@@ -583,7 +583,7 @@ class SignalFields:
         signal_fields.build_linear_system(fields)
         return signal_fields
 
-    def elliptical_beam_convolution(
+    def elliptical_beam_field(
         scan_field,
         mdim: int,
         alm: np.ndarray,
@@ -602,8 +602,8 @@ class SignalFields:
             signal_fields (SignalFields): elliptical beam convolution field of the detector
         """
         nside = scan_field.nside
-        alm_conv = Convolver(alm=alm, nside=nside, spin_k=[0, 2, 4], use_hwp=False)
-        blm_conv = Convolver(alm=blm, nside=nside, spin_k=[0, 2, 4], use_hwp=False)
+        alm_conv = Convolver(alm=alm, nside=nside, spin_k=[0, 2, 4], use_hwp=use_hwp)
+        blm_conv = Convolver(alm=blm, nside=nside, spin_k=[0, 2, 4], use_hwp=use_hwp)
         all_maps = alm_conv * blm_conv
 
         signal_fields = SignalFields(
@@ -616,7 +616,7 @@ class SignalFields:
 
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
-        signal_fields.syst_field_name = "diff_beam_ellipticity_field"
+        signal_fields.syst_field_name = "elliptical_beam_field"
         if mdim == 2:
             fields = [sp2, sp2.conj()]
         elif mdim == 3:
