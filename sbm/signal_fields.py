@@ -591,19 +591,27 @@ class SignalFields:
         use_hwp=False,
     ):
         """Get the elliptical beam convolved field
+
         Args:
             scan_field (ScanFields): scan field instance
+
             mdim (int): dimension of the map-making liner system
+
             alm (np.ndarray): spherical harmonic expansion coefficients of sky
+
             blm (np.ndarray): spherical harmonic expansion coefficients of beam
+
             use_hwp (bool): whether the observation uses HWP or not
 
         Returns:
             signal_fields (SignalFields): elliptical beam convolution field of the detector
         """
-        nside = scan_field.nside
-        alm_conv = Convolver(alm=alm, nside=nside, spin_k=[0, 2, 4], use_hwp=use_hwp)
-        blm_conv = Convolver(alm=blm, nside=nside, spin_k=[0, 2, 4], use_hwp=use_hwp)
+        alm_conv = Convolver(
+            alm=alm, nside=scan_field.nside, spin_k=[0, 2, 4], use_hwp=use_hwp
+        )
+        blm_conv = Convolver(
+            alm=blm, nside=scan_field.nside, spin_k=[0, 2, 4], use_hwp=use_hwp
+        )
         all_maps = alm_conv * blm_conv
 
         signal_fields = SignalFields(
@@ -628,6 +636,5 @@ class SignalFields:
             fields = [s_0, sp2, sp2.conj(), sp4, sp4.conj()]
         else:
             raise ValueError("mdim is 2,3 and 5 only supported")
-
         signal_fields.build_linear_system(fields)
         return signal_fields
