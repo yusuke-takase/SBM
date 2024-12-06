@@ -3,6 +3,7 @@
 import numpy as np
 import copy
 import healpy as hp
+from .convolver import Convolver
 import sympy as sp
 
 
@@ -579,5 +580,54 @@ class SignalFields:
             )
         else:
             raise ValueError("mdim is 3,5 and 9 only supported")
+        signal_fields.build_linear_system(fields)
+        return signal_fields
+
+    def elliptical_beam_field(
+        scan_field,
+        mdim: int,
+        alm: np.ndarray,
+        blm: np.ndarray,
+        use_hwp=False,
+    ):
+        """Get the elliptical beam convolved field
+        Args:
+            scan_field (ScanFields): scan field instance
+            mdim (int): dimension of the map-making liner system
+            alm (np.ndarray): spherical harmonic expansion coefficients of sky
+            blm (np.ndarray): spherical harmonic expansion coefficients of beam
+            use_hwp (bool): whether the observation uses HWP or not
+
+        Returns:
+            signal_fields (SignalFields): elliptical beam convolution field of the detector
+        """
+        nside = scan_field.nside
+        alm_conv = Convolver(alm=alm, nside=nside, spin_k=[0, 2, 4], use_hwp=use_hwp)
+        blm_conv = Convolver(alm=blm, nside=nside, spin_k=[0, 2, 4], use_hwp=use_hwp)
+        all_maps = alm_conv * blm_conv
+
+        signal_fields = SignalFields(
+            Field(all_maps[0][0] + all_maps[0][1], spin_n=0, spin_m=0),
+            Field((all_maps[1][0] + all_maps[1][1]) / 2, spin_n=2, spin_m=0),
+            Field((all_maps[1][0] + all_maps[1][1]).conj() / 2, spin_n=-2, spin_m=0),
+            Field((all_maps[2][0] + all_maps[2][1]) / 2, spin_n=4, spin_m=0),
+            Field((all_maps[2][0] + all_maps[2][1]).conj() / 2, spin_n=-4, spin_m=0),
+        )
+
+        s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
+        sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
+        signal_fields.syst_field_name = "elliptical_beam_field"
+        if mdim == 2:
+            fields = [sp2, sp2.conj()]
+        elif mdim == 3:
+            fields = [s_0, sp2, sp2.conj()]
+        elif mdim == 5:
+            sp4 = signal_fields.get_coupled_field(
+                scan_field, spin_n_out=4, spin_m_out=0
+            )
+            fields = [s_0, sp2, sp2.conj(), sp4, sp4.conj()]
+        else:
+            raise ValueError("mdim is 2,3 and 5 only supported")
+
         signal_fields.build_linear_system(fields)
         return signal_fields

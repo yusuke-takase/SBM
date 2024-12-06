@@ -10,6 +10,7 @@ Main functions
 
    sbm.c2d
    sbm.d2c
+   sbm.elliptical_beam
    sbm.forecast
    sbm.generate_cmb
    sbm.generate_maps
@@ -31,6 +32,7 @@ Classes
    :toctree: generated/
 
    sbm.Configlation
+   sbm.Convolver
    sbm.Field
    sbm.ScanFields
    sbm.SignalFields
@@ -46,6 +48,9 @@ Methods
    :toctree: generated/
    :recursive:
 
+   sbm.Convolver.eb2spin
+   sbm.Convolver.make_blk
+   sbm.Convolver.make_clm
    sbm.Field.conj
    sbm.ScanFields.create_covmat
    sbm.ScanFields.generate_noise
@@ -59,6 +64,7 @@ Methods
    sbm.SignalFields.circular_pointing_field
    sbm.SignalFields.diff_gain_field
    sbm.SignalFields.diff_pointing_field
+   sbm.SignalFields.elliptical_beam_convolution
    sbm.SignalFields.extract_iqu
    sbm.SignalFields.get_coupled_field
    sbm.SignalFields.get_field
