@@ -29,7 +29,9 @@ if CONFIG_FILE_PATH.exists():
     try:
         DB_ROOT_PATH = extract_location_from_toml(CONFIG_FILE_PATH)
     except Exception as e:
-        print(f"[red]Error:[/red] Extracting database location from TOML was fail: {e}\nYou should check '~/.config/sbm_dataset/sbm_dataset.toml'\nDB_ROOT_PATH set as `None`")
+        print(
+            f"[red]Error:[/red] Extracting database location from TOML was fail: {e}\nYou should check '~/.config/sbm_dataset/sbm_dataset.toml'\nDB_ROOT_PATH set as `None`"
+        )
         DB_ROOT_PATH = None
 else:
     DB_ROOT_PATH = None
@@ -85,64 +87,64 @@ fwhms = [
 ]
 
 
-def read_scanfiled(file_path):
+def read_scanfiled(file_path: str) -> "ScanFields":
     """Read the scan fields data of a detector from a HDF5 file
 
     Args:
-        file_path (str): file path of the HDF5 file containing the scan fields data simulated by Falcons.jl
+        file_path (`str`): file path of the HDF5 file containing the scan fields data simulated by Falcons.jl
 
     Returns:
-        instance (ScanFields): instance of the ScanFields class containing
-        the scan fields data of the detector
+        instance (:class:`.ScanFields`): scan fields instance
     """
     return ScanFields.load_hdf5(file_path)
 
 
 class ScanFields:
-    """Class to store the scan fields data of detectors"""
+    """Class to store the scan fields data of detectors
+
+    Attributes:
+        ss (`dict`): of the scanning strategy parameters
+
+        hitmap (`np.ndarray`): hitmap of the detector
+
+        h (`np.ndarray`): cross-link (orientation function) of the detector
+
+        spins_n (`np.ndarray`): array of spin_n numbers
+
+        spins_m (`np.ndarray`): array of spin_m number
+
+        compled_fields (`np.ndarray`): coupled fields between scan fields and signal fields
+
+        use_hwp (`bool`): whether the observation uses HWP or not
+
+        nside (`int`): nside of the map
+
+        npix (`int`): number of pixels in the map
+
+        mdim (`int`): dimension of the liner system to do the map-making
+
+        ndet (`int`): number of detectors
+
+        duration (`float`): duration [s] of the observation
+
+        sampling_rate (`float`): sampling rate [Hz] of the observation
+
+        channel (`str`): name of the channel
+
+        net_detector_ukrts (`float`): net detector noise level [uKrts] of the detector
+
+        net_channel_ukrts (`float`): net channel noise level [uKrts] of the detectors
+
+        noise_pdf (`np.ndarray`): probability density function of the noise per sky pixel
+
+        covmat_inv (`np.ndarray`): inverse of the covariance matrix of the stokes parameters
+
+        xlink_threshold (`float`): threshold value to decide whether stokes parameter estimation is
+        performed or not in the map-making. The sky pixel with the cross-link value larger than this
+        threshold is ignored in the map-making. Default is 1.0 i.e. all the sky pixels stokes paramters are estimated.
+    """
 
     def __init__(self):
-        """Initialize the class with empty data
-
-        ss (dict):  of the scanning strategy parameters
-
-        hitmap (np.ndarray): hitmap of the detector
-
-        h (np.ndarray): cross-link (orientation function) of the detector
-
-        spins_n (np.ndarray): array of spin_n numbers
-
-        spins_m (np.ndarray): array of spin_m number
-
-        compled_fields (np.ndarray): coupled fields between scan fields and signal fields
-
-        use_hwp (bool): whether the observation uses HWP or not
-
-        nside (int): nside of the map
-
-        npix (int): number of pixels in the map
-
-        mdim (int): dimension of the liner system to do the map-making
-
-        ndet (int): number of detectors
-
-        duration (float): duration [s] of the observation
-
-        sampling_rate (float): sampling rate [Hz] of the observation
-
-        channel (str): name of the channel
-
-        net_detector_ukrts (float): net detector noise level [uKrts] of the detector
-
-        net_channel_ukrts (float): net channel noise level [uKrts] of the detectors
-
-        noise_pdf (np.ndarray): probability density function of the noise per sky pixel
-
-        covmat_inv (np.ndarray): inverse of the covariance matrix of the stokes parameters
-
-        xlink_threshold (float): threshold value to decide whether stokes parameter estimation is
-        performed or not in the map-making. The sky pixel with the cross-link value larger than this threshold is ignored in the map-making. Default is 1.0 i.e. all the sky pixels stokes paramters are estimated.
-        """
         self.ss = {}
         self.hitmap = []
         self.h = []
@@ -163,14 +165,14 @@ class ScanFields:
         self.xlink_threshold = 1.0
 
     @classmethod
-    def load_hdf5(cls, file_path: str):
+    def load_hdf5(cls, file_path: str) -> "ScanFields":
         """Load the scan fields data of a detector from a HDF5 file
 
         Args:
-            file_path (str): file path of the HDF5 file containing the scan fields data simulated by Falcons.jl
+            file_path (`str`): file path of the HDF5 file containing the scan fields data simulated by Falcons.jl
 
         Returns:
-            instance (ScanFields): instance of the ScanFields class containing
+            instance (:class:`.ScanFields`): instance of scan fields
             the scan fields data of the detector
         """
         assert os.path.exists(file_path), f"File not found: {file_path}"
@@ -194,16 +196,16 @@ class ScanFields:
         return instance
 
     @classmethod
-    def load_det(cls, det_name: str, base_path=DB_ROOT_PATH):
+    def load_det(cls, det_name: str, base_path=DB_ROOT_PATH) -> "ScanFields":
         """Load the scan fields data of a detector from a HDF5 file
 
         Args:
-            filename (str): name of the HDF5 file containing the scan fields data simulated by Falcons.jl
+            filename (`str`): name of the HDF5 file containing the scan fields data simulated by Falcons.jl
 
-            base_path (str): path to the directory containing the HDF5 file
+            base_path (`str`): path to the directory containing the HDF5 file
 
         Returns:
-            instance (ScanFields): instance of the ScanFields class containing
+            instance (:class:`.ScanFields`): instance of the ScanFields class containing
             the scan fields data of the detector
         """
         assert os.path.exists(
@@ -243,16 +245,16 @@ class ScanFields:
         return instance
 
     @classmethod
-    def load_channel(cls, channel: str, base_path=DB_ROOT_PATH):
+    def load_channel(cls, channel: str, base_path=DB_ROOT_PATH) -> "ScanFields":
         """Load the scan fields data of a channel from the directory containing the HDF5 files
 
         Args:
-            base_path (str): path to the directory containing the HDF5 files
+            base_path (`str`): path to the directory containing the HDF5 files
 
-            channel (str): name of the channel to load the scan fields data from
+            channel (`str`): name of the channel to load the scan fields data from
 
         Returns:
-            instance (ScanFields): instance of the ScanFields class containing
+            instance (:class:`.ScanFields`): instance of the ScanFields class containing
             the scan fields data of the channel
         """
         dirpath = os.path.join(base_path, channel)
@@ -285,21 +287,21 @@ class ScanFields:
     @classmethod
     def load_full_FPU(
         cls, channel_list: list, base_path=DB_ROOT_PATH, max_workers=None
-    ):
+    ) -> "ScanFields":
         """Load the scan fields data of all the channels in the FPU from
         the directory containing the HDF5 files
 
         Args:
-            base_path (str): path to the directory containing the channel's data
+            base_path (`str`): path to the directory containing the channel's data
 
-            channel_list (list): list of channels to load the scan fields data
+            channel_list (`list`): list of channels to load the scan fields data
 
-            max_workers (int): number of processes to use for loading the scan
+            max_workers (`int`): number of processes to use for loading the scan
                                fields data of the channels. Default is None, which
                                uses the number of CPUs in the system
 
         Returns:
-            instance (ScanFields): instance of the ScanFields class containing the scan
+            instance (:class:`.ScanFields`): instance of the ScanFields class containing the scan
                                    fields data of all the channels in the FPU
         """
         if max_workers is None:
@@ -328,7 +330,7 @@ class ScanFields:
         instance.spins_m = crosslink_channels[0].spins_m
         return instance
 
-    def t2b(self):
+    def t2b(self) -> "ScanFields":
         """Transform Top detector cross-link to Bottom detector cross-link
         It assume top and bottom detector make a orthogonal pair.
         """
@@ -336,7 +338,7 @@ class ScanFields:
         class_copy.h *= np.exp(-1j * self.spins_n * (np.pi / 2))
         return class_copy
 
-    def __add__(self, other):
+    def __add__(self, other: "ScanFields") -> "ScanFields":
         """Add `hitmap` and `h` of two Scanfield instances
         For the `hitmap`, it adds the `hitmap` of the two instances
         For `h`, it adds the cross-link of the two instances weighted by the hitmap
@@ -351,7 +353,7 @@ class ScanFields:
         ) / result.hitmap[:, np.newaxis, np.newaxis]
         return result
 
-    def initialize(self, mdim):
+    def initialize(self, mdim: int):
         """Initialize the scan fields data"""
         self.hitmap = np.zeros_like(self.hitmap)
         self.h = np.zeros_like(self.h)
@@ -361,19 +363,19 @@ class ScanFields:
         self.ndet = 0
         self.coupled_fields = np.zeros([self.mdim, self.npix], dtype=np.complex128)
 
-    def get_xlink(self, spin_n, spin_m):
+    def get_xlink(self, spin_n: int, spin_m: int) -> np.ndarray:
         """Get the cross-link of the detector for a given spin number
 
         Args:
-            spin_n (int): spin number for which the cross-link is to be obtained
+            spin_n (`int`): spin number for which the cross-link is to be obtained
 
-            spin_m (int): spin number for which the cross-link is to be obtained
+            spin_m (`int`): spin number for which the cross-link is to be obtained
 
         If `spin_n` and `spin_m` are 0, the cross-link for the spin number 0 is returned, i.e,
         the map which has 1 in the real part and zero in the imaginary part.
 
         Returns:
-            xlink (1d-np.ndarray): cross-link of the detector for the given spin numbers
+            xlink (`np.ndarray`): cross-link of the detector for the given spin numbers
         """
         assert (
             abs(spin_n) in self.spins_n
@@ -393,13 +395,13 @@ class ScanFields:
             result = self.h[:, idx_m, idx_n].conj()
         return result
 
-    def create_covmat(self, spin_n_basis: list, spin_m_basis: list):
+    def create_covmat(self, spin_n_basis: list, spin_m_basis: list) -> np.ndarray:
         """Get the covariance matrix of the detector in `mdim`x`mdim` matrix form
 
         Args:
-            base_spin_n (list): list of spin_n to create the covariance matrix
+            base_spin_n (`list`): list of spin_n to create the covariance matrix
 
-            base_spin_m (list): list of spin_m to create the covariance matrix
+            base_spin_m (`list`): list of spin_m to create the covariance matrix
         """
         base_spin_n = np.array(spin_n_basis)
         base_spin_m = np.array(spin_m_basis)
@@ -437,19 +439,21 @@ class ScanFields:
         return covmat
 
     def map_make(self, signal_fields: SignalFields, only_iqu=True, show_eq=False):
-        """Get the output map by solving the linear equation Ax=b
-        This operation gives us an equivalent result of the simple binning map-making aproach.
+        """Get the output map by solving the linear equation :math:`Ax=b`
+        This operation gives us an equivalent result of the simple binning map-making approach.
 
         Args:
-            signal_fields (SignalFields): signal fields data of the detector
+            signal_fields (:class:`.SignalFields`): signal fields data of the detector
 
-            only_iqu (bool): if True, return only I, Q, U map
+            only_iqu (`bool`): if `True`, return only I, Q and U map
 
-        If only_iqu is True, the output map has [3, `npix`] shape.
-        If only_iqu is False, the output map has [len(signal_fields.spin_n_basis), `npix`] shape.
+            show_eq (`bool`): if `True`, display the equation
+
+        If `only_iqu` is `True`, the output map has [3, `npix`] shape.
+        If `only_iqu` is `False`, the output map has [len(`signal_fields.spin_n_basis`), `npix`] shape.
 
         Returns:
-            output_map (np.ndarray, [3, `npix`])
+            output (`np.ndarray` or :class:`.SignalFields`): numpy array of maps[3,`npix`] or signal fields
         """
         assert (
             signal_fields.coupled_fields is not None
@@ -530,14 +534,14 @@ class ScanFields:
         The function store the noise PDF in the `self.noise_pdf` attribute.
 
         Args:
-            imo (Imo): IMo object which contains the instrument information given by the `litebird_sim`
+            imo (`Imo`): IMo object which contains the instrument information given by the `litebird_sim`
 
-            net_ukrts (float): net sensitivity of the detector in uK√s
+            net_ukrts (`float`): net sensitivity of the detector in uK√s
 
-            return_pdf (bool): if True, return the noise PDF
+            return_pdf (`bool`): if True, return the noise PDF
 
-            scale (float): scale factor to adjust the noise PDF.
-                           When the defferential detection is performed, it should be scale = 2.0.
+            scale (`float`): scale factor to adjust the noise PDF.
+            When the defferential detection is performed, it should be scale = 2.0.
         """
         channel = self.channel
         hitmap_tmp = self.hitmap.copy()
@@ -577,22 +581,24 @@ class ScanFields:
         if return_pdf:
             return self.noise_pdf
 
-    def generate_noise(self, spin_n_basis: list, spin_m_basis: list, seed=None):
+    def generate_noise(
+        self, spin_n_basis: list, spin_m_basis: list, seed=None
+    ) -> np.ndarray:
         """Generate observed noise map with the noise PDF.
-
+        Before using this method, you should generate the noise PDF by :meth:`.ScanFields.generate_noise_pdf` method.
         Args:
-            spin_n_basis (list): list of spin_n to create the covariance matrix
+            spin_n_basis (`list`): list of spin_n to create the covariance matrix
 
-            spin_m_basis (list): list of spin_m to create the covariance matrix
+            spin_m_basis (`list`): list of spin_m to create the covariance matrix
 
-            seed (int): seed for the random number generator
+            seed (`int`): seed for the random number generator
 
         Returns:
-            noise (np.ndarray) [3,npix]: noise map
+            noise (`np.ndarray` [3, `npix`]): noise map
         """
         assert (
             self.noise_pdf is not None
-        ), "Generate noise pdf first by `ScanField.generate_noise_pdf()` method."
+        ), "Generate noise pdf first by `ScanFields.generate_noise_pdf()` method."
         spin_n_basis = np.array(spin_n_basis)
         spin_m_basis = np.array(spin_m_basis)
         xlink2 = np.abs(self.get_xlink(2, 0))

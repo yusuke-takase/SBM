@@ -14,11 +14,11 @@ class Field:
         """Initialize the class with field and spin data
 
         Args:
-            field (np.ndarray): field data of the detector
+            field (`np.ndarray`): field data of the detector
 
-            spin_n (float): spin number of the crossing angle
+            spin_n (`float`): spin moment of the crossing angle
 
-            spin_m (float): spin number of the HWP angle
+            spin_m (`float`): spin moment of the HWP angle
         """
         if all(isinstance(x, float) for x in field):
             self.field = field + 1j * np.zeros(len(field))
@@ -37,10 +37,10 @@ class Field:
         """Add the field of two detectors
 
         Args:
-            other (Field): field of the other detector
+            other (:class:`.Field`): field of the other detector
 
         Returns:
-            result (Field): sum of the fields of the two detectors
+            result (:class:`.Field`): sum of the fields of the two detectors
         """
         if not isinstance(other, Field):
             return NotImplemented
@@ -56,7 +56,7 @@ class SignalFields:
         """Initialize the class with field data
 
         Args:
-            fields (Field): field (map) data of the signal
+            fields (:class:`.Field`): field (map) data of the signal
         """
         # Expand if fields are passed in a list
         if len(fields) == 1 and isinstance(fields[0], list):
@@ -72,15 +72,15 @@ class SignalFields:
         self.spin_m_basis = []
 
     def get_field(self, spin_n: float, spin_m: float):
-        """Get the field of the given spin number
+        """Get the field of the given spin moment
 
         Args:
-            spin_n (float): spin number for which the field is to be obtained
+            spin_n (`float`): spin moment for which the field is to be obtained
 
-            spin_m (float): spin number for which the field is to be obtained
+            spin_m (`float`): spin moment for which the field is to be obtained
 
         Returns:
-            field (np.ndarray): field of the detector for the given spin number
+            field (`np.ndarray`): field of the detector for the given spin moment
         """
         for field in self.fields:
             if field.spin_n == spin_n and field.spin_m == spin_m:
@@ -104,13 +104,13 @@ class SignalFields:
         return np.array([stokes_i, stokes_q, stokes_u])
 
     def __add__(self, other):
-        """Add the signal fieldd
+        """Add the signal fields
 
         Args:
-            other (SignalFields): signal fields
+            other (:class:`.SignalFields`): signal fields
 
         Returns:
-            result (SignalFields): sum of the signal fields
+            result (:class:`.SignalFields`): sum of the signal fields
         """
         if not isinstance(other, SignalFields):
             return NotImplemented
@@ -126,14 +126,14 @@ class SignalFields:
         given cross-linking
 
         Args:
-            scan_fields (ScanFields): scan fields instance
+            scan_field (:class:`.ScanFields`): scan fields instance
 
-            spin_n_out (float): spin_n of the output field
+            spin_n_out (`float`): spin_n of the output field
 
-            spin_m_out (float): spin_m of the output field
+            spin_m_out (`float`): spin_m of the output field
 
         Returns:
-            results (np.ndarray): detected fields by the given cross-linking
+            results (`np.ndarray`): detected fields by the given cross-linking
         """
         results = []
         h_name = []
@@ -165,10 +165,10 @@ class SignalFields:
 
     def build_linear_system(self, fields: list):
         """Build the information to solve the linear system of map-making
-        This method has to be called before map_make() method.
+        This method has to be called before :meth:`.ScanFields.map_make()` method.
 
         Args:
-            fields (list): list of coupled fields, its element must be `Field` instance
+            fields (`list`): list of coupled fields, its element must be :class:`.Field` instance
         """
         coupled_fields = []
         spin_n_basis = []
@@ -176,7 +176,7 @@ class SignalFields:
         for field in fields:
             assert isinstance(
                 field, Field
-            ), "element of `fields` must be Field instance"
+            ), "element of `fields` must be `Field` instance"
             if field.spin_n == 0 and field.spin_m == 0:
                 coupled_fields.append(field.field)
             else:
@@ -230,23 +230,23 @@ class SignalFields:
         temp_map: np.ndarray,
         pol_map: np.ndarray,
     ):
-        """ " Get the differential gain field of the detector
+        """Get the differential gain field of the detector
 
         Args:
-            scan_field (ScanFields): scan field instance
+            scan_field (:class:`.ScanFields`): scan field instance
 
-            mdim (int): dimension of the map-making liner system
+            mdim (`int`): dimension of the map-making liner system
 
-            gain_T (float): gain of the `Top` detector
+            gain_T (`float`): gain of the `Top` detector
 
-            gain_B (float): gain of the `Bottom` detector
+            gain_B (`float`): gain of the `Bottom` detector
 
-            temp_map (np.ndarray): temperature map
+            temp_map (`np.ndarray`): temperature map
 
-            pol_map (np.ndarray): polarization map (i.e. Q+iU)
+            pol_map (`np.ndarray`): polarization map (i.e. Q+iU)
 
         Returns:
-            signal_fields (SignalFields): differential gain field of the detector
+            signal_fields (:class:`.SignalFields`): differential gain field of the detector
         """
         delta_g = gain_T - gain_B
         signal_fields = SignalFields(
@@ -282,25 +282,25 @@ class SignalFields:
         """Get the differential pointing field of the detector
 
         Args:
-            scan_field (ScanFields): scan field instance
+            scan_field (:class:`.ScanFields`): scan field instance
 
-            mdim (int): dimension of the map-making liner system
+            mdim (`int`): dimension of the map-making liner system
 
-            rho_T (float): magnitude of pointing offset of the `Top` detector in radian
+            rho_T (`float`): magnitude of pointing offset of the `Top` detector in radian
 
-            rho_B (float): magnitude of pointing offset of the `Bottom` detector in radian
+            rho_B (`float`): magnitude of pointing offset of the `Bottom` detector in radian
 
-            chi_T (float): direction of the pointing offset of the `Top` detector in radian
+            chi_T (`float`): direction of the pointing offset of the `Top` detector in radian
 
-            chi_B (float): direction of the pointing offset of the `Bottom` detector in radian
+            chi_B (`float`): direction of the pointing offset of the `Bottom` detector in radian
 
-            pol_map (np.ndarray): polarization map (i.e. Q+iU)
+            pol_map (`np.ndarray`): polarization map (i.e. Q+iU)
 
-            eth_temp_map (np.ndarray): spin up gradient of the temperature map
+            eth_temp_map (`np.ndarray`): spin up gradient of the temperature map
 
-            eth_pol_map (np.ndarray): spin up gradient of the polarization map
+            eth_pol_map (`np.ndarray`): spin up gradient of the polarization map
 
-            o_eth_pol_map (np.ndarray): spin down gradient of the polarization map
+            o_eth_pol_map (`np.ndarray`): spin down gradient of the polarization map
         """
         zeta = rho_T * np.exp(1j * chi_T) - 1j * rho_B * np.exp(1j * chi_B)
         o_zeta = rho_T * np.exp(1j * chi_T) + 1j * rho_B * np.exp(
@@ -359,15 +359,15 @@ class SignalFields:
         """Get the HWP instrumental polarization field of the detector
 
         Args:
-            scan_field (ScanFields): scan field instance
+            scan_field (:class:`.ScanFields`): scan field instance
 
-            mdim (int): dimension of the map-making liner system
+            mdim (`int`): dimension of the map-making liner system
 
-            epsilon (float): amplitude of the HWP Meuller matrix element varying at 4f
+            epsilon (`float`): amplitude of the HWP Meuller matrix element varying at 4f
 
-            phi_qi (float): phase shift in the HWP
+            phi_qi (`float`): phase shift in the HWP
 
-            temp_map (np.ndarray): temperature map
+            temp_map (`np.ndarray`): temperature map
         """
         spin_4m4_field = Field(
             epsilon / 2.0 * np.exp(-1j * phi_qi) * temp_map, spin_n=4, spin_m=-4
@@ -406,23 +406,23 @@ class SignalFields:
         """Get the absolute pointing field of the detector
 
         Args:
-            scan_field (ScanFields): scan field instance
+            scan_field (:class:`.ScanFields`): scan field instance
 
-            mdim (int): dimension of the map-making liner system
+            mdim (`int`): dimension of the map-making liner system
 
-            rho (float): magnitude of pointing offset in radian
+            rho (`float`): magnitude of pointing offset in radian
 
-            chi (float): direction of the pointing offset in radian
+            chi (`float`): direction of the pointing offset in radian
 
-            temp_map (np.ndarray): temperature map
+            temp_map (`np.ndarray`): temperature map
 
-            pol_map (np.ndarray): polarization map (i.e. Q+iU)
+            pol_map (`np.ndarray`): polarization map (i.e. Q+iU)
 
-            eth_temp_map (np.ndarray): spin up gradient of the temperature map
+            eth_temp_map (`np.ndarray`): spin up gradient of the temperature map
 
-            eth_pol_map (np.ndarray): spin up gradient of the polarization map
+            eth_pol_map (`np.ndarray`): spin up gradient of the polarization map
 
-            o_eth_pol_map (np.ndarray): spin down gradient of the polarization map
+            o_eth_pol_map (`np.ndarray`): spin down gradient of the polarization map
         """
         spin_00_field = Field(temp_map, spin_n=0, spin_m=0)
         spin_p2m4_field = Field(pol_map / 2.0, spin_n=2, spin_m=-4)
@@ -501,23 +501,23 @@ class SignalFields:
         """Get the absolute pointing field of the detector
 
         Args:
-            scan_field (ScanFields): scan field instance
+            scan_field (:class:`.ScanFields`): scan field instance
 
-            mdim (int): dimension of the map-making liner system
+            mdim (`int`): dimension of the map-making liner system
 
-            rho (float): magnitude of pointing offset in radian
+            rho (`float`): magnitude of pointing offset in radian
 
-            chi (float): direction of the pointing offset in radian
+            chi (`float`): direction of the pointing offset in radian
 
-            temp_map (np.ndarray): temperature map
+            temp_map (`np.ndarray`): temperature map
 
-            pol_map (np.ndarray): polarization map (i.e. Q+iU)
+            pol_map (`np.ndarray`): polarization map (i.e. Q+iU)
 
-            eth_temp_map (np.ndarray): spin up gradient of the temperature map
+            eth_temp_map (`np.ndarray`): spin up gradient of the temperature map
 
-            eth_pol_map (np.ndarray): spin up gradient of the polarization map
+            eth_pol_map (`np.ndarray`): spin up gradient of the polarization map
 
-            o_eth_pol_map (np.ndarray): spin down gradient of the polarization map
+            o_eth_pol_map (`np.ndarray`): spin down gradient of the polarization map
         """
         spin_00_field = Field(temp_map, spin_n=0, spin_m=0)
         spin_p2m4_field = Field(pol_map / 2.0, spin_n=2, spin_m=-4)
@@ -583,6 +583,7 @@ class SignalFields:
         signal_fields.build_linear_system(fields)
         return signal_fields
 
+    @staticmethod
     def elliptical_beam_field(
         scan_field,
         mdim: int,
@@ -593,18 +594,18 @@ class SignalFields:
         """Get the elliptical beam convolved field
 
         Args:
-            scan_field (ScanFields): scan field instance
+            scan_field (:class:`.ScanFields`): scan field instance
 
-            mdim (int): dimension of the map-making liner system
+            mdim (`int`): dimension of the map-making liner system
 
-            alm (np.ndarray): spherical harmonic expansion coefficients of sky
+            alm (`np.ndarray`): spherical harmonic expansion coefficients of sky
 
-            blm (np.ndarray): spherical harmonic expansion coefficients of beam
+            blm (`np.ndarray`): spherical harmonic expansion coefficients of beam
 
-            use_hwp (bool): whether the observation uses HWP or not
+            use_hwp (`bool`): whether the observation uses HWP or not
 
         Returns:
-            signal_fields (SignalFields): elliptical beam convolution field of the detector
+            signal_fields (:class:`.SignalFields`): elliptical beam convolution field of the detector
         """
         alm_conv = Convolver(
             alm=alm, nside=scan_field.nside, spin_k=[0, 2, 4], use_hwp=use_hwp

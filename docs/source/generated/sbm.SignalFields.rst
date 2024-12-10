@@ -19,7 +19,7 @@
       ~SignalFields.circular_pointing_field
       ~SignalFields.diff_gain_field
       ~SignalFields.diff_pointing_field
-      ~SignalFields.elliptical_beam_convolution
+      ~SignalFields.elliptical_beam_field
       ~SignalFields.extract_iqu
       ~SignalFields.get_coupled_field
       ~SignalFields.get_field

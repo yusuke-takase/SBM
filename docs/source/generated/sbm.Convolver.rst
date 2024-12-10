@@ -14,8 +14,8 @@
    .. autosummary::
    
       ~Convolver.__init__
-      ~Convolver.eb2spin
-      ~Convolver.make_blk
-      ~Convolver.make_clm
+      ~Convolver.get_blk
+      ~Convolver.get_clm
+      ~Convolver.to_spin
    
    
