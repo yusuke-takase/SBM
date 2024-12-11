@@ -245,7 +245,7 @@ class ScanFields:
         return instance
 
     @classmethod
-    def load_channel(cls, channel: str, base_path=DB_ROOT_PATH) -> "ScanFields":
+    def load_channel(cls, channel: str, detector_list=None, base_path=DB_ROOT_PATH) -> "ScanFields":
         """Load the scan fields data of a channel from the directory containing the HDF5 files
 
         Args:
@@ -258,8 +258,11 @@ class ScanFields:
             the scan fields data of the channel
         """
         dirpath = os.path.join(base_path, channel)
-        filenames = os.listdir(dirpath)
-        filenames = [os.path.splitext(filename)[0] for filename in filenames]
+        if detector_list is None:
+            filenames = os.listdir(dirpath)
+            filenames = [os.path.splitext(filename)[0] for filename in filenames]
+        else:
+            filenames = detector_list
         first_sf = cls.load_det(filenames[0], base_path=dirpath)
         instance = cls()
         instance.channel = channel
