@@ -245,7 +245,9 @@ class ScanFields:
         return instance
 
     @classmethod
-    def load_channel(cls, channel: str, detector_list=None, base_path=DB_ROOT_PATH) -> "ScanFields":
+    def load_channel(
+        cls, channel: str, detector_list=None, base_path=DB_ROOT_PATH
+    ) -> "ScanFields":
         """Load the scan fields data of a channel from the directory containing the HDF5 files
 
         Args:
@@ -380,14 +382,15 @@ class ScanFields:
         Returns:
             xlink (`np.ndarray`): cross-link of the detector for the given spin numbers
         """
-        assert (
-            abs(spin_n) in self.spins_n
-        ), f"spin_n={spin_n} is not in the spins_n={self.spins_n}"
-        assert (
-            spin_m in self.spins_m
-        ), f"spin_m={spin_m} is not in the spins_m={self.spins_m}"
         if spin_n == 0 and spin_m == 0:
             return np.ones_like(self.h[:, 0, 0]) + 1j * np.zeros_like(self.h[:, 0, 0])
+        else:
+            assert (
+                abs(spin_n) in self.spins_n
+            ), f"spin_n={spin_n} is not in the spins_n={self.spins_n}"
+            assert (
+                spin_m in self.spins_m
+            ), f"spin_m={spin_m} is not in the spins_m={self.spins_m}"
         if spin_n > 0:
             idx_n = np.where(self.spins_n == np.abs(spin_n))[0][0]
             idx_m = np.where(self.spins_m == spin_m)[0][0]
