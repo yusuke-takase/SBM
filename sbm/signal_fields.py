@@ -5,6 +5,7 @@ import copy
 import healpy as hp
 from .convolver import Convolver
 import sympy as sp
+from typing import List
 
 
 class Field:
@@ -345,6 +346,61 @@ class SignalFields:
             fields = [sp1, sp1.conj(), sp2, sp2.conj(), sp3, sp3.conj()]
         else:
             raise ValueError("mdim is 2,4 and 6 only supported")
+        signal_fields.build_linear_system(fields)
+        return signal_fields
+
+    @staticmethod
+    def bandpass_mismatch_field(
+        scan_field,
+        mdim: int,
+        pol_map: np.ndarray,
+        gamma_T_list: List[float],
+        gamma_B_list: List[float],
+        components: List[np.ndarray],
+    ):
+        """Get the bandpass mismatch field of the detector
+        The formalism is based on the paper by Duc Thuong Hoang et al., 2017, JCAP,
+        DOI: 10.1088/1475-7516/2017/12/015, Sec. 3.2
+
+        Args:
+            scan_field (:class:`.ScanFields`): scan field instance
+
+            mdim (`int`): dimension of the map-making liner system
+
+            gamma_T (`float`): coefficient of the sky signal which corresponds to the bandpass mismatch of the `Top` detector
+
+            gamma_B (`float`): coefficient of the sky signal which corresponds to the bandpass mismatch of the `Bottom` detector
+
+            pol_map (`np.ndarray`): polarization map (i.e. Q+iU)
+        """
+        assert len(gamma_T_list) == len(
+            gamma_B_list
+        ), "gamma_T_list and gamma_B_list must have the same length"
+        assert (
+            len(gamma_T_list) == len(components)
+        ), "gamma_T_list, gamma_B_list and components must have the same length"
+
+        # bandpass mismatch component
+        # bpm_comp = np.zeros([3, len(temp_map)])
+        bpm_comp = np.zeros(scan_field.npix)
+        for i in range(len(gamma_T_list)):
+            bpm_comp += 1.0 / 2.0 * (gamma_T_list[i] - gamma_B_list[i]) * components[i]
+        #bpm_comp_pol = bpm_comp[1] + 1j * bpm_comp[2]
+
+        signal_fields = SignalFields(
+            Field(bpm_comp, spin_n=0, spin_m=0),
+            Field(pol_map / 2.0, spin_n=2, spin_m=0),
+            Field(pol_map.conj() / 2.0, spin_n=-2, spin_m=0),
+        )
+        signal_fields.syst_field_name = "bandpass_mismatch_field"
+        s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
+        sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
+        if mdim == 2:
+            fields = [sp2, sp2.conj()]
+        elif mdim == 3:
+            fields = [s_0, sp2, sp2.conj()]
+        else:
+            raise ValueError("mdim is 2 and 3 only supported")
         signal_fields.build_linear_system(fields)
         return signal_fields
 
