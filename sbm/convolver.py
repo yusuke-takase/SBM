@@ -95,7 +95,7 @@ class Convolver:
         """Implement map-based convolution for spins given by spin `k`.
 
         Returns:
-            all_maps (np.ndarray): Convolved maps corresponding to spin `k`.
+            all_maps (`np.ndarray`): Convolved maps corresponding to spin `k`.
         """
         if not self.use_hwp:
             all_maps = np.zeros((len(self.spin_k), 2, self.npix), np.complex128)

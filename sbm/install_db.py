@@ -32,7 +32,7 @@ def gen_jsonfile(base_path):
     """Generate a JSON file containing the dataset information
 
     Args:
-        base_path (str): The base path of the dataset
+        base_path (`str`): The base path of the dataset
     """
     dataset = []
     scan_field = None

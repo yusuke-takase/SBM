@@ -21,33 +21,35 @@ def get_cmap():
     return planck_cmap
 
 
-def c2d(cl, ell_start=2.0):
-    """The function to convert C_ell to D_ell (i.e. ell*(ell+1)*C_ell/(2*pi))
+def c2d(cl, ell_start=2):
+    """The function to convert :math:`C_{l}` to :math:`D_{l}` i.e.
+
+    .. math::
+        D_{l} = C_{l}\frac{l(l+1)}{2\pi}
 
     Args:
-        cl: 1d-array
-            Power spectrum
-        ell_start: float (default = 2.)
-            The multi-pole ell value of first index of the `cl`.
+        cl (`np.ndarray`, 1d-array): Power spectrum
+        ell_start (`int`, default = 2): The multi-pole ell value of first index of the :math:`C_{l}`.
 
     Return:
-        dl: 1d-array
+        dl (`np.ndarray`,1d-array)
     """
     ell = np.arange(ell_start, len(cl) + ell_start)
     return cl * ell * (ell + 1.0) / (2.0 * np.pi)
 
 
-def d2c(dl, ell_start=2.0):
-    """The function to convert D_ell to C_ell (i.e. C_ell = D_ell*(2*pi)/(ell*(ell+1)))
+def d2c(dl, ell_start=2):
+    """The function to convert :math:`D_{l}` to :math:`C_{l}` i.e.
+
+    .. math::
+        C_{l} = D_{l}\frac{2\pi}{l(l+1)}
 
     Args:
-        dl: 1d-array
-            Power spectrum
-        ell_start: float (default = 2.)
-            The multi-pole ell value of first index of the `dl`.
+        dl (`np.ndarray`, 1d-array): Power spectrum
+        ell_start (`int`, default = 2): The multi-pole ell value of first index of the :math:`D_{l}`.
 
     Return:
-        cl: 1d-array
+        cl (`np.ndarray`,1d-array)
     """
     ell = np.arange(ell_start, len(dl) + ell_start)
     return dl * (2.0 * np.pi) / (ell * (ell + 1.0))
@@ -57,11 +59,10 @@ def load_fiducial_cl(r, lmax=None):
     """This function loads the fiducial CMB power spectrum used in the map base simulation of litebird_sim.
 
     Args:
-        r: float
-            The tensor-to-scalar ratio of the CMB.
+        r (`float`): The tensor-to-scalar ratio of the CMB.
 
     Return:
-        cl_cmb: 2d-array
+        cl_cmb (`np.ndarray`, 2d-array)
     """
     datautils_dir = Path(lbs.__file__).parent / "datautils"
     cl_cmb_scalar = hp.read_cl(datautils_dir / "Cls_Planck2018_for_PTEP_2020_r0.fits")
@@ -78,15 +79,14 @@ def generate_cmb(nside, r=0.0, cmb_seed=None):
     """This function generates the CMB map used in the map base simulation of litebird_sim.
 
     Args:
-        nside: int
-            The resolution of the map.
-        r: float (default = 0.)
-            The tensor-to-scalar ratio of the CMB.
-        cmb_seed: int (default = None)
-            The seed of the random number generator.
+        nside (`int`): The resolution of the map.
+
+        r (`float`, default = 0): The tensor-to-scalar ratio of the CMB.
+
+        cmb_seed (`int`, default = None): The seed of the random number generator.
 
     Return:
-        cmb (np.ndarray) : The I, Q, U maps of the CMB.
+        cmb (`np.ndarray`) : The I, Q, U maps of the CMB.
     """
     cl_cmb = load_fiducial_cl(r)
     if cmb_seed is not None:
@@ -100,12 +100,12 @@ def get_instrument_table(imo: Imo, imo_version="v2"):
     This function generates DataFrame which is used for FGBuster as `instrument` from IMo.
 
     Args:
-        imo (Imo): IMo object which contains the instrument information given by the `litebird_sim`
+        imo (`lbs.Imo`): IMo object which contains the instrument information given by the `litebird_sim`
 
-        imo_version (str): version of the IMo. Default is "v2"
+        imo_version (`str`): version of the IMo. Default is "v2"
 
     Returns:
-        instrument (pd.DataFrame): DataFrame which contains the instrument information
+        instrument (`pandas.DataFrame`): DataFrame which contains the instrument information
     """
     telescopes = ["LFT", "MFT", "HFT"]
     channel_list = []
@@ -203,17 +203,17 @@ def forecast(
     This function based on the paper: https://academic.oup.com/ptep/article/2023/4/042F01/6835420, P88, Sec. (5.3.2)
 
     Args:
-        cl_syst (1d array): residual B-modes power spectrum
+        cl_syst (`np.ndarray`, 1d array): residual B-modes power spectrum
 
-        fsky (float): sky fraction
+        fsky (`float`): sky fraction
 
-        lmax (int): maximum multipole considered in the maximization
+        lmax (`int`): maximum multipole considered in the maximization
 
-        rmin (float): minimum value of r considered in the maximization
+        rmin (`float`): minimum value of r considered in the maximization
 
-        rmax (float): maximum value of r considered in the maximization
+        rmax (`float`): maximum value of r considered in the maximization
 
-        rresol (int): how many value of r in delta_r*1e-3 < delta_r < delta_r*3 to use for saving
+        rresol (`int`): resolution of the grid in the r range
     """
     assert (
         cl_syst[0] == cl_syst[1] == 0.0
