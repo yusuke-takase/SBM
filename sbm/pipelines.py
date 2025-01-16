@@ -6,6 +6,7 @@ from multiprocessing import Pool
 import healpy as hp
 from tqdm import tqdm
 import os
+from typing import List
 import fcntl
 import random
 from .scan_fields import ScanFields, DB_ROOT_PATH, channel_list
@@ -19,19 +20,19 @@ class Configlation:
     """Configuration class for the simulation.
 
     Args:
-        imo (str): imo instance given by the litebird_sim
-        channel (str): The name of the channel
+        imo (`str`): imo instance given by the litebird_sim
+        channel (`str`): The name of the channel
 
     Attributes:
-        lbs_base_path (str): The base path of the litebird_sim
-        imo_version (str): The version of the imo
-        nside (int): The nside of the healpix map
-        mdim (int): The dimension to perform the map-making
-        parallel (bool): If True, the simulation is performed in thread parallel
-        xlink_threshold (float): The threshold of the cross-linking.
+        lbs_base_path (`str`): The base path of the litebird_sim
+        imo_version (`str`): The version of the imo
+        nside (`int`): The nside of the healpix map
+        mdim (`int`): The dimension to perform the map-making
+        parallel (`bool`): If `True`, the simulation is performed in thread parallel
+        xlink_threshold (`float`): The threshold of the cross-linking.
             The pixel with the value less than this threshold is ignored when
             the map-making is performed.
-        only_iqu (bool): If True, only P, Q, and U are returned after the map-making
+        only_iqu (`bool`): If `True`, only P, Q, and U are returned after the map-making
     """
 
     def __init__(self, imo, channel):
@@ -45,20 +46,39 @@ class Configlation:
         self.xlink_threshold = 0.7
         self.only_iqu = True
         self.use_hwp = None
+        self.spin_n_basis = []
+        self.spin_m_basis = []
 
+
+class BandpassParams:
+    def __init__(
+        self,
+        detectors: List[str],
+        gamma_T_list: List,
+        gamma_B_list: List,
+        component_tmaps: List[np.ndarray]
+    ):
+        assert len(detectors) == len(gamma_T_list)
+        assert len(detectors) == len(gamma_B_list)
+        assert len(component_tmaps) == len(gamma_T_list[0])
+        assert len(component_tmaps) == len(gamma_B_list[0])
+        self.detectors = detectors
+        self.gamma_T_list = gamma_T_list
+        self.gamma_B_list = gamma_B_list
+        self.component_tmaps = component_tmaps
 
 class Systematics:
     """Systematics class for the simulation
 
     Attributes:
-        sigma_gain_T (float): The standard deviation of the gain for the top detectors
-        sigma_gain_B (float): The standard deviation of the gain for the bottom detectors
-        sigma_rho_T (float): The standard deviation of the pointing for the top detectors
-        sigma_rho_B (float): The standard deviation of the pointing for the bottom detectors
-        sigma_chi_T (float): The standard deviation of the polarization angle for the top detectors
-        sigma_chi_B (float): The standard deviation of the polarization angle for the bottom detectors
-        syst_seed (int): The seed for the random number generator for the systematics
-        noise_seed (int): The seed for the random number generator for the noise
+        sigma_gain_T (`float`): The standard deviation of the gain for the top detectors
+        sigma_gain_B (`float`): The standard deviation of the gain for the bottom detectors
+        sigma_rho_T (`float`): The standard deviation of the pointing for the top detectors
+        sigma_rho_B (`float`): The standard deviation of the pointing for the bottom detectors
+        sigma_chi_T (`float`): The standard deviation of the polarization angle for the top detectors
+        sigma_chi_B (`float`): The standard deviation of the polarization angle for the bottom detectors
+        syst_seed (`int`): The seed for the random number generator for the systematics
+        noise_seed (`int`): The seed for the random number generator for the noise
     """
 
     def __init__(self):
@@ -72,6 +92,16 @@ class Systematics:
         self.noise_seed = None
         self.start_seed = None
         self.end_seed = None
+        self.bpm = None
+
+    def set_bandpass_mismatch(
+        self,
+        detectors: List[str],
+        gamma_T_list: List,
+        gamma_B_list: List,
+        component_tmaps: List[np.ndarray]
+    ):
+        self.bpm = BandpassParams(detectors, gamma_T_list, gamma_B_list, component_tmaps)
 
 
 def process_gain(args):
@@ -138,9 +168,9 @@ def generate_maps(mbs, config, lock=True):
     """Generate the maps with the lock file
 
     Args:
-        mbs (lbs.Mbs): The litebird_sim object
-        config (Configlation): The configuration class
-        lock (bool): If True, the lock file is used
+        mbs (`lbs.MbsParameters`): The litebird_sim object
+        config (:class:`.Configlation`): The configuration class
+        lock (`bool`): If `True`, the lock file is used
     """
     if lock:
         lockfile = "/tmp/sbm_lockfile"
@@ -179,16 +209,16 @@ def sim_diff_gain_per_ch(
     The map-making is performed for each detector in the channel
 
     Args:
-        config (Configlation): The configuration class
+        config (:class:`.Configlation`): The configuration class
 
-        syst (Systematics): The systematics class
+        syst (:class:`.Systematics`): The systematics class
 
-        mbsparams (lbs.MbsParameters): The parameters for the litebird_sim
+        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
 
     Returns:
-        observed_map (np.ndarray): The observed map after the map-making
+        observed_map (`np.ndarray`): The observed map after the map-making
 
-        input_maps (dict): The input maps for the simulation
+        input_maps (`dict`): The input maps for the simulation
     """
     npix = hp.nside2npix(config.nside)
     telescope = config.channel[0] + "FT"
@@ -290,16 +320,16 @@ def sim_diff_pointing_per_ch(
     The map-making is performed for each detector in the channel
 
     Args:
-        config (Configlation): The configuration class
+        config (:class:`.Configlation`): The configuration class
 
-        syst (Systematics): The systematics class
+        syst (:class:`.Systematics`): The systematics class
 
-        mbsparams (lbs.MbsParameters): The parameters for the litebird_sim
+        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
 
     Returns:
-        observed_map (np.ndarray): The observed map after the map-making
+        observed_map (`np.ndarray`): The observed map after the map-making
 
-        input_maps (dict): The input maps for the simulation
+        input_maps (`dict`): The input maps for the simulation
     """
     npix = hp.nside2npix(config.nside)
     telescope = config.channel[0] + "FT"
@@ -418,6 +448,135 @@ def sim_diff_pointing_per_ch(
     return observed_maps, input_maps
 
 
+def process_bpm(args):
+    (
+        idet,
+        dirpath,
+        gamma_T_list,
+        gamma_B_list,
+        component_tmaps,
+        pol_map,
+        mdim,
+        only_iqu,
+        xlink_threshold,
+    ) = args
+    sf = ScanFields.load_det(idet, dirpath)
+    sf.xlink_threshold = xlink_threshold
+    sf.use_hwp = False
+
+    signal_field = SignalFields.bandpass_mismatch_field(
+        sf,
+        mdim,
+        pol_map,
+        gamma_T_list,
+        gamma_B_list,
+        component_tmaps,
+    )
+    output = sf.map_make(signal_field, only_iqu)
+    result = {
+        "hitmap": sf.hitmap,
+        "map": output,
+        "xlink2": np.abs(sf.get_xlink(2, 0)),
+    }
+    return result
+
+
+def sim_bandpass_mismatch(
+    config: Configlation,
+    syst: Systematics,
+    mbsparams: lbs.MbsParameters,
+):
+    """Simulate the bandpass mismatch systematics.
+
+    Args:
+        config (:class:`.Configlation`): The configuration class
+
+        syst (:class:`.Systematics`): The systematics class
+
+        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
+
+    Returns:
+        observed_map (`np.ndarray`): The observed map after the map-making
+
+        input_maps (`dict`): The input maps for the simulation
+    """
+    npix = hp.nside2npix(config.nside)
+    telescope = config.channel[0] + "FT"
+    sim = lbs.Simulation(base_path=config.lbs_base_path, random_seed=None)
+    sim.set_instrument(
+        lbs.InstrumentInfo.from_imo(
+            config.imo,
+            f"/releases/{config.imo_version}/satellite/{telescope}/instrument_info",
+        )
+    )
+    ch_info = lbs.FreqChannelInfo.from_imo(
+        url="/releases/"
+        + config.imo_version
+        + "/satellite/"
+        + telescope
+        + "/"
+        + config.channel
+        + "/channel_info",
+        imo=config.imo,
+    )
+    mbs = lbs.Mbs(simulation=sim, parameters=mbsparams, channel_list=ch_info)
+    map_info = mbs.run_all()[0]
+    input_maps = map_info[config.channel]
+    pol_map = input_maps[1] + 1j * input_maps[2]
+    dirpath = os.path.join(DB_ROOT_PATH, config.channel)
+
+    observed_map = np.zeros([3, npix])
+    sky_weight = np.zeros(npix)
+    if config.parallel is True:
+        file_args = [
+            (
+                idet,
+                dirpath,
+                syst.bpm.gamma_T_list[i],
+                syst.bpm.gamma_B_list[i],
+                syst.bpm.component_tmaps,
+                pol_map,
+                config.mdim,
+                config.only_iqu,
+                config.xlink_threshold,
+            )
+            for i, idet in enumerate(syst.bpm.detectors)
+        ]
+
+        with Pool() as pool:
+            for i, result in enumerate(
+                tqdm(
+                    pool.imap(process_bpm, file_args),
+                    total=len(file_args),
+                    desc=f"{GREEN}Processing {config.channel}{RESET}",
+                    bar_format="{l_bar}{bar:10}{r_bar}",
+                    colour="green",
+                )
+            ):
+                observed_map += result["map"]
+                sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
+    else:
+        for i, idet in enumerate(
+            tqdm(
+                syst.bpm.detectors,
+                desc=f"{GREEN}Processing {config.channel}{RESET}",
+                bar_format="{l_bar}{bar:10}{r_bar}",
+                colour="green",
+            )
+        ):
+            sf = ScanFields.load_det(idet, base_path=dirpath)
+            sf.xlink_threshold = config.xlink_threshold
+            sf.use_hwp = config.use_hwp
+            signal_field = SignalFields.bandpass_mismatch_field(
+                sf, config.mdim, syst.bpm.gamma_T_list[i], syst.bpm.gamma_B_list[i], pol_map
+            )
+            output = sf.map_make(signal_field, config.only_iqu)
+            observed_map += output
+            xlink2 = np.abs(sf.get_xlink(2, 0))
+            sky_weight[xlink2 < config.xlink_threshold] += 1.0
+    observed_map = np.array(observed_map) / sky_weight
+    return observed_map, input_maps
+
 def generate_noise_seeds(config: Configlation, syst: Systematics, num_of_dets: int):
     channel_id = np.where(np.array(channel_list) == config.channel)[0][0]
     if syst.noise_seed is not None:
@@ -464,9 +623,9 @@ def sim_noise_per_ch(
     """Simulate the noise for each channel
 
     Args:
-        config (Configlation): The configuration class
+        config (:class:`.Configlation`): The configuration class
 
-        syst (Systematics): The systematics class
+        syst (:class:`.Systematics`): The systematics class
     """
     assert config.use_hwp is not None
 
