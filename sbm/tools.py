@@ -25,7 +25,7 @@ def c2d(cl, ell_start=2):
     """The function to convert :math:`C_{l}` to :math:`D_{l}` i.e.
 
     .. math::
-        D_{l} = C_{l}\frac{l(l+1)}{2\pi}
+        D_{l} = C_{l}l(l+1)}/2\pi
 
     Args:
         cl (`np.ndarray`, 1d-array): Power spectrum
@@ -42,7 +42,7 @@ def d2c(dl, ell_start=2):
     """The function to convert :math:`D_{l}` to :math:`C_{l}` i.e.
 
     .. math::
-        C_{l} = D_{l}\frac{2\pi}{l(l+1)}
+        C_{l} = D_{l}2\pi/l(l+1)
 
     Args:
         dl (`np.ndarray`, 1d-array): Power spectrum
