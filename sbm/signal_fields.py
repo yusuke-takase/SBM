@@ -255,7 +255,7 @@ class SignalFields:
             Field((2.0 + gain_T + gain_B) * pol_map / 4.0, spin_n=2, spin_m=0),
             Field((2.0 + gain_T + gain_B) * pol_map.conj() / 4.0, spin_n=-2, spin_m=0),
         )
-        signal_fields.syst_field_name = "diff_gain_field"
+        signal_fields.field_name = "diff_gain_field"
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
         if mdim == 2:
@@ -327,7 +327,7 @@ class SignalFields:
             spin_3_field,
             spin_m3_field,
         )
-        signal_fields.syst_field_name = "diff_pointing_field"
+        signal_fields.field_name = "diff_pointing_field"
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
         if mdim == 2:
             fields = [sp2, sp2.conj()]
@@ -376,23 +376,20 @@ class SignalFields:
         assert len(gamma_T_list) == len(
             gamma_B_list
         ), "gamma_T_list and gamma_B_list must have the same length"
-        assert (
-            len(gamma_T_list) == len(components)
+        assert len(gamma_T_list) == len(
+            components
         ), "gamma_T_list, gamma_B_list and components must have the same length"
 
-        # bandpass mismatch component
-        # bpm_comp = np.zeros([3, len(temp_map)])
         bpm_comp = np.zeros(scan_field.npix)
-        for i in range(len(gamma_T_list)):
+        for i in range(len(components)):
             bpm_comp += 1.0 / 2.0 * (gamma_T_list[i] - gamma_B_list[i]) * components[i]
-        #bpm_comp_pol = bpm_comp[1] + 1j * bpm_comp[2]
 
         signal_fields = SignalFields(
             Field(bpm_comp, spin_n=0, spin_m=0),
             Field(pol_map / 2.0, spin_n=2, spin_m=0),
             Field(pol_map.conj() / 2.0, spin_n=-2, spin_m=0),
         )
-        signal_fields.syst_field_name = "bandpass_mismatch_field"
+        signal_fields.field_name = "bandpass_mismatch_field"
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
         if mdim == 2:
@@ -432,7 +429,7 @@ class SignalFields:
             spin_4m4_field,
             spin_4m4_field.conj(),
         )
-        signal_fields.syst_field_name = "hwp_ip_field"
+        signal_fields.field_name = "hwp_ip_field"
         s_00 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2m4 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=-4)
         if mdim == 3:
@@ -506,7 +503,7 @@ class SignalFields:
             spin_p1m4_field,
             spin_m1p4_field,
         )
-        signal_fields.syst_field_name = "abs_pointing_field"
+        signal_fields.field_name = "abs_pointing_field"
         s_00 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2m4 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=-4)
         if mdim == 3:
@@ -601,7 +598,7 @@ class SignalFields:
             spin_p1m5_field,
             spin_m1p5_field,
         )
-        signal_fields.syst_field_name = "hwp_wedge_field"
+        signal_fields.field_name = "hwp_wedge_field"
         s_00 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2m4 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=-4)
         if mdim == 3:
@@ -681,7 +678,7 @@ class SignalFields:
 
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
-        signal_fields.syst_field_name = "elliptical_beam_field"
+        signal_fields.field_name = "elliptical_beam_field"
         if mdim == 2:
             fields = [sp2, sp2.conj()]
         elif mdim == 3:

@@ -56,16 +56,13 @@ class BandpassParams:
         detectors: List[str],
         gamma_T_list: List,
         gamma_B_list: List,
-        component_tmaps: List[np.ndarray]
     ):
         assert len(detectors) == len(gamma_T_list)
         assert len(detectors) == len(gamma_B_list)
-        assert len(component_tmaps) == len(gamma_T_list[0])
-        assert len(component_tmaps) == len(gamma_B_list[0])
         self.detectors = detectors
         self.gamma_T_list = gamma_T_list
         self.gamma_B_list = gamma_B_list
-        self.component_tmaps = component_tmaps
+
 
 class Systematics:
     """Systematics class for the simulation
@@ -99,9 +96,8 @@ class Systematics:
         detectors: List[str],
         gamma_T_list: List,
         gamma_B_list: List,
-        component_tmaps: List[np.ndarray]
     ):
-        self.bpm = BandpassParams(detectors, gamma_T_list, gamma_B_list, component_tmaps)
+        self.bpm = BandpassParams(detectors, gamma_T_list, gamma_B_list)
 
 
 def process_gain(args):
@@ -519,8 +515,12 @@ def sim_bandpass_mismatch(
         + "/channel_info",
         imo=config.imo,
     )
+    fg_models = mbsparams.fg_models
     mbs = lbs.Mbs(simulation=sim, parameters=mbsparams, channel_list=ch_info)
     map_info = mbs.run_all()[0]
+    fgs = mbs.generate_fg()[0]
+    fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
+
     input_maps = map_info[config.channel]
     pol_map = input_maps[1] + 1j * input_maps[2]
     dirpath = os.path.join(DB_ROOT_PATH, config.channel)
@@ -534,7 +534,7 @@ def sim_bandpass_mismatch(
                 dirpath,
                 syst.bpm.gamma_T_list[i],
                 syst.bpm.gamma_B_list[i],
-                syst.bpm.component_tmaps,
+                fg_tmap_list,
                 pol_map,
                 config.mdim,
                 config.only_iqu,
@@ -568,7 +568,7 @@ def sim_bandpass_mismatch(
             sf.xlink_threshold = config.xlink_threshold
             sf.use_hwp = config.use_hwp
             signal_field = SignalFields.bandpass_mismatch_field(
-                sf, config.mdim, syst.bpm.gamma_T_list[i], syst.bpm.gamma_B_list[i], pol_map
+                sf, config.mdim, pol_map, syst.bpm.gamma_T_list[i], syst.bpm.gamma_B_list[i], fg_tmap_list
             )
             output = sf.map_make(signal_field, config.only_iqu)
             observed_map += output
