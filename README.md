@@ -1,6 +1,10 @@
 # Spin-based map-making simulation
 
 <p align="center">
+  <img src="./figures/SBM_logo.png" alt="Logo" width="200">
+</p>
+
+<p align="center">
   <h1>
   <img src="./maps/scan_fields.png" alt="Logo">
   </h1>
