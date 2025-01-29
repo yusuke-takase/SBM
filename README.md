@@ -1,7 +1,7 @@
 # Spin-based map-making simulation
 
 <p align="center">
-  <img src="./figures/SBM_logo.png" alt="Logo" width="200">
+  <img src="./figures/SBM_logo.png" alt="Logo" width="300">
 </p>
 
 <p align="center">
