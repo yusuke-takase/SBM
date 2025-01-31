@@ -6,7 +6,7 @@ from multiprocessing import Pool
 import healpy as hp
 from tqdm import tqdm
 import os
-from typing import List
+from typing import Any, Dict, List, Union
 import fcntl
 import random
 from astropy import constants as const
