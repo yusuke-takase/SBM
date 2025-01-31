@@ -9,6 +9,8 @@ import os
 from typing import List
 import fcntl
 import random
+from astropy import constants as const
+from astropy.cosmology import Planck18 as cosmo
 from .scan_fields import ScanFields, DB_ROOT_PATH, channel_list
 from .signal_fields import SignalFields
 
@@ -54,11 +56,9 @@ class BandpassParams:
     def __init__(
         self,
         detectors: List[str],
-        gamma_T_list: List,
-        gamma_B_list: List,
+        gamma_T_list: Union[list, None] = None,
+        gamma_B_list: Union[list, None] = None,
     ):
-        assert len(detectors) == len(gamma_T_list)
-        assert len(detectors) == len(gamma_B_list)
         self.detectors = detectors
         self.gamma_T_list = gamma_T_list
         self.gamma_B_list = gamma_B_list
@@ -94,8 +94,8 @@ class Systematics:
     def set_bandpass_mismatch(
         self,
         detectors: List[str],
-        gamma_T_list: List,
-        gamma_B_list: List,
+        gamma_T_list: Union[list, None] = None,
+        gamma_B_list: Union[list, None] = None,
     ):
         self.bpm = BandpassParams(detectors, gamma_T_list, gamma_B_list)
 
@@ -477,10 +477,48 @@ def process_bpm(args):
     return result
 
 
+def dBodTth(nu):
+    return lbs.hwp_sys.hwp_sys._dBodTth(nu)
+
+def BlackBody(nu, T):
+    x = const.h.value * nu * 1e9 / const.k_B.value / T
+    ex = np.exp(x)
+    exm1 = ex - 1.0e0
+    return (
+        2
+        * const.h.value
+        * nu
+        * nu
+        * nu
+        * 1e27
+        / const.c.value
+        / const.c.value
+        / exm1
+    )
+
+
+def sed_dust(nu,betad, nud = 545, Td = 20):
+    return ((nu/nud)**betad)*BlackBody(nu,Td)/BlackBody(nud,Td)
+
+# synch spectral index is -3 +2 due to RJ to power conversion
+def sed_synch(nu,nus = 0.408,betas = -1):  
+    return (nu/nus)**betas
+
+def color_correction_dust(nu, nu0, betad, band):
+    return (np.trapz(band*sed_dust(nu,betad)/sed_dust(nu0,betad),nu)/
+             np.trapz(band*dBodTth(nu),nu) * dBodTth(nu0)
+           )
+# nu^(-2) throughput factor already in band definition
+def color_correction_synch(nu, nu0, band):
+    return (np.trapz(band*sed_synch(nu)/sed_synch(nu0),nu)/
+             np.trapz(band*dBodTth(nu),nu) * dBodTth(nu0)
+           )
+
 def sim_bandpass_mismatch(
     config: Configlation,
     syst: Systematics,
     mbsparams: lbs.MbsParameters,
+    detector_list: Union[list, None] = None
 ):
     """Simulate the bandpass mismatch systematics.
 
@@ -490,6 +528,13 @@ def sim_bandpass_mismatch(
         syst (:class:`.Systematics`): The systematics class
 
         mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
+
+        detector_list (list of `lbs.DetectorInfo`): List of DetectorInfo for each detector considered,
+                                                    generated with `sim.detectors`. In each DetectorInfo, the 
+                                                    `band_weights` are the bandpass for that detector. These
+                                                    bandpasses are used to compute the foreground input maps.
+                                                    If None, the foreground maps are computed at the central freq
+                                                    of the channel.
 
     Returns:
         observed_map (`np.ndarray`): The observed map after the map-making
@@ -521,9 +566,45 @@ def sim_bandpass_mismatch(
     fgs = mbs.generate_fg()[0]
     fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
 
-    input_maps = map_info[config.channel]
+    if detector_list is None:
+        input_maps = map_info[config.channel]
+    else:
+        assert(len(detector_list) == len(syst.bpm.detectors))
+        mbs_bp = lbs.Mbs(simulation=sim, parameters=Mbsparams, detector_list=detector_list)
+        map_info_bp = mbs_bp.run_all()[0]
+        input_maps = map_info_bp[config.channel]
     pol_map = input_maps[1] + 1j * input_maps[2]
     dirpath = os.path.join(DB_ROOT_PATH, config.channel)
+
+    #computing the gamma factors from the bandpasses 
+    if detector_list:
+        gamma_T_list = np.array(len(syst.bpm.detectors), len(fg_models))
+        gamma_B_list = np.array(len(syst.bpm.detectors), len(fg_models))
+    
+        for d in detector_list:
+            # index of bpm.detectors with same name as in d
+            ind = np.where(np.isin(syst.bpm.detectors,d.name))
+            for ifg,fg in enumerate(fg.models):
+                if fg == "pysm_dust_0":
+                    g = color_correction_dust(nu = d.band_freqs_ghz, 
+                                          nu0 = d.bandcenter_ghz, 
+                                          betad = 1.54, band = d.band_weights)
+                if fg == "pysm_synch_0":
+                    g = color_correction_synch(nu = d.band_freqs_ghz, 
+                                          nu0 = d.bandcenter_ghz,
+                                          band = d.band_weights)
+    
+                if d.name[-1] == "T":
+                    gamma_T_list[ind,ifg] = g
+                if d.name[-1] == "B":
+                    gamma_B_list[ind,ifg] = g
+    
+    #using the values passed to the set_bandpass_mismatch class
+    else:
+        gamma_T_list = syst.bpm.gamma_T_list
+        gamma_B_list = syst.bpm.gamma_B_list
+        assert len(syst.bpm.detectors) == len(gamma_T_list)
+        assert len(syst.bpm.detectors) == len(gamma_B_list)
 
     observed_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
@@ -532,8 +613,8 @@ def sim_bandpass_mismatch(
             (
                 idet,
                 dirpath,
-                syst.bpm.gamma_T_list[i],
-                syst.bpm.gamma_B_list[i],
+                gamma_T_list[i],
+                gamma_B_list[i],
                 fg_tmap_list,
                 pol_map,
                 config.mdim,
@@ -568,7 +649,7 @@ def sim_bandpass_mismatch(
             sf.xlink_threshold = config.xlink_threshold
             sf.use_hwp = config.use_hwp
             signal_field = SignalFields.bandpass_mismatch_field(
-                sf, config.mdim, pol_map, syst.bpm.gamma_T_list[i], syst.bpm.gamma_B_list[i], fg_tmap_list
+                sf, config.mdim, pol_map, gamma_T_list[i], gamma_B_list[i], fg_tmap_list
             )
             output = sf.map_make(signal_field, config.only_iqu)
             observed_map += output
