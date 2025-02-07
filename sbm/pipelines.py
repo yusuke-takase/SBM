@@ -518,7 +518,8 @@ def sim_bandpass_mismatch(
     config: Configlation,
     syst: Systematics,
     mbsparams: lbs.MbsParameters,
-    detector_list: Union[list, None] = None
+    detector_list: Union[list, None] = None,
+    base_path: Union[str, None] = None
 ):
     """Simulate the bandpass mismatch systematics.
 
@@ -530,7 +531,7 @@ def sim_bandpass_mismatch(
         mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
 
         detector_list (list of `lbs.DetectorInfo`): List of DetectorInfo for each detector considered,
-                                                    generated with `sim.detectors`. In each DetectorInfo, the 
+                                                    generated with `lbs.DetectorInfo`. In each DetectorInfo, the 
                                                     `band_weights` are the bandpass for that detector. These
                                                     bandpasses are used to compute the foreground input maps.
                                                     If None, the foreground maps are computed at the central freq
@@ -565,26 +566,27 @@ def sim_bandpass_mismatch(
     map_info = mbs.run_all()[0]
     fgs = mbs.generate_fg()[0]
     fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
-
-    if detector_list is None:
-        input_maps = map_info[config.channel]
-    else:
-        assert(len(detector_list) == len(syst.bpm.detectors))
-        mbs_bp = lbs.Mbs(simulation=sim, parameters=Mbsparams, detector_list=detector_list)
-        map_info_bp = mbs_bp.run_all()[0]
-        input_maps = map_info_bp[config.channel]
-    pol_map = input_maps[1] + 1j * input_maps[2]
-    dirpath = os.path.join(DB_ROOT_PATH, config.channel)
+    if not base_path:
+        dirpath = os.path.join(DB_ROOT_PATH, config.channel)
+    else: 
+        dirpath = os.path.join(base_path, config.channel)
 
     #computing the gamma factors from the bandpasses 
     if detector_list:
-        gamma_T_list = np.array(len(syst.bpm.detectors), len(fg_models))
-        gamma_B_list = np.array(len(syst.bpm.detectors), len(fg_models))
-    
+        assert(len(detector_list) == len(syst.bpm.detectors))
+        mbs_bp = lbs.Mbs(simulation=sim, parameters=mbsparams, detector_list=detector_list)
+        map_info_bp = mbs_bp.run_all()[0]
+        gamma_T_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
+        gamma_B_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
+        input_maps = np.zeros([3, npix])
+
+        pol_map = {}
         for d in detector_list:
             # index of bpm.detectors with same name as in d
+            input_maps_d = map_info_bp[d.name]
+            pol_map[d.name] = input_maps_d[1] + 1j * input_maps_d[2]
             ind = np.where(np.isin(syst.bpm.detectors,d.name))
-            for ifg,fg in enumerate(fg.models):
+            for ifg,fg in enumerate(fg_models):
                 if fg == "pysm_dust_0":
                     g = color_correction_dust(nu = d.band_freqs_ghz, 
                                           nu0 = d.bandcenter_ghz, 
@@ -601,6 +603,8 @@ def sim_bandpass_mismatch(
     
     #using the values passed to the set_bandpass_mismatch class
     else:
+        input_maps = map_info[config.channel]
+        pol_map = input_maps[1] + 1j * input_maps[2]
         gamma_T_list = syst.bpm.gamma_T_list
         gamma_B_list = syst.bpm.gamma_B_list
         assert len(syst.bpm.detectors) == len(gamma_T_list)
@@ -609,20 +613,24 @@ def sim_bandpass_mismatch(
     observed_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
     if config.parallel is True:
-        file_args = [
+        for i, idet in enumerate(syst.bpm.detectors):
+            if detector_list:
+                pm = pol_map[idet]
+                input_maps += map_info_bp[idet]
+            else:
+                pm = pol_map
+            file_args = [
             (
                 idet,
                 dirpath,
                 gamma_T_list[i],
                 gamma_B_list[i],
                 fg_tmap_list,
-                pol_map,
+                pm,
                 config.mdim,
                 config.only_iqu,
                 config.xlink_threshold,
-            )
-            for i, idet in enumerate(syst.bpm.detectors)
-        ]
+            )]
 
         with Pool() as pool:
             for i, result in enumerate(
@@ -648,14 +656,24 @@ def sim_bandpass_mismatch(
             sf = ScanFields.load_det(idet, base_path=dirpath)
             sf.xlink_threshold = config.xlink_threshold
             sf.use_hwp = config.use_hwp
+
+            if detector_list:
+                pm = pol_map[idet]
+                input_maps += map_info_bp[idet]
+            else:
+                pm = pol_map
+
             signal_field = SignalFields.bandpass_mismatch_field(
-                sf, config.mdim, pol_map, gamma_T_list[i], gamma_B_list[i], fg_tmap_list
+                sf, config.mdim, pm, gamma_T_list[i], gamma_B_list[i], fg_tmap_list
             )
             output = sf.map_make(signal_field, config.only_iqu)
             observed_map += output
             xlink2 = np.abs(sf.get_xlink(2, 0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
     observed_map = np.array(observed_map) / sky_weight
+    if detector_list:
+        input_maps = np.array(input_maps) / sky_weight
+
     return observed_map, input_maps
 
 def generate_noise_seeds(config: Configlation, syst: Systematics, num_of_dets: int):
