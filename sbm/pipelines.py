@@ -542,7 +542,7 @@ def sim_bandpass_mismatch(
     Returns:
         observed_map (`np.ndarray`): The observed map after the map-making
 
-        input_maps (`dict`): The input maps for the simulation
+        input_map (`np.ndarray`): The input map for the simulation
     """
     npix = hp.nside2npix(config.nside)
     telescope = config.channel[0] + "FT"
@@ -566,6 +566,7 @@ def sim_bandpass_mismatch(
     fg_models = mbsparams.fg_models
     mbs = lbs.Mbs(simulation=sim, parameters=mbsparams, channel_list=ch_info)
     map_info = mbs.run_all()[0]
+    input_map = map_info[config.channel]
     fgs = mbs.generate_fg()[0]
     fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
     if not base_path:
@@ -582,8 +583,6 @@ def sim_bandpass_mismatch(
         map_info_bp = mbs_bp.run_all()[0]
         gamma_T_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
         gamma_B_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
-        # input_maps = np.zeros([3, npix])
-        # input_maps = map_info[config.channel]
 
         pol_map = {}
         for d in detector_list:
@@ -611,7 +610,7 @@ def sim_bandpass_mismatch(
 
     # using the values passed to the set_bandpass_mismatch class
     else:
-        pol_map = map_info[config.channel][1] + 1.0j * map_info[config.channel][2]
+        pol_map = input_map[1] + 1.0j * input_map[2]
         gamma_T_list = syst.bpm.gamma_T_list
         gamma_B_list = syst.bpm.gamma_B_list
         assert len(syst.bpm.detectors) == len(gamma_T_list)
@@ -624,7 +623,6 @@ def sim_bandpass_mismatch(
         for i, idet in enumerate(syst.bpm.detectors):
             if detector_list:
                 pm = pol_map[idet]
-                # input_maps += map_info_bp[idet]
             else:
                 pm = pol_map
             file_args.append(
@@ -668,7 +666,6 @@ def sim_bandpass_mismatch(
 
             if detector_list:
                 pm = pol_map[idet]
-                # input_maps += map_info_bp[idet]
             else:
                 pm = pol_map
 
@@ -680,9 +677,7 @@ def sim_bandpass_mismatch(
             xlink2 = np.abs(sf.get_xlink(2, 0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
     observed_map = np.array(observed_map) / sky_weight
-    # if detector_list:
-    #    input_maps = np.array(input_maps) / sky_weight
-    return observed_map, map_info[config.channel]
+    return observed_map, input_map
 
 
 def generate_noise_seeds(config: Configlation, syst: Systematics, num_of_dets: int):
