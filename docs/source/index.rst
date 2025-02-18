@@ -11,6 +11,7 @@ SBM User's Manual
    :caption: Contents:
 
    installation
+   formalism
    reference
 
 
