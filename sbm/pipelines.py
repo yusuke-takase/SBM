@@ -542,7 +542,7 @@ def sim_bandpass_mismatch(
     Returns:
         observed_map (`np.ndarray`): The observed map after the map-making
 
-        input_map (`np.ndarray`): The input map for the simulation
+        returned_input_map (`np.ndarray`): The input map for the simulation
     """
     npix = hp.nside2npix(config.nside)
     telescope = config.channel[0] + "FT"
@@ -566,7 +566,7 @@ def sim_bandpass_mismatch(
     fg_models = mbsparams.fg_models
     mbs = lbs.Mbs(simulation=sim, parameters=mbsparams, channel_list=ch_info)
     map_info = mbs.run_all()[0]
-    input_map = map_info[config.channel]
+    input_map_nu0 = map_info[config.channel]
     fgs = mbs.generate_fg()[0]
     fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
     if not base_path:
@@ -583,11 +583,13 @@ def sim_bandpass_mismatch(
         map_info_bp = mbs_bp.run_all()[0]
         gamma_T_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
         gamma_B_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
+        returned_input_map = np.zeros([3,npix])
 
         pol_map = {}
         for d in detector_list:
             # index of bpm.detectors with same name as in d
             input_maps_d = map_info_bp[d.name]
+            returned_input_map += map_info_bp[d.name]
             pol_map[d.name] = input_maps_d[1] + 1.0j * input_maps_d[2]
             ind = np.where(np.isin(syst.bpm.detectors, d.name))
             for ifg, fg in enumerate(fg_models):
@@ -610,7 +612,7 @@ def sim_bandpass_mismatch(
 
     # using the values passed to the set_bandpass_mismatch class
     else:
-        pol_map = input_map[1] + 1.0j * input_map[2]
+        pol_map = input_map_nu0[1] + 1.0j * input_map_nu0[2]
         gamma_T_list = syst.bpm.gamma_T_list
         gamma_B_list = syst.bpm.gamma_B_list
         assert len(syst.bpm.detectors) == len(gamma_T_list)
@@ -677,7 +679,13 @@ def sim_bandpass_mismatch(
             xlink2 = np.abs(sf.get_xlink(2, 0))
             sky_weight[xlink2 < config.xlink_threshold] += 1.0
     observed_map = np.array(observed_map) / sky_weight
-    return observed_map, input_map
+
+    if not detector_list:
+        returned_input_map = input_map_nu0
+    else:
+        returned_input_map /= len(detector_list)
+
+    return observed_map, returned_input_map
 
 
 def generate_noise_seeds(config: Configlation, syst: Systematics, num_of_dets: int):
