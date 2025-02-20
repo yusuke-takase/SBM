@@ -7,7 +7,7 @@ The case of single detector
 SBM addresses the map-making problem in spin space. By this approach, binnning of time-ordered data (TOD)
 will be replaced to a convolution of the map in spin space.
 
-The signal field :math:`S` is defined as a function of the detector's crossing angle :math:`\psi`
+The signal field :math:`S` (:class:`.SignalFields`) is defined as a function of the detector's crossing angle :math:`\psi`
 and the HWP angle :math:`\phi`. The real space scan field :math:`h` is also a function of
 :math:`\Omega`, :math:`\psi`, and :math:`\phi`. The signal detected by a detector within a sky pixel
 of spherical coordinates :math:`\Omega=(\theta, \varphi)` is given by
@@ -16,8 +16,8 @@ of spherical coordinates :math:`\Omega=(\theta, \varphi)` is given by
 
     S^{d}(\Omega,\psi,\phi)=h(\Omega,\psi,\phi)S(\Omega,\psi,\phi).
 
-Since the signal field is expanded to a two dimensional field given by $\psi$ and
-$\phi$, we consider corresponding scan field $h$ as
+Since the signal field is expanded to a two dimensional field given by :math:`\psi` and
+:math:`\phi`, we consider corresponding scan field :math:`h` as
 
 .. math::
 

@@ -18,7 +18,7 @@ This is a code sample to access the hit-map:
     from sbm import ScanFields
 
     test_xlink_path = "sbm/tests/nside_32_boresight_hwp.h5"
-    sf_test = sbm.read_scanfiled(str(test_xlink_path))
+    sf_test = sbm.read_scanfiled(test_xlink_path)
     hp.mollview(sf_test.hitmap, title="Hit-map")
     display(sf_test.ss)
 

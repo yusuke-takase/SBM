@@ -103,7 +103,7 @@ class ScanFields:
     """Class to store the scan fields data of detectors
 
     Attributes:
-        ss (`dict`): of the scanning strategy parameters
+        ss (`dict`): scanning strategy parameters
 
         hitmap (`np.ndarray`): hitmap of the detector
 
