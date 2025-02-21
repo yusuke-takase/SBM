@@ -13,6 +13,9 @@ from astropy import constants as const
 from astropy.cosmology import Planck18 as cosmo
 from .scan_fields import ScanFields, DB_ROOT_PATH, channel_list
 from .signal_fields import SignalFields
+import pysm3
+import pysm3.units as u
+
 
 GREEN = "\033[92m"
 RESET = "\033[0m"
@@ -480,6 +483,8 @@ def process_bpm(args):
 def dBodTth(nu):
     return lbs.hwp_sys.hwp_sys._dBodTth(nu)
 
+def dBRJ_dT(nu):
+    return (2*const.k_B.value*nu*nu*1e18)/const.c.value/const.c.value
 
 def BlackBody(nu, T):
     x = const.h.value * nu * 1e9 / const.k_B.value / T
@@ -514,6 +519,52 @@ def color_correction_synch(nu, nu0, band):
         / np.trapz(band * dBodTth(nu), nu)
         * dBodTth(nu0)
     )
+
+
+def color_correction_co(nu, band, lines, line_frequency, out_units):
+
+    weights = band*dBRJ_dT(nu) / np.trapz(band*dBRJ_dT(nu), nu)
+    weights /= np.trapz(weights, nu)
+
+    out = 0
+    for line in lines:
+        line_freq = line_frequency[line].to_value(u.GHz)
+        # check if the line is in the bandpass
+        if line_freq >= nu[0] and line_freq <= nu[-1]:
+            # interpolate the value of the bandpass at the freq of the CO line
+            weight = np.interp(line_freq, nu, weights)
+            convert_to_uK_RJ = (1 * u.K_CMB).to_value(
+                    u.uK_RJ,
+                    equivalencies=u.cmb_equivalencies(line_freq * u.GHz),
+                )
+            # sums over the co lines in the bandpass
+            out += (convert_to_uK_RJ * weight)
+
+    # converts to K_CMB/uK_CMB units
+    sed = (out << u.uK_RJ) * pysm3.bandpass_unit_conversion(nu * u.GHz, band, out_units)
+
+    return sed.value
+
+def co_map(nu, lines, line_frequency, nside, template):
+
+    out = np.zeros((3, hp.nside2npix(nside)), dtype=np.float64)
+    for line in lines:
+        line_freq = line_frequency[line].to_value(u.GHz)
+        if line_freq >= nu[0] and line_freq <= nu[-1]:
+            print(f"CO line {line_freq} in the band")
+            I_map = template[line].copy()
+
+            #if self.include_high_galactic_latitude_clouds:
+            #    I_map += self.simulate_high_galactic_latitude_CO(line)
+
+            #if self.has_polarization:
+            #    out[1:] += (
+            #        self.simulate_polarized_emission(I_map).value
+            #        * convert_to_uK_RJ
+            #        * weight   )
+
+            out[0] += I_map.value
+    return out
 
 
 def sim_bandpass_mismatch(
@@ -569,6 +620,42 @@ def sim_bandpass_mismatch(
     input_map_nu0 = map_info[config.channel]
     fgs = mbs.generate_fg()[0]
     fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
+
+    if "pysm_co_1" in fg_models:
+        lines = ["10", "21", "32"]
+        line_index = {"10": 0, "21": 1, "32": 2}
+        line_frequency = {
+                    "10": 115.271 * u.GHz,
+                    "21": 230.538 * u.GHz,
+                    "32": 345.796 * u.GHz,
+                }
+        
+        if mbsparams.units == "uK_CMB":
+            out_units = u.uK_CMB
+        if mbsparams.units == "K_CMB":
+            out_units = u.K_CMB
+        
+    
+        has_polarization = False
+        include_high_galactic_latitude_clouds = False
+        template_nside = 512 if config.nside <= 512 else 2048
+    
+        planck_templatemap_filename = (
+                    f"co/HFI_CompMap_CO-Type1_{template_nside}_R2.00_ring.fits"
+                )
+    
+        remote_data = pysm3.utils.RemoteData()
+    
+        map_in = pysm3.models.template.read_map(
+                            remote_data.get(planck_templatemap_filename),
+                            field=[line_index[line] for line in lines],
+                            unit= u.K_CMB, nside = template_nside
+                        )
+    
+        planck_templatemap = pysm3.models.co_lines.build_lines_dict(
+                    lines, hp.ud_grade(np.array(map_in), nside_out = config.nside)<< u.K_CMB,
+                )
+
     if not base_path:
         dirpath = os.path.join(DB_ROOT_PATH, config.channel)
     else:
@@ -604,6 +691,17 @@ def sim_bandpass_mismatch(
                     g = color_correction_synch(
                         nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights
                     )
+
+                if fg == "pysm_co_1":
+                    #setting the correct CO map, it would be otherwise 0
+                    fg_tmap_list[ifg] = co_map(nu=d.band_freqs_ghz, 
+                                                   lines = lines, 
+                                                   line_frequency = line_frequency, 
+                                                   nside = mbsparams.nside,
+                                                   template = planck_templatemap)[0]
+                    g = color_correction_co(
+                        nu=d.band_freqs_ghz, band=d.band_weights, lines=lines, 
+                        line_frequency=line_frequency, out_units = out_units)
 
                 if d.name[-1] == "T":
                     gamma_T_list[ind, ifg] = g
