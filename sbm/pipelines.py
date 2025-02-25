@@ -574,6 +574,53 @@ def co_map(nu, lines, line_frequency, nside, template):
     return out
 
 
+def init_ame(map_I,freq_ref_I,emissivity,freq_peak,freq_ref_peak,
+        nside,max_nside=None,unit_I=None,map_dist=None,):
+        
+        I_ref = pysm3.read_map(map_I, nside, unit=unit_I)
+        I_ref <<= u.uK_RJ
+        freq_ref_I = u.Quantity(freq_ref_I).to(u.GHz)
+        try:  # input is a number
+            freq_peak = u.Quantity(freq_peak).to(u.GHz)
+        except TypeError:  # input is a path
+            freq_peak = pysm3.read_map(freq_peak, nside, unit=u.GHz)
+        freq_ref_peak = u.Quantity(freq_ref_peak).to(u.GHz)
+        freq_peak /= freq_ref_peak
+        emissivity = pysm3.models.template.read_txt(emissivity, unpack=True)
+
+        return I_ref, freq_ref_I, freq_peak, emissivity
+
+def sed_ame(nu, band, freq_ref_I, freq_peak, emissivity, nside):
+    
+    freqs = pysm3.utils.check_freq_input(nu*u.GHz)
+    # tau(nu) * dB_RJ(nu)/dT / np.trapz( tau(nu) * dB_RJ(nu)/dT, nu)
+    weights = pysm3.utils.normalize_weights(nu,  band)
+
+    if len(freqs) > 1:
+        sed = np.zeros((hp.nside2npix(nside), len(freqs)))
+        for i, (freq, _weight) in enumerate(zip(freqs, weights)):
+            scaled_freq = freq / freq_peak
+            scaled_ref_freq = freq_ref_I / freq_peak
+
+            sed[:, i] = ((freq_ref_I / freq) ** 2
+                * np.interp(scaled_freq, emissivity[0], emissivity[1])
+                / np.interp(scaled_ref_freq, emissivity[0], emissivity[1]))
+
+
+            sed_tot = np.trapz( sed*weights, freqs)
+    else:
+        scaled_freq = freqs / freq_peak
+        scaled_ref_freq = freq_ref_I / freq_peak
+        
+        sed = np.zeros(hp.nside2npix(nside))
+        sed = ((freq_ref_I / freqs) ** 2
+                * np.interp(scaled_freq, emissivity[0], emissivity[1])
+                / np.interp(scaled_ref_freq, emissivity[0], emissivity[1]))
+        
+        sed_tot = sed * weights
+    return sed_tot
+
+
 def sim_bandpass_mismatch(
     config: Configlation,
     syst: Systematics,
@@ -628,12 +675,18 @@ def sim_bandpass_mismatch(
     fgs = mbs.generate_fg()[0]
     fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
 
+    if mbsparams.units == "uK_CMB":
+        out_units = u.uK_CMB
+    if mbsparams.units == "K_CMB":
+        out_units = u.K_CMB
+
+
     if "pysm_dust_1" in fg_models:
-        mbb_T = pysm3.read_map("pysm_2/dust_temp.fits", nside = 128)
-        mbb_ind = pysm3.read_map("pysm_2/dust_beta.fits", nside = 128)
+        mbb_T = pysm3.read_map("pysm_2/dust_temp.fits", nside = config.nside)
+        mbb_ind = pysm3.read_map("pysm_2/dust_beta.fits", nside = config.nside)
 
     if "pysm_synch_1" in fg_models:
-        mbb_s = pysm3.read_map("pysm_2/synch_beta.fits", nside = 128)
+        mbb_s = pysm3.read_map("pysm_2/synch_beta.fits", nside = config.nside)
 
     if "pysm_co_1" in fg_models:
         lines = ["10", "21", "32"]
@@ -644,12 +697,6 @@ def sim_bandpass_mismatch(
                     "32": 345.796 * u.GHz,
                 }
         
-        if mbsparams.units == "uK_CMB":
-            out_units = u.uK_CMB
-        if mbsparams.units == "K_CMB":
-            out_units = u.K_CMB
-        
-    
         has_polarization = False
         include_high_galactic_latitude_clouds = False
         template_nside = 512 if config.nside <= 512 else 2048
@@ -669,6 +716,32 @@ def sim_bandpass_mismatch(
         planck_templatemap = pysm3.models.co_lines.build_lines_dict(
                     lines, hp.ud_grade(np.array(map_in), nside_out = config.nside)<< u.K_CMB,
                 )
+
+
+    if "pysm_ame_1" in fg_models:
+        freq_ref_I_1 = "22.8 GHz"
+        emissivity_1 = "pysm_2/emissivity.txt"
+        freq_peak_1 = "pysm_2/ame_nu_peak_0.fits"
+        freq_ref_peak_1 = "30 GHz"
+        
+        freq_ref_I_2 = "41 GHz"
+        emissivity_2 = "pysm_2/emissivity.txt"
+        freq_peak_2 = "33.35 GHz"
+        freq_ref_peak_2 = "30 GHz"
+
+        I_ref1, freq_ref_I1, freq_peak1, emissivity1 = init_ame("pysm_2/ame_t_new.fits",
+                                                                freq_ref_I_1,
+                                                                emissivity_1,
+                                                                freq_peak_1,
+                                                                freq_ref_peak_1, 
+                                                                config.nside, unit_I = "uK_RJ")
+
+        I_ref2, freq_ref_I2, freq_peak2, emissivity2 = init_ame("pysm_2/ame2_t_new.fits",
+                                                                freq_ref_I_2,
+                                                                emissivity_2,
+                                                                freq_peak_2,
+                                                                freq_ref_peak_2, 
+                                                                config.nside, unit_I = "uK_RJ")
 
     if not base_path:
         dirpath = os.path.join(DB_ROOT_PATH, config.channel)
@@ -722,15 +795,38 @@ def sim_bandpass_mismatch(
 
                 if fg == "pysm_co_1":
                     #setting the correct CO map, it would be otherwise 0
-                    fg_tmap_list[ifg] = co_map(nu=d.band_freqs_ghz, 
+                    #this is just the template map, to be multiplied with g
+                    #to get the full map
+                    #in principle they are the same for each det, but we never know
+                    #the freq range between one det and the other could be different
+                    #and so they could include different numbers of CO lines
+                    #not really expected but still possible
+                    co_map_d = co_map(nu=d.band_freqs_ghz, 
                                                    lines = lines, 
                                                    line_frequency = line_frequency, 
-                                                   nside = mbsparams.nside,
+                                                   nside = config.nside,
                                                    template = planck_templatemap)[0]
                     g = color_correction_co(
                         nu=d.band_freqs_ghz, band=d.band_weights, lines=lines, 
-                        line_frequency=line_frequency, out_units = out_units)
+                        line_frequency=line_frequency, out_units = out_units) * co_map_d
 
+                    # we fix the I(nu0) map to 1, so that we recover the total CO map in g
+                    fg_tmap_list[ifg] = np.ones(hp.nside2npix(config.nside))
+
+
+                if fg == "pysm_ame_1":
+                    sed_ame1 = sed_ame(nu=d.band_freqs_ghz, band=d.band_weights, freq_ref_I1.value, 
+                            freq_peak1.value, emissivity1, config.nside)
+                    sed_ame2 = sed_ame(nu=d.band_freqs_ghz, band=d.band_weights, freq_ref_I2.value, 
+                            freq_peak2.value, emissivity2, config.nside)
+
+                    # the gamma factor is the whole map in this case (sed_ame_1*I_1 + sed_ame_2*I_2)
+                    g = ((sed_ame1*I_ref1 + sed_ame2*I_ref2) * 
+                            pysm3.bandpass_unit_conversion(nu * u.GHz, band, out_units))
+                    
+                    # we fix the I(nu0) map to 1, so that we recover the total AME map in g
+                    fg_tmap_list[ifg] = np.ones(hp.nside2npix(config.nside))
+                 
                 if d.name[-1] == "T":
                     gamma_T_list[ind, ifg] = g
                 if d.name[-1] == "B":
