@@ -495,27 +495,34 @@ def BlackBody(nu, T):
     )
 
 
-def sed_dust(nu, betad, nud=545, Td=20):
-    return ((nu / nud) ** betad) * BlackBody(nu, Td) / BlackBody(nud, Td)
-
+def sed_dust(nu, betad, Td=20., nud=545.):
+    if isinstance(Td, float) and isinstance(betad, float):
+        sed = ((nu / nud) ** betad) * BlackBody(nu, Td) / BlackBody(nud, Td)
+    else:
+        sed = ((nu / nud) ** betad[..., np.newaxis]) * BlackBody(nu, Td[..., np.newaxis]) / BlackBody(nud, Td[..., np.newaxis])
+    return sed
 
 # synch spectral index is -3 +2 due to RJ to power conversion
-def sed_synch(nu, nus=0.408, betas=-1):
-    return (nu / nus) ** betas
+def sed_synch(nu, betas=-1., nus=0.408):
+    if isinstance(betas, float):
+        sed = (nu / nus) ** betas
+    else:
+        sed = (nu / nus) ** (betas[..., np.newaxis] + 2)
+    return sed
 
 
-def color_correction_dust(nu, nu0, betad, band):
+def color_correction_dust(nu, nu0, betad, band, Td = 20.):
     return (
-        np.trapz(band * sed_dust(nu, betad) / sed_dust(nu0, betad), nu)
+        np.trapz(band * sed_dust(nu, betad, Td) / sed_dust(nu0, betad, Td), nu)
         / np.trapz(band * dBodTth(nu), nu)
         * dBodTth(nu0)
     )
 
 
 # nu^(-2) throughput factor already in band definition
-def color_correction_synch(nu, nu0, band):
+def color_correction_synch(nu, nu0, band, betas = -1.):
     return (
-        np.trapz(band * sed_synch(nu) / sed_synch(nu0), nu)
+        np.trapz(band * sed_synch(nu, betas) / sed_synch(nu0, betas), nu)
         / np.trapz(band * dBodTth(nu), nu)
         * dBodTth(nu0)
     )
@@ -621,6 +628,13 @@ def sim_bandpass_mismatch(
     fgs = mbs.generate_fg()[0]
     fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
 
+    if "pysm_dust_1" in fg_models:
+        mbb_T = pysm3.read_map("pysm_2/dust_temp.fits", nside = 128)
+        mbb_ind = pysm3.read_map("pysm_2/dust_beta.fits", nside = 128)
+
+    if "pysm_synch_1" in fg_models:
+        mbb_s = pysm3.read_map("pysm_2/synch_beta.fits", nside = 128)
+
     if "pysm_co_1" in fg_models:
         lines = ["10", "21", "32"]
         line_index = {"10": 0, "21": 1, "32": 2}
@@ -690,6 +704,20 @@ def sim_bandpass_mismatch(
                 if fg == "pysm_synch_0":
                     g = color_correction_synch(
                         nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights
+                    )
+
+                if fg == "pysm_dust_1":
+                    g = color_correction_dust(
+                        nu=d.band_freqs_ghz,
+                        nu0=d.bandcenter_ghz,
+                        betad=mbb_ind,
+                        band=d.band_weights,
+                        Td = mbb_T
+                    )
+                if fg == "pysm_synch_1":
+                    g = color_correction_synch(
+                        nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights,
+                        betas=mbb_s
                     )
 
                 if fg == "pysm_co_1":
