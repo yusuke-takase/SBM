@@ -766,8 +766,12 @@ def sim_bandpass_mismatch(
             simulation=sim, parameters=mbsparams, detector_list=detector_list
         )
         map_info_bp = mbs_bp.run_all()[0]
-        gamma_T_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
-        gamma_B_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
+        if "pysm_dust_1" in fg_models or "pysm_synch_1" in fg_models or "pysm_co_1" in fg_models or "pysm_ame_1" in fg_models:
+            gamma_T_list = np.zeros((len(syst.bpm.detectors), len(fg_models), hp.nside2npix(config.nside)))
+            gamma_B_list = np.zeros((len(syst.bpm.detectors), len(fg_models), hp.nside2npix(config.nside)))
+        else:
+            gamma_T_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
+            gamma_B_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
         returned_input_map = np.zeros([3,npix])
 
         pol_map = {}
@@ -843,10 +847,15 @@ def sim_bandpass_mismatch(
                     # we fix the I(nu0) map to 1, so that we recover the total AME map in g
                     fg_tmap_list[ifg] = np.ones(hp.nside2npix(config.nside))
                  
-                if d.name[-1] == "T":
+                if d.name[-1] == "T" and gamma_T_list.shape == (len(syst.bpm.detectors), len(fg_models), hp.nside2npix(config.nside)):
+                    gamma_T_list[ind, ifg,:] = g
+                if d.name[-1] == "T" and gamma_T_list.shape == (len(syst.bpm.detectors), len(fg_models)):
                     gamma_T_list[ind, ifg] = g
-                if d.name[-1] == "B":
+                if d.name[-1] == "B"and gamma_B_list.shape == (len(syst.bpm.detectors), len(fg_models), hp.nside2npix(config.nside)):
+                    gamma_B_list[ind, ifg,:] = g
+                if d.name[-1] == "B"and gamma_B_list.shape == (len(syst.bpm.detectors), len(fg_models)):
                     gamma_B_list[ind, ifg] = g
+
 
     # using the values passed to the set_bandpass_mismatch class
     else:
