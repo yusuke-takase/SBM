@@ -511,6 +511,10 @@ def sed_synch(nu, betas=-1., nus=0.408):
     return sed
 
 
+def sed_freefree(nu, freq_ref_I = 30., pl_index = -2.14):
+    #spectral index is -2.14 +2 due to RJ to power conversion
+    return (nu / freq_ref_I) ** (pl_index + 2)
+
 def color_correction_dust(nu, nu0, betad, band, Td = 20.):
     return (
         np.trapz(band * sed_dust(nu, betad, Td) / sed_dust(nu0, betad, Td), nu)
@@ -527,6 +531,13 @@ def color_correction_synch(nu, nu0, band, betas = -1.):
         * dBodTth(nu0)
     )
 
+
+def color_correction_freefree(nu, nu0, band):
+    return (
+        np.trapz(band * sed_freefree(nu) / sed_freefree(nu0), nu)
+        / np.trapz(band * dBodTth(nu), nu)
+        * dBodTth(nu0)
+    )
 
 def color_correction_co(nu, band, lines, line_frequency, out_units):
 
@@ -793,6 +804,11 @@ def sim_bandpass_mismatch(
                         betas=mbb_s
                     )
 
+                if fg == "pysm_freefree_1":
+                    g = color_correction_freefree(
+                        nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights
+                    )
+
                 if fg == "pysm_co_1":
                     #setting the correct CO map, it would be otherwise 0
                     #this is just the template map, to be multiplied with g
@@ -815,9 +831,9 @@ def sim_bandpass_mismatch(
 
 
                 if fg == "pysm_ame_1":
-                    sed_ame1 = sed_ame(nu=d.band_freqs_ghz, band=d.band_weights, freq_ref_I1.value, 
+                    sed_ame1 = sed_ame(d.band_freqs_ghz, d.band_weights, freq_ref_I1.value, 
                             freq_peak1.value, emissivity1, config.nside)
-                    sed_ame2 = sed_ame(nu=d.band_freqs_ghz, band=d.band_weights, freq_ref_I2.value, 
+                    sed_ame2 = sed_ame(d.band_freqs_ghz, d.band_weights, freq_ref_I2.value, 
                             freq_peak2.value, emissivity2, config.nside)
 
                     # the gamma factor is the whole map in this case (sed_ame_1*I_1 + sed_ame_2*I_2)
