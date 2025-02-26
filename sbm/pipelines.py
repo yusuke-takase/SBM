@@ -848,11 +848,17 @@ def sim_bandpass_mismatch(
                     fg_tmap_list[ifg] = np.ones(hp.nside2npix(config.nside))
                  
                 if d.name[-1] == "T" and gamma_T_list.shape == (len(syst.bpm.detectors), len(fg_models), hp.nside2npix(config.nside)):
-                    gamma_T_list[ind, ifg,:] = g
+                    if len(g) == hp.nside2npix(config.nside):
+                        gamma_T_list[ind, ifg,:] = g
+                    if len(g) == 1:
+                        gamma_T_list[ind, ifg,:] = g*np.ones(hp.nside2npix(config.nside))
                 if d.name[-1] == "T" and gamma_T_list.shape == (len(syst.bpm.detectors), len(fg_models)):
                     gamma_T_list[ind, ifg] = g
                 if d.name[-1] == "B"and gamma_B_list.shape == (len(syst.bpm.detectors), len(fg_models), hp.nside2npix(config.nside)):
-                    gamma_B_list[ind, ifg,:] = g
+                    if len(g) == hp.nside2npix(config.nside):
+                        gamma_B_list[ind, ifg,:] = g
+                    if len(g) == 1:
+                        gamma_B_list[ind, ifg,:] = g*np.ones(hp.nside2npix(config.nside))
                 if d.name[-1] == "B"and gamma_B_list.shape == (len(syst.bpm.detectors), len(fg_models)):
                     gamma_B_list[ind, ifg] = g
 
