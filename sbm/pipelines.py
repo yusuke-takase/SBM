@@ -880,6 +880,7 @@ def sim_bandpass_mismatch(
                 pm = pol_map[idet]
             else:
                 pm = pol_map
+
             file_args.append(
                 (
                     idet,
