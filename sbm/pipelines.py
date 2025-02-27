@@ -178,6 +178,7 @@ def generate_maps(mbs, config, lock=True):
                 fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 print("Another instance is running")
+
                 fcntl.flock(f.fileno(), fcntl.LOCK_EX)
             try:
                 map_info = mbs.run_all()
@@ -853,25 +854,25 @@ def sim_bandpass_mismatch(
 
                     # the gamma factor is the whole map in this case (sed_ame_1*I_1 + sed_ame_2*I_2)
                     g = ((sed_ame1*I_ref1 + sed_ame2*I_ref2) * 
-                            pysm3.bandpass_unit_conversion(nu * u.GHz, band, out_units))
+                            pysm3.bandpass_unit_conversion(d.band_freqs_ghz * u.GHz, d.band_weights, out_units))
                     
                     # we fix the I(nu0) map to 1, so that we recover the total AME map in g
                     fg_tmap_list[ifg] = np.ones(npix)
                 
 
                 if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (len(fg_models), npix):
-                    if len(g) == npix:
+                    if hasattr(g, "__len__"):
                         gamma_T_dict[d.name][ifg,:] = g
-                    if len(g) == 1:
+                    else:
                         gamma_T_dict[d.name][ifg,:] = g*np.ones(npix)
 
                 if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (len(fg_models),):
                     gamma_T_dict[d.name][ifg] = g
 
                 if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (len(fg_models), npix):
-                    if len(g) == npix:
+                    if hasattr(g, "__len__"):
                         gamma_B_dict[d.name][ifg,:] = g
-                    if len(g) == 1:
+                    else:
                         gamma_B_dict[d.name][ifg,:] = g*np.ones(npix)
 
                 if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (len(fg_models),):
