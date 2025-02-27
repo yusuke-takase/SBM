@@ -761,23 +761,34 @@ def sim_bandpass_mismatch(
 
     # computing the gamma factors from the bandpasses
     if detector_list:
+        gamma_T_dict = {}
+        gamma_B_dict = {}
         assert len(detector_list) == len(syst.bpm.detectors)
         mbs_bp = lbs.Mbs(
             simulation=sim, parameters=mbsparams, detector_list=detector_list
         )
         map_info_bp = mbs_bp.run_all()[0]
-        if "pysm_dust_1" in fg_models or "pysm_synch_1" in fg_models or "pysm_co_1" in fg_models or "pysm_ame_1" in fg_models:
-            gamma_T_list = np.zeros((len(syst.bpm.detectors), len(fg_models), hp.nside2npix(config.nside)))
-            gamma_B_list = np.zeros((len(syst.bpm.detectors), len(fg_models), hp.nside2npix(config.nside)))
-        else:
-            gamma_T_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
-            gamma_B_list = np.zeros((len(syst.bpm.detectors), len(fg_models)))
+
         returned_input_map = np.zeros([3,npix])
 
         pol_map = {}
+
         for d in detector_list:
+            if "pysm_dust_1" in fg_models or "pysm_synch_1" in fg_models or "pysm_co_1" in fg_models or "pysm_ame_1" in fg_models:
+                if d.name[-1] == "T":
+                    gamma_T_dict[d.name] = np.zeros((len(fg_models), npix))
+                if d.name[-1] == "B":
+                    gamma_B_dict[d.name] = np.zeros((len(fg_models), npix))
+
+            else:
+                if d.name[-1] == "T":
+                    gamma_T_dict[d.name] = np.zeros(len(fg_models))
+                if d.name[-1] == "B":
+                    gamma_B_dict[d.name] = np.zeros(len(fg_models))
+
             # index of bpm.detectors with same name as in d
             input_maps_d = map_info_bp[d.name]
+           
             returned_input_map += map_info_bp[d.name]
             pol_map[d.name] = input_maps_d[1] + 1.0j * input_maps_d[2]
             ind = np.where(np.isin(syst.bpm.detectors, d.name))
@@ -831,7 +842,7 @@ def sim_bandpass_mismatch(
                         line_frequency=line_frequency, out_units = out_units) * co_map_d
 
                     # we fix the I(nu0) map to 1, so that we recover the total CO map in g
-                    fg_tmap_list[ifg] = np.ones(hp.nside2npix(config.nside))
+                    fg_tmap_list[ifg] = np.ones(npix)
 
 
                 if fg == "pysm_ame_1":
@@ -845,93 +856,102 @@ def sim_bandpass_mismatch(
                             pysm3.bandpass_unit_conversion(nu * u.GHz, band, out_units))
                     
                     # we fix the I(nu0) map to 1, so that we recover the total AME map in g
-                    fg_tmap_list[ifg] = np.ones(hp.nside2npix(config.nside))
+                    fg_tmap_list[ifg] = np.ones(npix)
                  
-                if d.name[-1] == "T" and gamma_T_list.shape == (len(syst.bpm.detectors), len(fg_models), hp.nside2npix(config.nside)):
-                    if len(g) == hp.nside2npix(config.nside):
-                        gamma_T_list[ind, ifg,:] = g
+                if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (len(fg_models), npix):
+                    if len(g) == npix:
+                        gamma_T_dict[d.name][ifg,:] = g
                     if len(g) == 1:
-                        gamma_T_list[ind, ifg,:] = g*np.ones(hp.nside2npix(config.nside))
-                if d.name[-1] == "T" and gamma_T_list.shape == (len(syst.bpm.detectors), len(fg_models)):
-                    gamma_T_list[ind, ifg] = g
-                if d.name[-1] == "B"and gamma_B_list.shape == (len(syst.bpm.detectors), len(fg_models), hp.nside2npix(config.nside)):
-                    if len(g) == hp.nside2npix(config.nside):
-                        gamma_B_list[ind, ifg,:] = g
-                    if len(g) == 1:
-                        gamma_B_list[ind, ifg,:] = g*np.ones(hp.nside2npix(config.nside))
-                if d.name[-1] == "B"and gamma_B_list.shape == (len(syst.bpm.detectors), len(fg_models)):
-                    gamma_B_list[ind, ifg] = g
+                        gamma_T_dict[d.name][ifg,:] = g*np.ones(npix)
 
+                if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (len(fg_models)):
+                    gamma_T_dict[d.name][ifg] = g
+
+                if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (len(fg_models), npix):
+                    if len(g) == npix:
+                        gamma_B_dict[d.name][ifg,:] = g
+                    if len(g) == 1:
+                        gamma_B_dict[d.name][ifg,:] = g*np.ones(npix)
+
+                if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (len(fg_models)):
+                    gamma_B_dict[d.name][ifg] = g
 
     # using the values passed to the set_bandpass_mismatch class
     else:
         pol_map = input_map_nu0[1] + 1.0j * input_map_nu0[2]
-        gamma_T_list = syst.bpm.gamma_T_list
-        gamma_B_list = syst.bpm.gamma_B_list
-        assert len(syst.bpm.detectors) == len(gamma_T_list)
-        assert len(syst.bpm.detectors) == len(gamma_B_list)
+        gamma_T_dict = syst.bpm.gamma_T_dict
+        gamma_B_dict = syst.bpm.gamma_B_dict
+        assert len(syst.bpm.detectors)//2 == len(gamma_T_dict.keys())
+        assert len(syst.bpm.detectors)//2 == len(gamma_B_dict.keys())
 
     observed_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
     if config.parallel is True:
         file_args = []
+
         for i, idet in enumerate(syst.bpm.detectors):
-            if detector_list:
-                pm = pol_map[idet]
-            else:
-                pm = pol_map
+            if idet[-1] == "T":
+                tname = idet
+                bname = idet[:-1]+"B"
 
-            file_args.append(
-                (
-                    idet,
-                    dirpath,
-                    gamma_T_list[i],
-                    gamma_B_list[i],
-                    fg_tmap_list,
-                    pm,
-                    config.mdim,
-                    config.only_iqu,
-                    config.xlink_threshold,
+                if detector_list:
+                    #averaging over T and B pol input map
+                    pm = (pol_map[tname] + pol_map[bname])/2.
+                else:
+                    pm = pol_map
+    
+                file_args.append(
+                    (
+                        idet,
+                        dirpath,
+                        gamma_T_dict[tname],
+                        gamma_B_dict[bname],
+                        fg_tmap_list,
+                        pm,
+                        config.mdim,
+                        config.only_iqu,
+                        config.xlink_threshold,
+                    )
                 )
-            )
-
-        with Pool() as pool:
-            for i, result in enumerate(
+    
+            with Pool() as pool:
+                for i, result in enumerate(
+                    tqdm(
+                        pool.imap(process_bpm, file_args),
+                        total=len(file_args),
+                        desc=f"{GREEN}Processing {config.channel}{RESET}",
+                        bar_format="{l_bar}{bar:10}{r_bar}",
+                        colour="green",
+                    )
+                ):
+                    observed_map += result["map"]
+                    sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
+        else:
+            for i, idet in enumerate(
                 tqdm(
-                    pool.imap(process_bpm, file_args),
-                    total=len(file_args),
+                    syst.bpm.detectors,
                     desc=f"{GREEN}Processing {config.channel}{RESET}",
                     bar_format="{l_bar}{bar:10}{r_bar}",
                     colour="green",
                 )
             ):
-                observed_map += result["map"]
-                sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
-    else:
-        for i, idet in enumerate(
-            tqdm(
-                syst.bpm.detectors,
-                desc=f"{GREEN}Processing {config.channel}{RESET}",
-                bar_format="{l_bar}{bar:10}{r_bar}",
-                colour="green",
-            )
-        ):
-            sf = ScanFields.load_det(idet, base_path=dirpath)
-            sf.xlink_threshold = config.xlink_threshold
-            sf.use_hwp = config.use_hwp
-
-            if detector_list:
-                pm = pol_map[idet]
-            else:
-                pm = pol_map
-
-            signal_field = SignalFields.bandpass_mismatch_field(
-                sf, config.mdim, pm, gamma_T_list[i], gamma_B_list[i], fg_tmap_list
-            )
-            output = sf.map_make(signal_field, config.only_iqu)
-            observed_map += output
-            xlink2 = np.abs(sf.get_xlink(2, 0))
-            sky_weight[xlink2 < config.xlink_threshold] += 1.0
+                sf = ScanFields.load_det(idet, base_path=dirpath)
+                sf.xlink_threshold = config.xlink_threshold
+                sf.use_hwp = config.use_hwp
+    
+                if detector_list:
+                    #averaging over T and B pol input map
+                    pm = (pol_map[tname] + pol_map[bname])/2.
+                else:
+                    pm = pol_map
+    
+                signal_field = SignalFields.bandpass_mismatch_field(
+                    sf, config.mdim, pm, gamma_T_dict[tname], gamma_B_dict[bname], fg_tmap_list
+                )
+                output = sf.map_make(signal_field, config.only_iqu)
+                observed_map += output
+                xlink2 = np.abs(sf.get_xlink(2, 0))
+                sky_weight[xlink2 < config.xlink_threshold] += 1.0
     observed_map = np.array(observed_map) / sky_weight
 
     if not detector_list:
