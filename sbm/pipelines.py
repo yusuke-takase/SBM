@@ -857,14 +857,15 @@ def sim_bandpass_mismatch(
                     
                     # we fix the I(nu0) map to 1, so that we recover the total AME map in g
                     fg_tmap_list[ifg] = np.ones(npix)
-                 
+                
+
                 if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (len(fg_models), npix):
                     if len(g) == npix:
                         gamma_T_dict[d.name][ifg,:] = g
                     if len(g) == 1:
                         gamma_T_dict[d.name][ifg,:] = g*np.ones(npix)
 
-                if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (len(fg_models)):
+                if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (len(fg_models),):
                     gamma_T_dict[d.name][ifg] = g
 
                 if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (len(fg_models), npix):
@@ -873,7 +874,7 @@ def sim_bandpass_mismatch(
                     if len(g) == 1:
                         gamma_B_dict[d.name][ifg,:] = g*np.ones(npix)
 
-                if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (len(fg_models)):
+                if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (len(fg_models),):
                     gamma_B_dict[d.name][ifg] = g
 
     # using the values passed to the set_bandpass_mismatch class
@@ -886,6 +887,7 @@ def sim_bandpass_mismatch(
 
     observed_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
+
     if config.parallel is True:
         file_args = []
 
@@ -926,15 +928,20 @@ def sim_bandpass_mismatch(
                 ):
                     observed_map += result["map"]
                     sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
-        else:
-            for i, idet in enumerate(
-                tqdm(
-                    syst.bpm.detectors,
-                    desc=f"{GREEN}Processing {config.channel}{RESET}",
-                    bar_format="{l_bar}{bar:10}{r_bar}",
-                    colour="green",
-                )
-            ):
+    else:
+        for i, idet in enumerate(
+            tqdm(
+                syst.bpm.detectors,
+                desc=f"{GREEN}Processing {config.channel}{RESET}",
+                bar_format="{l_bar}{bar:10}{r_bar}",
+                colour="green",
+            )
+        ):
+
+            if idet[-1] == "T":
+                tname = idet
+                bname = idet[:-1]+"B"
+
                 sf = ScanFields.load_det(idet, base_path=dirpath)
                 sf.xlink_threshold = config.xlink_threshold
                 sf.use_hwp = config.use_hwp
