@@ -24,7 +24,6 @@ from .pipelines import (
     Systematics,
     sim_diff_gain_per_ch,
     sim_diff_pointing_per_ch,
-    sim_bandpass_mismatch,
     sim_noise_per_ch,
     generate_maps,
 )
