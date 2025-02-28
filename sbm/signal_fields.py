@@ -367,11 +367,13 @@ class SignalFields:
 
             mdim (`int`): dimension of the map-making liner system
 
-            gamma_T (`float`): coefficient of the sky signal which corresponds to the bandpass mismatch of the `Top` detector
-
-            gamma_B (`float`): coefficient of the sky signal which corresponds to the bandpass mismatch of the `Bottom` detector
-
             pol_map (`np.ndarray`): polarization map (i.e. Q+iU)
+
+            gamma_T_list (`List[float]`): list of coefficient of the sky signal which corresponds to the bandpass mismatch of the `Bottom` detector
+
+            gamma_B_list (`List[float]`): list of coefficient of the sky signal which corresponds to the bandpass mismatch of the `Top` detector
+
+            components (`List[np.ndarray]`): list of the components (e.g. synchrotron and dust) of the temperature sky map
         """
         assert len(gamma_T_list) == len(
             gamma_B_list

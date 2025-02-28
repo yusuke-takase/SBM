@@ -6,11 +6,10 @@ from multiprocessing import Pool
 import healpy as hp
 from tqdm import tqdm
 import os
-from typing import Any, Dict, List, Union
+from typing import List, Union
 import fcntl
 import random
 from astropy import constants as const
-from astropy.cosmology import Planck18 as cosmo
 from .scan_fields import ScanFields, DB_ROOT_PATH, channel_list
 from .signal_fields import SignalFields
 import pysm3
@@ -484,8 +483,10 @@ def process_bpm(args):
 def dBodTth(nu):
     return lbs.hwp_sys.hwp_sys._dBodTth(nu)
 
+
 def dBRJ_dT(nu):
-    return (2*const.k_B.value*nu*nu*1e18)/const.c.value/const.c.value
+    return (2 * const.k_B.value * nu * nu * 1e18) / const.c.value / const.c.value
+
 
 def BlackBody(nu, T):
     x = const.h.value * nu * 1e9 / const.k_B.value / T
@@ -496,15 +497,20 @@ def BlackBody(nu, T):
     )
 
 
-def sed_dust(nu, betad, Td=20., nud=545.):
+def sed_dust(nu, betad, Td=20.0, nud=545.0):
     if isinstance(Td, float) and isinstance(betad, float):
         sed = ((nu / nud) ** betad) * BlackBody(nu, Td) / BlackBody(nud, Td)
     else:
-        sed = ((nu / nud) ** betad[..., np.newaxis]) * BlackBody(nu, Td[..., np.newaxis]) / BlackBody(nud, Td[..., np.newaxis])
+        sed = (
+            ((nu / nud) ** betad[..., np.newaxis])
+            * BlackBody(nu, Td[..., np.newaxis])
+            / BlackBody(nud, Td[..., np.newaxis])
+        )
     return sed
 
+
 # synch spectral index is -3 +2 due to RJ to power conversion
-def sed_synch(nu, betas=-1., nus=0.408):
+def sed_synch(nu, betas=-1.0, nus=0.408):
     if isinstance(betas, float):
         sed = (nu / nus) ** betas
     else:
@@ -512,11 +518,12 @@ def sed_synch(nu, betas=-1., nus=0.408):
     return sed
 
 
-def sed_freefree(nu, freq_ref_I = 30., pl_index = -2.14):
-    #spectral index is -2.14 +2 due to RJ to power conversion
+def sed_freefree(nu, freq_ref_I=30.0, pl_index=-2.14):
+    # spectral index is -2.14 +2 due to RJ to power conversion
     return (nu / freq_ref_I) ** (pl_index + 2)
 
-def color_correction_dust(nu, nu0, betad, band, Td = 20.):
+
+def color_correction_dust(nu, nu0, betad, band, Td=20.0):
     return (
         np.trapz(band * sed_dust(nu, betad, Td) / sed_dust(nu0, betad, Td), nu)
         / np.trapz(band * dBodTth(nu), nu)
@@ -525,7 +532,7 @@ def color_correction_dust(nu, nu0, betad, band, Td = 20.):
 
 
 # nu^(-2) throughput factor already in band definition
-def color_correction_synch(nu, nu0, band, betas = -1.):
+def color_correction_synch(nu, nu0, band, betas=-1.0):
     return (
         np.trapz(band * sed_synch(nu, betas) / sed_synch(nu0, betas), nu)
         / np.trapz(band * dBodTth(nu), nu)
@@ -540,9 +547,9 @@ def color_correction_freefree(nu, nu0, band):
         * dBodTth(nu0)
     )
 
-def color_correction_co(nu, band, lines, line_frequency, out_units):
 
-    weights = band*dBRJ_dT(nu) / np.trapz(band*dBRJ_dT(nu), nu)
+def color_correction_co(nu, band, lines, line_frequency, out_units):
+    weights = band * dBRJ_dT(nu) / np.trapz(band * dBRJ_dT(nu), nu)
     weights /= np.trapz(weights, nu)
 
     out = 0
@@ -553,19 +560,19 @@ def color_correction_co(nu, band, lines, line_frequency, out_units):
             # interpolate the value of the bandpass at the freq of the CO line
             weight = np.interp(line_freq, nu, weights)
             convert_to_uK_RJ = (1 * u.K_CMB).to_value(
-                    u.uK_RJ,
-                    equivalencies=u.cmb_equivalencies(line_freq * u.GHz),
-                )
+                u.uK_RJ,
+                equivalencies=u.cmb_equivalencies(line_freq * u.GHz),
+            )
             # sums over the co lines in the bandpass
-            out += (convert_to_uK_RJ * weight)
+            out += convert_to_uK_RJ * weight
 
     # converts to K_CMB/uK_CMB units
     sed = (out << u.uK_RJ) * pysm3.bandpass_unit_conversion(nu * u.GHz, band, out_units)
 
     return sed.value
 
-def co_map(nu, lines, line_frequency, nside, template):
 
+def co_map(nu, lines, line_frequency, nside, template):
     out = np.zeros((3, hp.nside2npix(nside)), dtype=np.float64)
     for line in lines:
         line_freq = line_frequency[line].to_value(u.GHz)
@@ -573,10 +580,10 @@ def co_map(nu, lines, line_frequency, nside, template):
             print(f"CO line {line_freq} in the band")
             I_map = template[line].copy()
 
-            #if self.include_high_galactic_latitude_clouds:
+            # if self.include_high_galactic_latitude_clouds:
             #    I_map += self.simulate_high_galactic_latitude_CO(line)
 
-            #if self.has_polarization:
+            # if self.has_polarization:
             #    out[1:] += (
             #        self.simulate_polarized_emission(I_map).value
             #        * convert_to_uK_RJ
@@ -586,27 +593,35 @@ def co_map(nu, lines, line_frequency, nside, template):
     return out
 
 
-def init_ame(map_I,freq_ref_I,emissivity,freq_peak,freq_ref_peak,
-        nside,max_nside=None,unit_I=None,map_dist=None,):
-        
-        I_ref = pysm3.read_map(map_I, nside, unit=unit_I)
-        I_ref <<= u.uK_RJ
-        freq_ref_I = u.Quantity(freq_ref_I).to(u.GHz)
-        try:  # input is a number
-            freq_peak = u.Quantity(freq_peak).to(u.GHz)
-        except TypeError:  # input is a path
-            freq_peak = pysm3.read_map(freq_peak, nside, unit=u.GHz)
-        freq_ref_peak = u.Quantity(freq_ref_peak).to(u.GHz)
-        freq_peak /= freq_ref_peak
-        emissivity = pysm3.models.template.read_txt(emissivity, unpack=True)
+def init_ame(
+    map_I,
+    freq_ref_I,
+    emissivity,
+    freq_peak,
+    freq_ref_peak,
+    nside,
+    max_nside=None,
+    unit_I=None,
+    map_dist=None,
+):
+    I_ref = pysm3.read_map(map_I, nside, unit=unit_I)
+    I_ref <<= u.uK_RJ
+    freq_ref_I = u.Quantity(freq_ref_I).to(u.GHz)
+    try:  # input is a number
+        freq_peak = u.Quantity(freq_peak).to(u.GHz)
+    except TypeError:  # input is a path
+        freq_peak = pysm3.read_map(freq_peak, nside, unit=u.GHz)
+    freq_ref_peak = u.Quantity(freq_ref_peak).to(u.GHz)
+    freq_peak /= freq_ref_peak
+    emissivity = pysm3.models.template.read_txt(emissivity, unpack=True)
 
-        return I_ref, freq_ref_I, freq_peak, emissivity
+    return I_ref, freq_ref_I, freq_peak, emissivity
+
 
 def sed_ame(nu, band, freq_ref_I, freq_peak, emissivity, nside):
-    
-    freqs = pysm3.utils.check_freq_input(nu*u.GHz)
+    freqs = pysm3.utils.check_freq_input(nu * u.GHz)
     # tau(nu) * dB_RJ(nu)/dT / np.trapz( tau(nu) * dB_RJ(nu)/dT, nu)
-    weights = pysm3.utils.normalize_weights(nu,  band)
+    weights = pysm3.utils.normalize_weights(nu, band)
 
     if len(freqs) > 1:
         sed = np.zeros((hp.nside2npix(nside), len(freqs)))
@@ -614,21 +629,24 @@ def sed_ame(nu, band, freq_ref_I, freq_peak, emissivity, nside):
             scaled_freq = freq / freq_peak
             scaled_ref_freq = freq_ref_I / freq_peak
 
-            sed[:, i] = ((freq_ref_I / freq) ** 2
+            sed[:, i] = (
+                (freq_ref_I / freq) ** 2
                 * np.interp(scaled_freq, emissivity[0], emissivity[1])
-                / np.interp(scaled_ref_freq, emissivity[0], emissivity[1]))
+                / np.interp(scaled_ref_freq, emissivity[0], emissivity[1])
+            )
 
-
-            sed_tot = np.trapz( sed*weights, freqs)
+            sed_tot = np.trapz(sed * weights, freqs)
     else:
         scaled_freq = freqs / freq_peak
         scaled_ref_freq = freq_ref_I / freq_peak
-        
+
         sed = np.zeros(hp.nside2npix(nside))
-        sed = ((freq_ref_I / freqs) ** 2
-                * np.interp(scaled_freq, emissivity[0], emissivity[1])
-                / np.interp(scaled_ref_freq, emissivity[0], emissivity[1]))
-        
+        sed = (
+            (freq_ref_I / freqs) ** 2
+            * np.interp(scaled_freq, emissivity[0], emissivity[1])
+            / np.interp(scaled_ref_freq, emissivity[0], emissivity[1])
+        )
+
         sed_tot = sed * weights
     return sed_tot
 
@@ -655,6 +673,7 @@ def sim_bandpass_mismatch(
                                                     bandpasses are used to compute the foreground input maps.
                                                     If None, the foreground maps are computed at the central freq
                                                     of the channel.
+        base_path (`str`): The base path for the HDF5 files containing the cross-link maps
 
     Returns:
         observed_map (`np.ndarray`): The observed map after the map-making
@@ -692,68 +711,74 @@ def sim_bandpass_mismatch(
     if mbsparams.units == "K_CMB":
         out_units = u.K_CMB
 
-
     if "pysm_dust_1" in fg_models:
-        mbb_T = pysm3.read_map("pysm_2/dust_temp.fits", nside = config.nside)
-        mbb_ind = pysm3.read_map("pysm_2/dust_beta.fits", nside = config.nside)
+        mbb_T = pysm3.read_map("pysm_2/dust_temp.fits", nside=config.nside)
+        mbb_ind = pysm3.read_map("pysm_2/dust_beta.fits", nside=config.nside)
 
     if "pysm_synch_1" in fg_models:
-        mbb_s = pysm3.read_map("pysm_2/synch_beta.fits", nside = config.nside)
+        mbb_s = pysm3.read_map("pysm_2/synch_beta.fits", nside=config.nside)
 
     if "pysm_co_1" in fg_models:
         lines = ["10", "21", "32"]
         line_index = {"10": 0, "21": 1, "32": 2}
         line_frequency = {
-                    "10": 115.271 * u.GHz,
-                    "21": 230.538 * u.GHz,
-                    "32": 345.796 * u.GHz,
-                }
-        
-        has_polarization = False
-        include_high_galactic_latitude_clouds = False
-        template_nside = 512 if config.nside <= 512 else 2048
-    
-        planck_templatemap_filename = (
-                    f"co/HFI_CompMap_CO-Type1_{template_nside}_R2.00_ring.fits"
-                )
-    
-        remote_data = pysm3.utils.RemoteData()
-    
-        map_in = pysm3.models.template.read_map(
-                            remote_data.get(planck_templatemap_filename),
-                            field=[line_index[line] for line in lines],
-                            unit= u.K_CMB, nside = template_nside
-                        )
-    
-        planck_templatemap = pysm3.models.co_lines.build_lines_dict(
-                    lines, hp.ud_grade(np.array(map_in), nside_out = config.nside)<< u.K_CMB,
-                )
+            "10": 115.271 * u.GHz,
+            "21": 230.538 * u.GHz,
+            "32": 345.796 * u.GHz,
+        }
 
+        # has_polarization = False
+        # include_high_galactic_latitude_clouds = False
+        template_nside = 512 if config.nside <= 512 else 2048
+
+        planck_templatemap_filename = (
+            f"co/HFI_CompMap_CO-Type1_{template_nside}_R2.00_ring.fits"
+        )
+
+        remote_data = pysm3.utils.RemoteData()
+
+        map_in = pysm3.models.template.read_map(
+            remote_data.get(planck_templatemap_filename),
+            field=[line_index[line] for line in lines],
+            unit=u.K_CMB,
+            nside=template_nside,
+        )
+
+        planck_templatemap = pysm3.models.co_lines.build_lines_dict(
+            lines,
+            hp.ud_grade(np.array(map_in), nside_out=config.nside) << u.K_CMB,
+        )
 
     if "pysm_ame_1" in fg_models:
         freq_ref_I_1 = "22.8 GHz"
         emissivity_1 = "pysm_2/emissivity.txt"
         freq_peak_1 = "pysm_2/ame_nu_peak_0.fits"
         freq_ref_peak_1 = "30 GHz"
-        
+
         freq_ref_I_2 = "41 GHz"
         emissivity_2 = "pysm_2/emissivity.txt"
         freq_peak_2 = "33.35 GHz"
         freq_ref_peak_2 = "30 GHz"
 
-        I_ref1, freq_ref_I1, freq_peak1, emissivity1 = init_ame("pysm_2/ame_t_new.fits",
-                                                                freq_ref_I_1,
-                                                                emissivity_1,
-                                                                freq_peak_1,
-                                                                freq_ref_peak_1, 
-                                                                config.nside, unit_I = "uK_RJ")
+        I_ref1, freq_ref_I1, freq_peak1, emissivity1 = init_ame(
+            "pysm_2/ame_t_new.fits",
+            freq_ref_I_1,
+            emissivity_1,
+            freq_peak_1,
+            freq_ref_peak_1,
+            config.nside,
+            unit_I="uK_RJ",
+        )
 
-        I_ref2, freq_ref_I2, freq_peak2, emissivity2 = init_ame("pysm_2/ame2_t_new.fits",
-                                                                freq_ref_I_2,
-                                                                emissivity_2,
-                                                                freq_peak_2,
-                                                                freq_ref_peak_2, 
-                                                                config.nside, unit_I = "uK_RJ")
+        I_ref2, freq_ref_I2, freq_peak2, emissivity2 = init_ame(
+            "pysm_2/ame2_t_new.fits",
+            freq_ref_I_2,
+            emissivity_2,
+            freq_peak_2,
+            freq_ref_peak_2,
+            config.nside,
+            unit_I="uK_RJ",
+        )
 
     if not base_path:
         dirpath = os.path.join(DB_ROOT_PATH, config.channel)
@@ -770,12 +795,17 @@ def sim_bandpass_mismatch(
         )
         map_info_bp = mbs_bp.run_all()[0]
 
-        returned_input_map = np.zeros([3,npix])
+        returned_input_map = np.zeros([3, npix])
 
         pol_map = {}
 
         for d in detector_list:
-            if "pysm_dust_1" in fg_models or "pysm_synch_1" in fg_models or "pysm_co_1" in fg_models or "pysm_ame_1" in fg_models:
+            if (
+                "pysm_dust_1" in fg_models
+                or "pysm_synch_1" in fg_models
+                or "pysm_co_1" in fg_models
+                or "pysm_ame_1" in fg_models
+            ):
                 if d.name[-1] == "T":
                     gamma_T_dict[d.name] = np.zeros((len(fg_models), npix))
                 if d.name[-1] == "B":
@@ -789,10 +819,10 @@ def sim_bandpass_mismatch(
 
             # index of bpm.detectors with same name as in d
             input_maps_d = map_info_bp[d.name]
-           
+
             returned_input_map += map_info_bp[d.name]
             pol_map[d.name] = input_maps_d[1] + 1.0j * input_maps_d[2]
-            ind = np.where(np.isin(syst.bpm.detectors, d.name))
+            # ind = np.where(np.isin(syst.bpm.detectors, d.name))
             for ifg, fg in enumerate(fg_models):
                 if fg == "pysm_dust_0":
                     g = color_correction_dust(
@@ -812,12 +842,14 @@ def sim_bandpass_mismatch(
                         nu0=d.bandcenter_ghz,
                         betad=mbb_ind,
                         band=d.band_weights,
-                        Td = mbb_T
+                        Td=mbb_T,
                     )
                 if fg == "pysm_synch_1":
                     g = color_correction_synch(
-                        nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights,
-                        betas=mbb_s
+                        nu=d.band_freqs_ghz,
+                        nu0=d.bandcenter_ghz,
+                        band=d.band_weights,
+                        betas=mbb_s,
                     )
 
                 if fg == "pysm_freefree_1":
@@ -826,56 +858,88 @@ def sim_bandpass_mismatch(
                     )
 
                 if fg == "pysm_co_1":
-                    #setting the correct CO map, it would be otherwise 0
-                    #this is just the template map, to be multiplied with g
-                    #to get the full map
-                    #in principle they are the same for each det, but we never know
-                    #the freq range between one det and the other could be different
-                    #and so they could include different numbers of CO lines
-                    #not really expected but still possible
-                    co_map_d = co_map(nu=d.band_freqs_ghz, 
-                                                   lines = lines, 
-                                                   line_frequency = line_frequency, 
-                                                   nside = config.nside,
-                                                   template = planck_templatemap)[0]
-                    g = color_correction_co(
-                        nu=d.band_freqs_ghz, band=d.band_weights, lines=lines, 
-                        line_frequency=line_frequency, out_units = out_units) * co_map_d
+                    # setting the correct CO map, it would be otherwise 0
+                    # this is just the template map, to be multiplied with g
+                    # to get the full map
+                    # in principle they are the same for each det, but we never know
+                    # the freq range between one det and the other could be different
+                    # and so they could include different numbers of CO lines
+                    # not really expected but still possible
+                    co_map_d = co_map(
+                        nu=d.band_freqs_ghz,
+                        lines=lines,
+                        line_frequency=line_frequency,
+                        nside=config.nside,
+                        template=planck_templatemap,
+                    )[0]
+                    g = (
+                        color_correction_co(
+                            nu=d.band_freqs_ghz,
+                            band=d.band_weights,
+                            lines=lines,
+                            line_frequency=line_frequency,
+                            out_units=out_units,
+                        )
+                        * co_map_d
+                    )
 
                     # we fix the I(nu0) map to 1, so that we recover the total CO map in g
                     fg_tmap_list[ifg] = np.ones(npix)
 
-
                 if fg == "pysm_ame_1":
-                    sed_ame1 = sed_ame(d.band_freqs_ghz, d.band_weights, freq_ref_I1.value, 
-                            freq_peak1.value, emissivity1, config.nside)
-                    sed_ame2 = sed_ame(d.band_freqs_ghz, d.band_weights, freq_ref_I2.value, 
-                            freq_peak2.value, emissivity2, config.nside)
+                    sed_ame1 = sed_ame(
+                        d.band_freqs_ghz,
+                        d.band_weights,
+                        freq_ref_I1.value,
+                        freq_peak1.value,
+                        emissivity1,
+                        config.nside,
+                    )
+                    sed_ame2 = sed_ame(
+                        d.band_freqs_ghz,
+                        d.band_weights,
+                        freq_ref_I2.value,
+                        freq_peak2.value,
+                        emissivity2,
+                        config.nside,
+                    )
 
                     # the gamma factor is the whole map in this case (sed_ame_1*I_1 + sed_ame_2*I_2)
-                    g = ((sed_ame1*I_ref1 + sed_ame2*I_ref2) * 
-                            pysm3.bandpass_unit_conversion(d.band_freqs_ghz * u.GHz, d.band_weights, out_units))
-                    
+                    g = (
+                        sed_ame1 * I_ref1 + sed_ame2 * I_ref2
+                    ) * pysm3.bandpass_unit_conversion(
+                        d.band_freqs_ghz * u.GHz, d.band_weights, out_units
+                    )
+
                     # we fix the I(nu0) map to 1, so that we recover the total AME map in g
                     fg_tmap_list[ifg] = np.ones(npix)
-                
 
-                if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (len(fg_models), npix):
+                if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (
+                    len(fg_models),
+                    npix,
+                ):
                     if hasattr(g, "__len__"):
-                        gamma_T_dict[d.name][ifg,:] = g
+                        gamma_T_dict[d.name][ifg, :] = g
                     else:
-                        gamma_T_dict[d.name][ifg,:] = g*np.ones(npix)
+                        gamma_T_dict[d.name][ifg, :] = g * np.ones(npix)
 
-                if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (len(fg_models),):
+                if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (
+                    len(fg_models),
+                ):
                     gamma_T_dict[d.name][ifg] = g
 
-                if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (len(fg_models), npix):
+                if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (
+                    len(fg_models),
+                    npix,
+                ):
                     if hasattr(g, "__len__"):
-                        gamma_B_dict[d.name][ifg,:] = g
+                        gamma_B_dict[d.name][ifg, :] = g
                     else:
-                        gamma_B_dict[d.name][ifg,:] = g*np.ones(npix)
+                        gamma_B_dict[d.name][ifg, :] = g * np.ones(npix)
 
-                if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (len(fg_models),):
+                if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (
+                    len(fg_models),
+                ):
                     gamma_B_dict[d.name][ifg] = g
 
     # using the values passed to the set_bandpass_mismatch class
@@ -883,8 +947,8 @@ def sim_bandpass_mismatch(
         pol_map = input_map_nu0[1] + 1.0j * input_map_nu0[2]
         gamma_T_dict = syst.bpm.gamma_T_dict
         gamma_B_dict = syst.bpm.gamma_B_dict
-        assert len(syst.bpm.detectors)//2 == len(gamma_T_dict.keys())
-        assert len(syst.bpm.detectors)//2 == len(gamma_B_dict.keys())
+        assert len(syst.bpm.detectors) // 2 == len(gamma_T_dict.keys())
+        assert len(syst.bpm.detectors) // 2 == len(gamma_B_dict.keys())
 
     observed_map = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
@@ -895,14 +959,14 @@ def sim_bandpass_mismatch(
         for i, idet in enumerate(syst.bpm.detectors):
             if idet[-1] == "T":
                 tname = idet
-                bname = idet[:-1]+"B"
+                bname = idet[:-1] + "B"
 
                 if detector_list:
-                    #averaging over T and B pol input map
-                    pm = (pol_map[tname] + pol_map[bname])/2.
+                    # averaging over T and B pol input map
+                    pm = (pol_map[tname] + pol_map[bname]) / 2.0
                 else:
                     pm = pol_map
-    
+
                 file_args.append(
                     (
                         idet,
@@ -916,7 +980,7 @@ def sim_bandpass_mismatch(
                         config.xlink_threshold,
                     )
                 )
-    
+
             with Pool() as pool:
                 for i, result in enumerate(
                     tqdm(
@@ -938,23 +1002,27 @@ def sim_bandpass_mismatch(
                 colour="green",
             )
         ):
-
             if idet[-1] == "T":
                 tname = idet
-                bname = idet[:-1]+"B"
+                bname = idet[:-1] + "B"
 
                 sf = ScanFields.load_det(idet, base_path=dirpath)
                 sf.xlink_threshold = config.xlink_threshold
                 sf.use_hwp = config.use_hwp
-    
+
                 if detector_list:
-                    #averaging over T and B pol input map
-                    pm = (pol_map[tname] + pol_map[bname])/2.
+                    # averaging over T and B pol input map
+                    pm = (pol_map[tname] + pol_map[bname]) / 2.0
                 else:
                     pm = pol_map
-    
+
                 signal_field = SignalFields.bandpass_mismatch_field(
-                    sf, config.mdim, pm, gamma_T_dict[tname], gamma_B_dict[bname], fg_tmap_list
+                    sf,
+                    config.mdim,
+                    pm,
+                    gamma_T_dict[tname],
+                    gamma_B_dict[bname],
+                    fg_tmap_list,
                 )
                 output = sf.map_make(signal_field, config.only_iqu)
                 observed_map += output
