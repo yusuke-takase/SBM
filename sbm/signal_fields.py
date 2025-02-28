@@ -199,7 +199,7 @@ class SignalFields:
         for i in range(len(spin_n_basis)):
             n = spin_n_basis[i]
             m = spin_m_basis[i]
-            model_vector[i] = sp.Symbol(rf"{{}}_{{{n}\,{m}}}\tilde{{S^d}}")
+            model_vector[i] = sp.Symbol(rf"{{}}_{{{n},{m}}}\tilde{{S^d}}")
             if all(spin_m_basis == 0):
                 if n == 0:
                     stokes_element = sp.Symbol(r"{}_{0,0}\hat{{Z}}")
@@ -208,7 +208,7 @@ class SignalFields:
                 elif n == -2:
                     stokes_element = sp.Symbol(r"\hat{P^*}")
                 else:
-                    stokes_element = sp.Symbol(rf"{{}}_{{{n}\,{m}}}\hat{{Z}}")
+                    stokes_element = sp.Symbol(rf"{{}}_{{{n},{m}}}\hat{{Z}}")
             else:
                 if n == 0:
                     stokes_element = sp.Symbol(r"\hat{I}")
@@ -217,7 +217,7 @@ class SignalFields:
                 elif n == -2:
                     stokes_element = sp.Symbol(r"\hat{P^*}")
                 else:
-                    stokes_element = sp.Symbol(rf"{{}}_{{{n}\,{m}}}\hat{{Z}}")
+                    stokes_element = sp.Symbol(rf"{{}}_{{{n},{m}}}\hat{{Z}}")
             solved_vector[i] = stokes_element
         self.model_vector = model_vector
         self.solved_vector = solved_vector

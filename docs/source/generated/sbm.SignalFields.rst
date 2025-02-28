@@ -15,6 +15,7 @@
    
       ~SignalFields.__init__
       ~SignalFields.abs_pointing_field
+      ~SignalFields.bandpass_mismatch_field
       ~SignalFields.build_linear_system
       ~SignalFields.circular_pointing_field
       ~SignalFields.diff_gain_field

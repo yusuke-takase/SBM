@@ -14,5 +14,6 @@
    .. autosummary::
    
       ~Systematics.__init__
+      ~Systematics.set_bandpass_mismatch
    
    

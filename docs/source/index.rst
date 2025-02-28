@@ -7,15 +7,18 @@ SBM User's Manual
 =================
 
 .. toctree::
-   :maxdepth: 1
-   :caption: Contents:
+   :maxdepth: 2
+   :caption: Parts
 
-   installation
-   reference
+   installation.rst
+   formalism.rst
+   imprementation.rst
+   reference.rst
 
 
 Indices and tables
 ==================
 
 * :ref:`genindex`
+* :ref:`modindex`
 * :ref:`search`
