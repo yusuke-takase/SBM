@@ -700,6 +700,8 @@ def sim_bandpass_mismatch(
         imo=config.imo,
     )
     fg_models = mbsparams.fg_models
+    # no bandpass integration to compute fg at nu0
+    mbsparams.bandpass_int = False
     mbs = lbs.Mbs(simulation=sim, parameters=mbsparams, channel_list=ch_info)
     map_info = mbs.run_all()[0]
     input_map_nu0 = map_info[config.channel]
@@ -790,6 +792,8 @@ def sim_bandpass_mismatch(
         gamma_T_dict = {}
         gamma_B_dict = {}
         assert len(detector_list) == len(syst.bpm.detectors)
+        # now bandpass integration
+        mbsparams.bandpass_int = True
         mbs_bp = lbs.Mbs(
             simulation=sim, parameters=mbsparams, detector_list=detector_list
         )
