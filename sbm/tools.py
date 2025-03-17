@@ -91,6 +91,28 @@ def load_fiducial_cl_tens(r, lmax=None):
         cl_cmb = cl_cmb[:, : lmax + 1]
     return cl_cmb
 
+def load_fiducial_cl(r, lmax=None):
+    """This function loads the fiducial CMB power spectrum used in the map base simulation of litebird_sim.
+
+    Args:
+        r (`float`): The tensor-to-scalar ratio of the CMB.
+        lmax: ell max
+
+    Return:
+        tensor cl_cmb (`np.ndarray`, 2d-array)
+    """
+    datautils_dir = Path(lbs.__file__).parent / "datautils"
+    cl_cmb_scalar = hp.read_cl(datautils_dir / "Cls_Planck2018_for_PTEP_2020_r0.fits")
+    cl_cmb_tensor = (
+        hp.read_cl(datautils_dir / "Cls_Planck2018_for_PTEP_2020_tensor_r1.fits") * r
+    )
+    cl_cmb = cl_cmb_scalar + cl_cmb_tensor
+    if lmax is not None:
+        cl_cmb = cl_cmb[:, : lmax + 1]
+    return cl_cmb
+
+
+
 def generate_cmb(nside, r=0.0, cmb_seed=None):
     """This function generates the CMB map used in the map base simulation of litebird_sim.
 
