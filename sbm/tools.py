@@ -55,25 +55,41 @@ def d2c(dl, ell_start=2):
     return dl * (2.0 * np.pi) / (ell * (ell + 1.0))
 
 
-def load_fiducial_cl(r, lmax=None):
+def load_fiducial_cl_lens(lmax=None):
     """This function loads the fiducial CMB power spectrum used in the map base simulation of litebird_sim.
 
     Args:
-        r (`float`): The tensor-to-scalar ratio of the CMB.
+        lmax: ell max
 
     Return:
-        cl_cmb (`np.ndarray`, 2d-array)
+        lensing cl_cmb (`np.ndarray`, 2d-array)
     """
     datautils_dir = Path(lbs.__file__).parent / "datautils"
     cl_cmb_scalar = hp.read_cl(datautils_dir / "Cls_Planck2018_for_PTEP_2020_r0.fits")
-    cl_cmb_tensor = (
-        hp.read_cl(datautils_dir / "Cls_Planck2018_for_PTEP_2020_tensor_r1.fits") * r
-    )
-    cl_cmb = cl_cmb_scalar + cl_cmb_tensor
+    
+    cl_cmb = cl_cmb_scalar 
     if lmax is not None:
         cl_cmb = cl_cmb[:, : lmax + 1]
     return cl_cmb
 
+def load_fiducial_cl_tens(r, lmax=None):
+    """This function loads the fiducial CMB power spectrum used in the map base simulation of litebird_sim.
+
+    Args:
+        r (`float`): The tensor-to-scalar ratio of the CMB.
+        lmax: ell max
+
+    Return:
+        tensor cl_cmb (`np.ndarray`, 2d-array)
+    """
+    datautils_dir = Path(lbs.__file__).parent / "datautils"
+    cl_cmb_tensor = (
+        hp.read_cl(datautils_dir / "Cls_Planck2018_for_PTEP_2020_tensor_r1.fits") * r
+    )
+    cl_cmb = cl_cmb_tensor
+    if lmax is not None:
+        cl_cmb = cl_cmb[:, : lmax + 1]
+    return cl_cmb
 
 def generate_cmb(nside, r=0.0, cmb_seed=None):
     """This function generates the CMB map used in the map base simulation of litebird_sim.
@@ -224,8 +240,8 @@ def forecast(
 
     # the [2] selects the BB spectra and the [2:lmax+1] excludes multipoles 0 and 1,
     # that are null, and multipole above lmax
-    cl_tens = load_fiducial_cl(r=1.0, lmax=lmax)[2][2:]
-    cl_lens = load_fiducial_cl(r=0.0, lmax=lmax)[2][2:]
+    cl_tens = load_fiducial_cl_tens(r=1.0, lmax=lmax)[2][2:]
+    cl_lens = load_fiducial_cl_lens(lmax=lmax)[2][2:]
     cl_syst = cl_syst[2 : lmax + 1]
     if n_el is None:
         n_el = np.zeros_like(cl_lens)
