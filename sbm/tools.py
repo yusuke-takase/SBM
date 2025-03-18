@@ -101,11 +101,8 @@ def load_fiducial_cl(r, lmax=None):
     Return:
         tensor cl_cmb (`np.ndarray`, 2d-array)
     """
-    datautils_dir = Path(lbs.__file__).parent / "datautils"
-    cl_cmb_scalar = hp.read_cl(datautils_dir / "Cls_Planck2018_for_PTEP_2020_r0.fits")
-    cl_cmb_tensor = (
-        hp.read_cl(datautils_dir / "Cls_Planck2018_for_PTEP_2020_tensor_r1.fits") * r
-    )
+    cl_cmb_scalar = load_fiducial_cl_lens(lmax)
+    cl_cmb_tensor = load_fiducial_cl_tens(r, lmax)
     cl_cmb = cl_cmb_scalar + cl_cmb_tensor
     if lmax is not None:
         cl_cmb = cl_cmb[:, : lmax + 1]
