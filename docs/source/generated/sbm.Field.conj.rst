@@ -1,4 +1,4 @@
-﻿sbm.Field.conj
+sbm.Field.conj
 ==============
 
 .. currentmodule:: sbm

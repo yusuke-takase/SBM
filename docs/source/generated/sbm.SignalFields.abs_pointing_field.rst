@@ -1,4 +1,4 @@
-﻿sbm.SignalFields.abs\_pointing\_field
+sbm.SignalFields.abs\_pointing\_field
 =====================================
 
 .. currentmodule:: sbm

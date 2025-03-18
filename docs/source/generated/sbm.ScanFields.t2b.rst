@@ -1,4 +1,4 @@
-﻿sbm.ScanFields.t2b
+sbm.ScanFields.t2b
 ==================
 
 .. currentmodule:: sbm

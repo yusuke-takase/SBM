@@ -1,4 +1,4 @@
-﻿sbm.elliptical\_beam
+sbm.elliptical\_beam
 ====================
 
 .. currentmodule:: sbm

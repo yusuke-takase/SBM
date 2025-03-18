@@ -1,4 +1,4 @@
-﻿sbm.sim\_noise\_per\_ch
+sbm.sim\_noise\_per\_ch
 =======================
 
 .. currentmodule:: sbm

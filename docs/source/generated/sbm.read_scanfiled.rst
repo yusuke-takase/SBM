@@ -1,4 +1,4 @@
-﻿sbm.read\_scanfiled
+sbm.read\_scanfiled
 ===================
 
 .. currentmodule:: sbm

@@ -1,4 +1,4 @@
-﻿sbm.SignalFields.extract\_iqu
+sbm.SignalFields.extract\_iqu
 =============================
 
 .. currentmodule:: sbm

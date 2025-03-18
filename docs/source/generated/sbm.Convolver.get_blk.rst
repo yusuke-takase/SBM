@@ -1,4 +1,4 @@
-﻿sbm.Convolver.get\_blk
+sbm.Convolver.get\_blk
 ======================
 
 .. currentmodule:: sbm

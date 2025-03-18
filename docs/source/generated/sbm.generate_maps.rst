@@ -1,4 +1,4 @@
-﻿sbm.generate\_maps
+sbm.generate\_maps
 ==================
 
 .. currentmodule:: sbm

@@ -1,4 +1,4 @@
-﻿sbm.SignalFields.hwp\_ip\_field
+sbm.SignalFields.hwp\_ip\_field
 ===============================
 
 .. currentmodule:: sbm

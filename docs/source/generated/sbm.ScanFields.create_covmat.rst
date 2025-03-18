@@ -1,4 +1,4 @@
-﻿sbm.ScanFields.create\_covmat
+sbm.ScanFields.create\_covmat
 =============================
 
 .. currentmodule:: sbm

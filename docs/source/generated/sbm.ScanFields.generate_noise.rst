@@ -1,4 +1,4 @@
-﻿sbm.ScanFields.generate\_noise
+sbm.ScanFields.generate\_noise
 ==============================
 
 .. currentmodule:: sbm

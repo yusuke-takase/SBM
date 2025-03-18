@@ -1,4 +1,4 @@
-﻿sbm.load\_fiducial\_cl
+sbm.load\_fiducial\_cl
 ======================
 
 .. currentmodule:: sbm

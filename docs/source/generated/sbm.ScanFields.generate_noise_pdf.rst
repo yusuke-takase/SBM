@@ -1,4 +1,4 @@
-﻿sbm.ScanFields.generate\_noise\_pdf
+sbm.ScanFields.generate\_noise\_pdf
 ===================================
 
 .. currentmodule:: sbm

@@ -1,4 +1,4 @@
-﻿sbm.SignalFields.get\_coupled\_field
+sbm.SignalFields.get\_coupled\_field
 ====================================
 
 .. currentmodule:: sbm

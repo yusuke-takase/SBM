@@ -1,4 +1,4 @@
-﻿sbm.SignalFields.circular\_pointing\_field
+sbm.SignalFields.circular\_pointing\_field
 ==========================================
 
 .. currentmodule:: sbm

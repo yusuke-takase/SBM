@@ -1,4 +1,4 @@
-﻿sbm.ScanFields.get\_xlink
+sbm.ScanFields.get\_xlink
 =========================
 
 .. currentmodule:: sbm

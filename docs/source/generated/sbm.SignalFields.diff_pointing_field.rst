@@ -1,4 +1,4 @@
-﻿sbm.SignalFields.diff\_pointing\_field
+sbm.SignalFields.diff\_pointing\_field
 ======================================
 
 .. currentmodule:: sbm

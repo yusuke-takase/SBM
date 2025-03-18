@@ -1,4 +1,4 @@
-﻿sbm.SignalFields.elliptical\_beam\_field
+sbm.SignalFields.elliptical\_beam\_field
 ========================================
 
 .. currentmodule:: sbm

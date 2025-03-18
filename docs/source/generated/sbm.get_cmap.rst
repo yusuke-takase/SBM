@@ -1,4 +1,4 @@
-﻿sbm.get\_cmap
+sbm.get\_cmap
 =============
 
 .. currentmodule:: sbm

@@ -1,4 +1,4 @@
-﻿sbm.ScanFields.map\_make
+sbm.ScanFields.map\_make
 ========================
 
 .. currentmodule:: sbm

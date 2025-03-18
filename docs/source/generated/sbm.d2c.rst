@@ -1,4 +1,4 @@
-﻿sbm.d2c
+sbm.d2c
 =======
 
 .. currentmodule:: sbm

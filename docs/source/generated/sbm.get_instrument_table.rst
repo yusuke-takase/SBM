@@ -1,4 +1,4 @@
-﻿sbm.get\_instrument\_table
+sbm.get\_instrument\_table
 ==========================
 
 .. currentmodule:: sbm

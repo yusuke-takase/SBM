@@ -1,19 +1,16 @@
-﻿sbm.ScanFields
+sbm.ScanFields
 ==============
 
 .. currentmodule:: sbm
 
 .. autoclass:: ScanFields
 
-   
    .. automethod:: __init__
 
-   
    .. rubric:: Methods
 
    .. autosummary::
-   
-      ~ScanFields.__init__
+
       ~ScanFields.create_covmat
       ~ScanFields.generate_noise
       ~ScanFields.generate_noise_pdf
@@ -25,5 +22,3 @@
       ~ScanFields.load_hdf5
       ~ScanFields.map_make
       ~ScanFields.t2b
-   
-   

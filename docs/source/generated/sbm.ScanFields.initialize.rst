@@ -1,4 +1,4 @@
-﻿sbm.ScanFields.initialize
+sbm.ScanFields.initialize
 =========================
 
 .. currentmodule:: sbm

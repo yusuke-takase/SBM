@@ -1,4 +1,4 @@
-﻿sbm.Convolver.to\_spin
+sbm.Convolver.to\_spin
 ======================
 
 .. currentmodule:: sbm

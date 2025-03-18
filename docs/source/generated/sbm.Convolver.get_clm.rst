@@ -1,4 +1,4 @@
-﻿sbm.Convolver.get\_clm
+sbm.Convolver.get\_clm
 ======================
 
 .. currentmodule:: sbm

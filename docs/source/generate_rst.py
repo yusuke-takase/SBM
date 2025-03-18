@@ -11,6 +11,10 @@ def is_special_method(name):
     return name.startswith("__") and name.endswith("__")
 
 
+def is_internal_method(name):
+    return name.startswith("_")
+
+
 def get_classes_and_methods(module):
     classes = inspect.getmembers(module, inspect.isclass)
     for class_name, class_obj in classes:
@@ -25,9 +29,13 @@ def get_classes_and_methods(module):
             class_file.write("   .. rubric:: Methods\n\n")
             class_file.write("   .. autosummary::\n\n")
 
-            methods = inspect.getmembers(class_obj, inspect.isfunction)
+            methods = inspect.getmembers(
+                class_obj, lambda m: inspect.isfunction(m) or inspect.ismethod(m)
+            )
             for method_name, method_obj in methods:
                 if is_special_method(method_name):
+                    continue
+                if is_internal_method(method_name):
                     continue
                 escaped_method_name = escape_underscores(method_name)
                 class_file.write(f"      ~{class_name}.{method_name}\n")
@@ -48,6 +56,8 @@ def get_functions(module):
     functions = inspect.getmembers(module, inspect.isfunction)
     for function_name, function_obj in functions:
         if is_special_method(function_name):
+            continue
+        if is_internal_method(function_name):
             continue
         escaped_function_name = escape_underscores(function_name)
         function_filename = f"sbm.{function_name}.rst"
@@ -99,8 +109,13 @@ def generate_reference_rst(module, output_file):
         f.write("   :recursive:\n\n")
 
         for class_name, class_obj in classes:
-            methods = inspect.getmembers(class_obj, inspect.isfunction)
+            # methods = inspect.getmembers(class_obj, inspect.isfunction)
+            methods = inspect.getmembers(
+                class_obj, lambda m: inspect.isfunction(m) or inspect.ismethod(m)
+            )
             for method_name, method_obj in methods:
+                if is_internal_method(method_name):
+                    continue
                 if not is_special_method(method_name):
                     f.write(f"   sbm.{class_name}.{method_name}\n")
         f.write("\n")

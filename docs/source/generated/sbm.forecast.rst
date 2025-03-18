@@ -1,4 +1,4 @@
-﻿sbm.forecast
+sbm.forecast
 ============
 
 .. currentmodule:: sbm

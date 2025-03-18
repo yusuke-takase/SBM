@@ -1,4 +1,4 @@
-﻿sbm.SignalFields.diff\_gain\_field
+sbm.SignalFields.diff\_gain\_field
 ==================================
 
 .. currentmodule:: sbm

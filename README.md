@@ -73,5 +73,25 @@ Now, following systematics are implemented:
 - Non-uniform white noise
 
 # How to cite the code
-The basic formalism is published in [Y. Takase et al.](https://arxiv.org/abs/2408.03040). 
+The basic formalism is published in [Y. Takase et al., 2024](https://arxiv.org/abs/2408.03040) and [Thesis of Y. Takase, 2025](https://arxiv.org/abs/2503.03176).
 Please cite the paper when you use the SBM for your publications. 
+
+Citation information of the thesis:
+```
+@ARTICLE{Takase2025,
+       author = {{Takase}, Yusuke},
+        title = "{Design of the full-sky scanning strategy and systematic effect control in a cosmic microwave background probe}",
+      journal = {arXiv e-prints},
+     keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics, Astrophysics - Instrumentation and Methods for Astrophysics},
+         year = 2025,
+        month = mar,
+          eid = {arXiv:2503.03176},
+        pages = {arXiv:2503.03176},
+          doi = {10.48550/arXiv.2503.03176},
+archivePrefix = {arXiv},
+       eprint = {2503.03176},
+ primaryClass = {astro-ph.CO},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2025arXiv250303176T},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+```

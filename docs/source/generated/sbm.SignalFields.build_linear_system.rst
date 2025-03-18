@@ -1,4 +1,4 @@
-﻿sbm.SignalFields.build\_linear\_system
+sbm.SignalFields.build\_linear\_system
 ======================================
 
 .. currentmodule:: sbm

@@ -1,4 +1,4 @@
-﻿sbm.sim\_diff\_gain\_per\_ch
+sbm.sim\_diff\_gain\_per\_ch
 ============================
 
 .. currentmodule:: sbm

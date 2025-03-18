@@ -1,4 +1,4 @@
-﻿sbm.generate\_cmb
+sbm.generate\_cmb
 =================
 
 .. currentmodule:: sbm
