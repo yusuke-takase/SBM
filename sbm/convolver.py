@@ -46,19 +46,34 @@ class Convolver:
         Returns:
             blk (`np.ndarray`): Transfer function of the beam corresponding to spin `k`.
         """
-        idx_start = hp.Alm.getidx(self.lmax, k, k)
-        idx_stop = hp.Alm.getidx(self.lmax, self.lmax, k)
-        ell = np.arange(self.lmax + 1)
-        blm_spin = self.to_spin()
-        if not self.use_hwp:
-            blk = np.zeros((3, self.lmax + 1), np.complex64)
-            sqrt_factor = np.sqrt(4 * np.pi / (2 * ell[k:] + 1))
-            blk[0, k:] = blm_spin[0, idx_start : idx_stop + 1] * sqrt_factor
-            blk[1, k:] = blm_spin[1, idx_start : idx_stop + 1] * sqrt_factor
-            blk[2, k:] = blm_spin[2, idx_start : idx_stop + 1] * sqrt_factor
-            return blk
-        else:
-            raise NotImplementedError("HWP usage is not implemented.")
+        if k >= 0:
+            idx_start = hp.Alm.getidx(self.lmax, k, k)
+            idx_stop = hp.Alm.getidx(self.lmax, self.lmax, k)
+            ell = np.arange(self.lmax + 1)
+            blm_spin = self.to_spin()
+            if not self.use_hwp:
+                blk = np.zeros((3, self.lmax + 1), np.complex64)
+                sqrt_factor = np.sqrt(4 * np.pi / (2 * ell[k:] + 1))
+                blk[0, k:] = blm_spin[0, idx_start : idx_stop + 1] * sqrt_factor
+                blk[1, k:] = blm_spin[1, idx_start : idx_stop + 1] * sqrt_factor
+                blk[2, k:] = blm_spin[2, idx_start : idx_stop + 1] * sqrt_factor
+                return blk
+            else:
+                raise NotImplementedError("HWP usage is not implemented.")
+        if k<0:
+            idx_start = hp.Alm.getidx(self.lmax, -k, -k)
+            idx_stop = hp.Alm.getidx(self.lmax, self.lmax, -k)
+            ell = np.arange(self.lmax + 1)
+            blm_spin = self.to_spin()
+            if not self.use_hwp:
+                blk = np.zeros((3, self.lmax + 1), np.complex64)
+                sqrt_factor = np.sqrt(4 * np.pi / (2 * ell[-k:] + 1))
+                blk[0, k:] = blm_spin[0, idx_start : idx_stop + 1] * sqrt_factor*(-1)**k
+                blk[1, k:] = blm_spin[1, idx_start : idx_stop + 1] * sqrt_factor*(-1)**k
+                blk[2, k:] = blm_spin[2, idx_start : idx_stop + 1] * sqrt_factor*(-1)**k
+                return blk
+            else:
+                raise NotImplementedError("HWP usage is not implemented.")
 
     def get_clm(self, blk: np.ndarray, k: float):
         """Calculate spherical harmonic expansion coefficients for spin `k` maps.
@@ -75,17 +90,14 @@ class Convolver:
             s2_pk_clm = hp.almxfl(alm_spin[1, :], blk[2, :]) + hp.almxfl(
                 alm_spin[2, :], blk[1, :]
             )
-            s0_mk_clm = (hp.almxfl(alm_spin[0, :], blk[0, :])) * (-1) ** k
+            s0_mk_clm = (hp.almxfl(alm_spin[0, :], np.conj(blk[0, :]))) * (-1) ** k
             s2_mk_clm = (
                 hp.almxfl(alm_spin[1, :], np.conj(blk[1, :]))
                 + hp.almxfl(alm_spin[2, :], np.conj(blk[2, :]))
             ) * (-1) ** k
             clm = (
                 [-(s0_pk_clm + s0_mk_clm) / 2, -(s0_pk_clm - s0_mk_clm) / (2j)],
-                [
-                    -(s2_pk_clm + s2_mk_clm) / 2,
-                    -(s2_pk_clm - s2_mk_clm) / (2j),
-                ],
+                [-(s2_pk_clm + s2_mk_clm) / 2,-(s2_pk_clm - s2_mk_clm) / (2j),],
             )
             return clm
         else:

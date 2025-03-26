@@ -669,6 +669,8 @@ class SignalFields:
             alm=blm, nside=scan_field.nside, spin_k=[0, 2, 4], use_hwp=use_hwp
         )
         all_maps = alm_conv * blm_conv
+        """ 
+        previous implementation
 
         signal_fields = SignalFields(
             Field(all_maps[0][0] + all_maps[0][1], spin_n=0, spin_m=0),
@@ -677,6 +679,15 @@ class SignalFields:
             Field((all_maps[2][0] + all_maps[2][1]) / 2, spin_n=4, spin_m=0),
             Field((all_maps[2][0] + all_maps[2][1]).conj() / 2, spin_n=-4, spin_m=0),
         )
+        """
+        signal_fields = SignalFields(
+            Field(all_maps[0][0] + all_maps[0][1], spin_n=0, spin_m=0),
+            Field(all_maps[1][0] + all_maps[1][1]/2 , spin_n=2, spin_m=0),
+            Field(all_maps[1][0].conj() + all_maps[1][1].conj()/2 , spin_n=-2, spin_m=0),
+            Field(all_maps[2][0] + all_maps[2][1]/2 , spin_n=4, spin_m=0),
+            Field(all_maps[2][0].conj() + all_maps[2][1].conj()/2 , spin_n=-4, spin_m=0),
+        )
+        
 
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
