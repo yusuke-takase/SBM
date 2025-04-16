@@ -568,7 +568,7 @@ class ScanFields:
                 / np.sqrt(scale * hitmap_tmp)
             )
             sigma_i *= np.sign(self.hitmap)
-            sigma_p = sigma_i / np.sqrt(2.0)
+            sigma_p = sigma_i * np.sqrt(2.0)
             self.net_channel_ukrts = net_channel_ukrts
         else:
             assert (
@@ -581,7 +581,7 @@ class ScanFields:
                 / np.sqrt(scale * hitmap_tmp)
             )
             sigma_i *= np.sign(self.hitmap)
-            sigma_p = sigma_i / np.sqrt(2.0)
+            sigma_p = sigma_i * np.sqrt(2.0)
         self.net_detector_ukrts = net_detector_ukrts
         self.noise_pdf = np.array([sigma_i, sigma_p])
         if return_pdf:
