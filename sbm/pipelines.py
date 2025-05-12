@@ -683,22 +683,40 @@ def sim_bandpass_mismatch(
     npix = hp.nside2npix(config.nside)
     telescope = config.channel[0] + "FT"
     sim = lbs.Simulation(base_path=config.lbs_base_path, random_seed=None)
-    sim.set_instrument(
-        lbs.InstrumentInfo.from_imo(
-            config.imo,
-            f"/releases/{config.imo_version}/satellite/{telescope}/instrument_info",
+
+    if config.imo_version != "IMo_vReformationPlan_Option1M":
+        sim.set_instrument(
+            lbs.InstrumentInfo.from_imo(
+                config.imo,
+                f"/releases/{config.imo_version}/satellite/{telescope}/instrument_info",
+            )
         )
-    )
-    ch_info = lbs.FreqChannelInfo.from_imo(
-        url="/releases/"
-        + config.imo_version
-        + "/satellite/"
-        + telescope
-        + "/"
-        + config.channel
-        + "/channel_info",
-        imo=config.imo,
-    )
+        ch_info = lbs.FreqChannelInfo.from_imo(
+            url="/releases/"
+            + config.imo_version
+            + "/satellite/"
+            + telescope
+            + "/"
+            + config.channel
+            + "/channel_info",
+            imo=config.imo,
+        )
+    else:
+        sim.set_instrument(
+            lbs.InstrumentInfo.from_imo(
+                config.imo,
+                f"/releases/{config.imo_version}/LMHFT/instrument_info",
+            )
+        )
+        ch_info = lbs.FreqChannelInfo.from_imo(
+            url="/releases/"
+            + config.imo_version
+            + "/LMHFT/"
+            + config.channel
+            + "/channel_info",
+            imo=config.imo,
+        )
+    
     fg_models = mbsparams.fg_models
     # no bandpass integration to compute fg at nu0
     mbsparams.bandpass_int = False
