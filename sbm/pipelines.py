@@ -844,6 +844,7 @@ def sim_bandpass_mismatch(
 
             returned_input_map += map_info_bp[d.name]
             pol_map[d.name] = input_maps_d[1] + 1.0j * input_maps_d[2]
+
             # ind = np.where(np.isin(syst.bpm.detectors, d.name))
             for ifg, fg in enumerate(fg_models):
                 if fg == "pysm_dust_0":
