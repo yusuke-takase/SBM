@@ -459,6 +459,7 @@ def process_bpm(args):
         only_iqu,
         xlink_threshold,
     ) = args
+    print("process_bpm "+idet)
     sf = ScanFields.load_det(idet, dirpath)
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = False
@@ -980,6 +981,7 @@ def sim_bandpass_mismatch(
         file_args = []
 
         for i, idet in enumerate(syst.bpm.detectors):
+            #file_args = []
             if idet[-1] == "T":
                 tname = idet
                 bname = idet[:-1] + "B"
@@ -1004,18 +1006,18 @@ def sim_bandpass_mismatch(
                     )
                 )
 
-            with Pool() as pool:
-                for i, result in enumerate(
-                    tqdm(
-                        pool.imap(process_bpm, file_args),
-                        total=len(file_args),
-                        desc=f"{GREEN}Processing {config.channel}{RESET}",
-                        bar_format="{l_bar}{bar:10}{r_bar}",
-                        colour="green",
-                    )
-                ):
-                    observed_map += result["map"]
-                    sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
+        with Pool() as pool:
+            for i, result in enumerate(
+                tqdm(
+                    pool.imap(process_bpm, file_args),
+                    total=len(file_args),
+                    desc=f"{GREEN}Processing {config.channel}{RESET}",
+                    bar_format="{l_bar}{bar:10}{r_bar}",
+                    colour="green",
+                )
+            ):
+                observed_map += result["map"]
+                sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
     else:
         for i, idet in enumerate(
             tqdm(

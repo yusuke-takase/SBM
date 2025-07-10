@@ -220,16 +220,17 @@ class ScanFields:
 
         #changing pol angle
         if det_name.split("_")[3] != "XX":
-            print("45 angle")
             pa45 = True
             # bring back the det name to XX for polang
             dspl = det_name.split("_")
             det_name = dspl[0] +"_"+ dspl[1] + "_" + dspl[2] + "_" + "XX" + "_" + dspl[4] + "_" + dspl[5]
-
+            print(f"{det_name}, 45 angle")
+        
         if det_name[-1] == "B":
-            print("+90 pol angle")
             t2b = True
             det_name = det_name[:-1] + "T"
+            print(f"{det_name}, +90 angle")
+        
         filename = det_name + ".h5"
         hdf5_file_path = os.path.join(base_path, filename)
 
