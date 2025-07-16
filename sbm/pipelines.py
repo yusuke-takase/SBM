@@ -14,7 +14,7 @@ from .scan_fields import ScanFields, DB_ROOT_PATH, channel_list
 from .signal_fields import SignalFields
 import pysm3
 import pysm3.units as u
-
+from numba import njit
 
 GREEN = "\033[92m"
 RESET = "\033[0m"
@@ -626,6 +626,7 @@ def sed_ame(nu, band, freq_ref_I, freq_peak, emissivity, nside):
 
     if len(freqs) > 1:
         sed = np.zeros((hp.nside2npix(nside), len(freqs)))
+        sed_tot = np.zeros(hp.nside2npix(nside), dtype = np.float64)
         for i, (freq, _weight) in enumerate(zip(freqs, weights)):
             scaled_freq = freq / freq_peak
             scaled_ref_freq = freq_ref_I / freq_peak
@@ -636,7 +637,9 @@ def sed_ame(nu, band, freq_ref_I, freq_peak, emissivity, nside):
                 / np.interp(scaled_ref_freq, emissivity[0], emissivity[1])
             )
 
-            sed_tot = np.trapz(sed * weights, freqs)
+            pysm3.utils.trapz_step_inplace(freqs, weights, i, sed[:,i], sed_tot)
+        
+        #sed_tot = np.trapz(sed * weights, freqs)
     else:
         scaled_freq = freqs / freq_peak
         scaled_ref_freq = freq_ref_I / freq_peak
