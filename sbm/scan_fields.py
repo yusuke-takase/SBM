@@ -219,7 +219,7 @@ class ScanFields:
         pa45 = None
 
         #changing pol angle
-        if det_name.split("_")[3] != "XX":
+        if not det_name == "nside_32_boresight_hwp" and det_name.split("_")[3] != "XX":
             pa45 = True
             # bring back the det name to XX for polang
             dspl = det_name.split("_")
@@ -231,6 +231,7 @@ class ScanFields:
             det_name = det_name[:-1] + "T"
             print(f"{det_name}, +90 angle")
         
+
         filename = det_name + ".h5"
         hdf5_file_path = os.path.join(base_path, filename)
 
