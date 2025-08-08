@@ -14,7 +14,6 @@ from .scan_fields import ScanFields, DB_ROOT_PATH, channel_list
 from .signal_fields import SignalFields
 import pysm3
 import pysm3.units as u
-from numba import njit
 
 GREEN = "\033[92m"
 RESET = "\033[0m"
