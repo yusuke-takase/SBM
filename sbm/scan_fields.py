@@ -216,9 +216,22 @@ class ScanFields:
             instance.channel = base_path.split("/")[-1]
         instance.ndet = 1
         t2b = None
+        pa45 = None
+
+        #changing pol angle
+        if not det_name == "nside_32_boresight_hwp" and det_name.split("_")[3] != "XX":
+            pa45 = True
+            # bring back the det name to XX for polang
+            dspl = det_name.split("_")
+            det_name = dspl[0] +"_"+ dspl[1] + "_" + dspl[2] + "_" + "XX" + "_" + dspl[4] + "_" + dspl[5]
+            print(f"{det_name}, 45 angle")
+        
         if det_name[-1] == "B":
             t2b = True
             det_name = det_name[:-1] + "T"
+            print(f"{det_name}, +90 angle")
+        
+
         filename = det_name + ".h5"
         hdf5_file_path = os.path.join(base_path, filename)
 
@@ -240,6 +253,8 @@ class ScanFields:
         instance.duration = instance.ss["duration"]
         instance.sampling_rate = instance.ss["sampling_rate"]
         instance.npix = hp.nside2npix(instance.nside)
+        if pa45 is True:
+            instance = instance.pa45()
         if t2b is True:
             instance = instance.t2b()
         return instance
@@ -334,6 +349,14 @@ class ScanFields:
         instance.spins_n = crosslink_channels[0].spins_n
         instance.spins_m = crosslink_channels[0].spins_m
         return instance
+
+    def pa45(self) -> "ScanFields":
+        """Change pol angle to 45 degree compared to 0 degree
+        It assume top and bottom detector make a orthogonal pair.
+        """
+        class_copy = copy.deepcopy(self)
+        class_copy.h *= np.exp(-1j * self.spins_n * (np.pi / 4))
+        return class_copy
 
     def t2b(self) -> "ScanFields":
         """Transform Top detector cross-link to Bottom detector cross-link

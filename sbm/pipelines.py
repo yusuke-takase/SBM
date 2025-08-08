@@ -15,7 +15,6 @@ from .signal_fields import SignalFields
 import pysm3
 import pysm3.units as u
 
-
 GREEN = "\033[92m"
 RESET = "\033[0m"
 
@@ -459,6 +458,7 @@ def process_bpm(args):
         only_iqu,
         xlink_threshold,
     ) = args
+    print("process_bpm "+idet)
     sf = ScanFields.load_det(idet, dirpath)
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = False
@@ -625,6 +625,7 @@ def sed_ame(nu, band, freq_ref_I, freq_peak, emissivity, nside):
 
     if len(freqs) > 1:
         sed = np.zeros((hp.nside2npix(nside), len(freqs)))
+        sed_tot = np.zeros(hp.nside2npix(nside), dtype = np.float64)
         for i, (freq, _weight) in enumerate(zip(freqs, weights)):
             scaled_freq = freq / freq_peak
             scaled_ref_freq = freq_ref_I / freq_peak
@@ -635,7 +636,9 @@ def sed_ame(nu, band, freq_ref_I, freq_peak, emissivity, nside):
                 / np.interp(scaled_ref_freq, emissivity[0], emissivity[1])
             )
 
-            sed_tot = np.trapz(sed * weights, freqs)
+            pysm3.utils.trapz_step_inplace(freqs, weights, i, sed[:,i], sed_tot)
+        
+        #sed_tot = np.trapz(sed * weights, freqs)
     else:
         scaled_freq = freqs / freq_peak
         scaled_ref_freq = freq_ref_I / freq_peak
@@ -844,6 +847,7 @@ def sim_bandpass_mismatch(
 
             returned_input_map += map_info_bp[d.name]
             pol_map[d.name] = input_maps_d[1] + 1.0j * input_maps_d[2]
+
             # ind = np.where(np.isin(syst.bpm.detectors, d.name))
             for ifg, fg in enumerate(fg_models):
                 if fg == "pysm_dust_0":
@@ -979,6 +983,7 @@ def sim_bandpass_mismatch(
         file_args = []
 
         for i, idet in enumerate(syst.bpm.detectors):
+            #file_args = []
             if idet[-1] == "T":
                 tname = idet
                 bname = idet[:-1] + "B"
@@ -1003,18 +1008,18 @@ def sim_bandpass_mismatch(
                     )
                 )
 
-            with Pool() as pool:
-                for i, result in enumerate(
-                    tqdm(
-                        pool.imap(process_bpm, file_args),
-                        total=len(file_args),
-                        desc=f"{GREEN}Processing {config.channel}{RESET}",
-                        bar_format="{l_bar}{bar:10}{r_bar}",
-                        colour="green",
-                    )
-                ):
-                    observed_map += result["map"]
-                    sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
+        with Pool() as pool:
+            for i, result in enumerate(
+                tqdm(
+                    pool.imap(process_bpm, file_args),
+                    total=len(file_args),
+                    desc=f"{GREEN}Processing {config.channel}{RESET}",
+                    bar_format="{l_bar}{bar:10}{r_bar}",
+                    colour="green",
+                )
+            ):
+                observed_map += result["map"]
+                sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
     else:
         for i, idet in enumerate(
             tqdm(
