@@ -463,6 +463,7 @@ def process_bpm(args):
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = False
 
+    #signal_field, bpm_q, bpm_u = SignalFields.bandpass_mismatch_field(
     signal_field = SignalFields.bandpass_mismatch_field(
         sf,
         mdim,
@@ -475,6 +476,7 @@ def process_bpm(args):
     result = {
         "hitmap": sf.hitmap,
         "map": output,
+       # "bpm_templ": [bpm_q, bpm_u],
         "xlink2": np.abs(sf.get_xlink(2, 0)),
     }
     return result
@@ -658,7 +660,9 @@ def sim_bandpass_mismatch(
     config: Configlation,
     syst: Systematics,
     mbsparams: lbs.MbsParameters,
+    compute_res_templ,
     detector_list: Union[list, None] = None,
+    detector_list_lowres: Union[list, None] = None,
     base_path: Union[str, None] = None,
 ):
     """Simulate the bandpass mismatch systematics.
@@ -676,6 +680,8 @@ def sim_bandpass_mismatch(
                                                     bandpasses are used to compute the foreground input maps.
                                                     If None, the foreground maps are computed at the central freq
                                                     of the channel.
+        detector_list_lowres (list of `lbs.DetectorInfo`): same as before, but having lower resolution 
+                                                           bandpasses to be used for T->P leakage deprojection.
         base_path (`str`): The base path for the HDF5 files containing the cross-link maps
 
     Returns:
@@ -824,7 +830,10 @@ def sim_bandpass_mismatch(
 
         pol_map = {}
 
-        for d in detector_list:
+        if not detector_list_lowres:
+            detector_list_lowres = detector_list
+
+        for d in detector_list_lowres:
             if (
                 "pysm_dust_1" in fg_models
                 or "pysm_synch_1" in fg_models
@@ -988,11 +997,15 @@ def sim_bandpass_mismatch(
                 tname = idet
                 bname = idet[:-1] + "B"
 
-                if detector_list:
-                    # averaging over T and B pol input map
-                    pm = (pol_map[tname] + pol_map[bname]) / 2.0
+                if not compute_res_templ:
+                    if detector_list:
+                        # averaging over T and B pol input map
+                        pm = (pol_map[tname] + pol_map[bname]) / 2.0
+                    else:
+                        pm = pol_map
+
                 else:
-                    pm = pol_map
+                    pm = np.zeros([npix])
 
                 file_args.append(
                     (
@@ -1020,6 +1033,7 @@ def sim_bandpass_mismatch(
             ):
                 observed_map += result["map"]
                 sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
+
     else:
         for i, idet in enumerate(
             tqdm(
@@ -1037,12 +1051,17 @@ def sim_bandpass_mismatch(
                 sf.xlink_threshold = config.xlink_threshold
                 sf.use_hwp = config.use_hwp
 
-                if detector_list:
-                    # averaging over T and B pol input map
-                    pm = (pol_map[tname] + pol_map[bname]) / 2.0
-                else:
-                    pm = pol_map
+                if not compute_res_templ:
+                    if detector_list:
+                        # averaging over T and B pol input map
+                        pm = (pol_map[tname] + pol_map[bname]) / 2.0
+                    else:
+                        pm = pol_map
 
+                else:
+                    pm = np.zeros([npix])
+
+                #signal_field, bpm_q, bpm_u = SignalFields.bandpass_mismatch_field(
                 signal_field = SignalFields.bandpass_mismatch_field(
                     sf,
                     config.mdim,
@@ -1055,6 +1074,7 @@ def sim_bandpass_mismatch(
                 observed_map += output
                 xlink2 = np.abs(sf.get_xlink(2, 0))
                 sky_weight[xlink2 < config.xlink_threshold] += 1.0
+
     observed_map = np.array(observed_map) / sky_weight
 
     if not detector_list:

@@ -401,7 +401,11 @@ class SignalFields:
         else:
             raise ValueError("mdim is 2 and 3 only supported")
         signal_fields.build_linear_system(fields)
-        return signal_fields
+        
+       # bpm_q = 2*bpm_comp*np.real(scan_field.get_xlink(2,0))
+       # bpm_u = 2*bpm_comp*np.imag(scan_field.get_xlink(2,0))
+        
+        return signal_fields #, bpm_q, bpm_u
 
     @staticmethod
     def hwp_ip_field(
