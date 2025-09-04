@@ -5,7 +5,7 @@ import copy
 import healpy as hp
 from .convolver import Convolver
 import sympy as sp
-from typing import List
+from typing import List, Union
 
 
 class Field:
@@ -357,6 +357,8 @@ class SignalFields:
         gamma_T_list: List[float],
         gamma_B_list: List[float],
         components: List[np.ndarray],
+        gamma_T_list_lowres: Union[list, None] = None,
+        gamma_B_list_lowres: Union[list, None] = None,
     ):
         """Get the bandpass mismatch field of the detector
         The formalism is based on the paper by Duc Thuong Hoang et al., 2017, JCAP,
@@ -382,30 +384,47 @@ class SignalFields:
             components
         ), "gamma_T_list, gamma_B_list and components must have the same length"
 
+        if gamma_T_list_lowres is None:
+            gamma_T_list_lowres = gamma_T_list
+        if gamma_B_list_lowres is None:
+            gamma_B_list_lowres = gamma_B_list
+
         bpm_comp = np.zeros(scan_field.npix)
+        bpm_comp_lowres = np.zeros(scan_field.npix)
         for i in range(len(components)):
             bpm_comp += 1.0 / 2.0 * (gamma_T_list[i] - gamma_B_list[i]) * components[i]
+            bpm_comp_lowres += 1.0 / 2.0 * (gamma_T_list_lowres[i] - gamma_B_list_lowres[i]) * components[i]
 
         signal_fields = SignalFields(
             Field(bpm_comp, spin_n=0, spin_m=0),
             Field(pol_map / 2.0, spin_n=2, spin_m=0),
             Field(pol_map.conj() / 2.0, spin_n=-2, spin_m=0),
         )
+
+        signal_fields_lowres = SignalFields(
+            Field(bpm_comp_lowres, spin_n=0, spin_m=0),
+            Field(pol_map / 2.0, spin_n=2, spin_m=0),
+            Field(pol_map.conj() / 2.0, spin_n=-2, spin_m=0),
+        )
+
         signal_fields.field_name = "bandpass_mismatch_field"
+        signal_fields_lowres.field_name = "bandpass_mismatch_field"
+
+        s_0_lr = signal_fields_lowres.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
         if mdim == 2:
             fields = [sp2, sp2.conj()]
+            fields_lr = [sp2, sp2.conj()]
         elif mdim == 3:
             fields = [s_0, sp2, sp2.conj()]
+            fields_lr = [s_0_lr, sp2, sp2.conj()] 
         else:
             raise ValueError("mdim is 2 and 3 only supported")
         signal_fields.build_linear_system(fields)
+        signal_fields_lowres.build_linear_system(fields_lr)
         
-       # bpm_q = 2*bpm_comp*np.real(scan_field.get_xlink(2,0))
-       # bpm_u = 2*bpm_comp*np.imag(scan_field.get_xlink(2,0))
-        
-        return signal_fields #, bpm_q, bpm_u
+        return signal_fields, signal_fields_lowres
 
     @staticmethod
     def hwp_ip_field(

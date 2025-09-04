@@ -452,6 +452,8 @@ def process_bpm(args):
         dirpath,
         gamma_T_list,
         gamma_B_list,
+        gamma_T_list_lowres,
+        gamma_B_list_lowres,
         component_tmaps,
         pol_map,
         mdim,
@@ -464,19 +466,22 @@ def process_bpm(args):
     sf.use_hwp = False
 
     #signal_field, bpm_q, bpm_u = SignalFields.bandpass_mismatch_field(
-    signal_field = SignalFields.bandpass_mismatch_field(
+    signal_field, signal_field_lowres = SignalFields.bandpass_mismatch_field(
         sf,
         mdim,
         pol_map,
         gamma_T_list,
         gamma_B_list,
         component_tmaps,
+        gamma_T_list_lowres,
+        gamma_B_list_lowres,
     )
     output = sf.map_make(signal_field, only_iqu)
+    output_lowres = sf.map_make(signal_field_lowres, only_iqu)
     result = {
         "hitmap": sf.hitmap,
         "map": output,
-       # "bpm_templ": [bpm_q, bpm_u],
+        "map_lr": output_lowres,
         "xlink2": np.abs(sf.get_xlink(2, 0)),
     }
     return result
@@ -655,85 +660,16 @@ def sed_ame(nu, band, freq_ref_I, freq_peak, emissivity, nside):
         sed_tot = sed * weights
     return sed_tot
 
-
-def sim_bandpass_mismatch(
-    config: Configlation,
-    syst: Systematics,
-    mbsparams: lbs.MbsParameters,
-    compute_res_templ,
-    detector_list: Union[list, None] = None,
-    detector_list_lowres: Union[list, None] = None,
-    base_path: Union[str, None] = None,
-):
-    """Simulate the bandpass mismatch systematics.
-
-    Args:
-        config (:class:`.Configlation`): The configuration class
-
-        syst (:class:`.Systematics`): The systematics class
-
-        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
-
-        detector_list (list of `lbs.DetectorInfo`): List of DetectorInfo for each detector considered,
-                                                    generated with `lbs.DetectorInfo`. In each DetectorInfo, the
-                                                    `band_weights` are the bandpass for that detector. These
-                                                    bandpasses are used to compute the foreground input maps.
-                                                    If None, the foreground maps are computed at the central freq
-                                                    of the channel.
-        detector_list_lowres (list of `lbs.DetectorInfo`): same as before, but having lower resolution 
-                                                           bandpasses to be used for T->P leakage deprojection.
-        base_path (`str`): The base path for the HDF5 files containing the cross-link maps
-
-    Returns:
-        observed_map (`np.ndarray`): The observed map after the map-making
-
-        returned_input_map (`np.ndarray`): The input map for the simulation
-    """
-    npix = hp.nside2npix(config.nside)
-    telescope = config.channel[0] + "FT"
-    sim = lbs.Simulation(base_path=config.lbs_base_path, random_seed=None)
-
-    if config.imo_version != "IMo_vReformationPlan_Option1M":
-        sim.set_instrument(
-            lbs.InstrumentInfo.from_imo(
-                config.imo,
-                f"/releases/{config.imo_version}/satellite/{telescope}/instrument_info",
-            )
-        )
-        ch_info = lbs.FreqChannelInfo.from_imo(
-            url="/releases/"
-            + config.imo_version
-            + "/satellite/"
-            + telescope
-            + "/"
-            + config.channel
-            + "/channel_info",
-            imo=config.imo,
-        )
-    else:
-        sim.set_instrument(
-            lbs.InstrumentInfo.from_imo(
-                config.imo,
-                f"/releases/{config.imo_version}/LMHFT/instrument_info",
-            )
-        )
-        ch_info = lbs.FreqChannelInfo.from_imo(
-            url="/releases/"
-            + config.imo_version
-            + "/LMHFT/"
-            + config.channel
-            + "/channel_info",
-            imo=config.imo,
-        )
-    
-    fg_models = mbsparams.fg_models
-    # no bandpass integration to compute fg at nu0
-    mbsparams.bandpass_int = False
-    mbs = lbs.Mbs(simulation=sim, parameters=mbsparams, channel_list=ch_info)
-    map_info = mbs.run_all()[0]
-    input_map_nu0 = map_info[config.channel]
-    fgs = mbs.generate_fg()[0]
-    fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
+def fill_gamma_list(
+        d,
+        fg_models,
+        gamma_T_dict, 
+        gamma_B_dict,
+        npix,
+        mbsparams,
+        config,
+        fg_tmap_list
+        ):
 
     if mbsparams.units == "uK_CMB":
         out_units = u.uK_CMB
@@ -809,6 +745,224 @@ def sim_bandpass_mismatch(
             unit_I="uK_RJ",
         )
 
+    if (
+        "pysm_dust_1" in fg_models
+        or "pysm_synch_1" in fg_models
+        or "pysm_co_1" in fg_models
+        or "pysm_ame_1" in fg_models
+    ):
+        if d.name[-1] == "T":
+            gamma_T_dict[d.name] = np.zeros((len(fg_models), npix))
+        if d.name[-1] == "B":
+            gamma_B_dict[d.name] = np.zeros((len(fg_models), npix))
+
+    else:
+        if d.name[-1] == "T":
+            gamma_T_dict[d.name] = np.zeros(len(fg_models))
+        if d.name[-1] == "B":
+            gamma_B_dict[d.name] = np.zeros(len(fg_models))
+
+    # ind = np.where(np.isin(syst.bpm.detectors, d.name))
+    for ifg, fg in enumerate(fg_models):
+        if fg == "pysm_dust_0":
+            g = color_correction_dust(
+                nu=d.band_freqs_ghz,
+                nu0=d.bandcenter_ghz,
+                betad=1.54,
+                band=d.band_weights,
+            )
+        if fg == "pysm_synch_0":
+            g = color_correction_synch(
+                nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights
+            )
+
+        if fg == "pysm_dust_1":
+            g = color_correction_dust(
+                nu=d.band_freqs_ghz,
+                nu0=d.bandcenter_ghz,
+                betad=mbb_ind,
+                band=d.band_weights,
+                Td=mbb_T,
+            )
+        if fg == "pysm_synch_1":
+            g = color_correction_synch(
+                nu=d.band_freqs_ghz,
+                nu0=d.bandcenter_ghz,
+                band=d.band_weights,
+                betas=mbb_s,
+            )
+
+        if fg == "pysm_freefree_1":
+            g = color_correction_freefree(
+                nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights
+            )
+
+        if fg == "pysm_co_1":
+            # setting the correct CO map, it would be otherwise 0
+            # this is just the template map, to be multiplied with g
+            # to get the full map
+            # in principle they are the same for each det, but we never know
+            # the freq range between one det and the other could be different
+            # and so they could include different numbers of CO lines
+            # not really expected but still possible
+            co_map_d = co_map(
+                nu=d.band_freqs_ghz,
+                lines=lines,
+                line_frequency=line_frequency,
+                nside=config.nside,
+                template=planck_templatemap,
+            )[0]
+            g = (
+                color_correction_co(
+                    nu=d.band_freqs_ghz,
+                    band=d.band_weights,
+                    lines=lines,
+                    line_frequency=line_frequency,
+                    out_units=out_units,
+                )
+                * co_map_d
+            )
+
+            # we fix the I(nu0) map to 1, so that we recover the total CO map in g
+            fg_tmap_list[ifg] = np.ones(npix)
+
+        if fg == "pysm_ame_1":
+            sed_ame1 = sed_ame(
+                d.band_freqs_ghz,
+                d.band_weights,
+                freq_ref_I1.value,
+                freq_peak1.value,
+                emissivity1,
+                config.nside,
+            )
+            sed_ame2 = sed_ame(
+                d.band_freqs_ghz,
+                d.band_weights,
+                freq_ref_I2.value,
+                freq_peak2.value,
+                emissivity2,
+                config.nside,
+            )
+
+            # the gamma factor is the whole map in this case (sed_ame_1*I_1 + sed_ame_2*I_2)
+            g = (
+                sed_ame1 * I_ref1 + sed_ame2 * I_ref2
+            ) * pysm3.bandpass_unit_conversion(
+                d.band_freqs_ghz * u.GHz, d.band_weights, out_units
+            )
+
+            # we fix the I(nu0) map to 1, so that we recover the total AME map in g
+            fg_tmap_list[ifg] = np.ones(npix)
+
+        if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (
+            len(fg_models),
+            npix,
+        ):
+            if hasattr(g, "__len__"):
+                gamma_T_dict[d.name][ifg, :] = g
+            else:
+                gamma_T_dict[d.name][ifg, :] = g * np.ones(npix)
+
+        if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (
+            len(fg_models),
+        ):
+            gamma_T_dict[d.name][ifg] = g
+
+        if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (
+            len(fg_models),
+            npix,
+        ):
+            if hasattr(g, "__len__"):
+                gamma_B_dict[d.name][ifg, :] = g
+            else:
+                gamma_B_dict[d.name][ifg, :] = g * np.ones(npix)
+
+        if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (
+            len(fg_models),
+        ):
+            gamma_B_dict[d.name][ifg] = g
+
+
+
+def sim_bandpass_mismatch(
+    config: Configlation,
+    syst: Systematics,
+    mbsparams: lbs.MbsParameters,
+    #compute_res_templ,
+    detector_list: Union[list, None] = None,
+    detector_list_lowres: Union[list, None] = None,
+    base_path: Union[str, None] = None,
+):
+    """Simulate the bandpass mismatch systematics.
+
+    Args:
+        config (:class:`.Configlation`): The configuration class
+
+        syst (:class:`.Systematics`): The systematics class
+
+        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
+
+        detector_list (list of `lbs.DetectorInfo`): List of DetectorInfo for each detector considered,
+                                                    generated with `lbs.DetectorInfo`. In each DetectorInfo, the
+                                                    `band_weights` are the bandpass for that detector. These
+                                                    bandpasses are used to compute the foreground input maps.
+                                                    If None, the foreground maps are computed at the central freq
+                                                    of the channel.
+        detector_list_lowres (list of `lbs.DetectorInfo`): same as before, but having lower resolution 
+                                                           bandpasses to be used for T->P leakage deprojection.
+        base_path (`str`): The base path for the HDF5 files containing the cross-link maps
+
+    Returns:
+        observed_map (`np.ndarray`): The observed map after the map-making
+
+        returned_input_map (`np.ndarray`): The input map for the simulation
+    """
+    npix = hp.nside2npix(config.nside)
+    telescope = config.channel[0] + "FT"
+    sim = lbs.Simulation(base_path=config.lbs_base_path, random_seed=None)
+
+    if config.imo_version != "IMo_vReformationPlan_Option1M":
+        sim.set_instrument(
+            lbs.InstrumentInfo.from_imo(
+                config.imo,
+                f"/releases/{config.imo_version}/satellite/{telescope}/instrument_info",
+            )
+        )
+        ch_info = lbs.FreqChannelInfo.from_imo(
+            url="/releases/"
+            + config.imo_version
+            + "/satellite/"
+            + telescope
+            + "/"
+            + config.channel
+            + "/channel_info",
+            imo=config.imo,
+        )
+    else:
+        sim.set_instrument(
+            lbs.InstrumentInfo.from_imo(
+                config.imo,
+                f"/releases/{config.imo_version}/LMHFT/instrument_info",
+            )
+        )
+        ch_info = lbs.FreqChannelInfo.from_imo(
+            url="/releases/"
+            + config.imo_version
+            + "/LMHFT/"
+            + config.channel
+            + "/channel_info",
+            imo=config.imo,
+        )
+    
+    fg_models = mbsparams.fg_models
+    # no bandpass integration to compute fg at nu0
+    mbsparams.bandpass_int = False
+    mbs = lbs.Mbs(simulation=sim, parameters=mbsparams, channel_list=ch_info)
+    map_info = mbs.run_all()[0]
+    input_map_nu0 = map_info[config.channel]
+    fgs = mbs.generate_fg()[0]
+    fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
+
     if not base_path:
         dirpath = os.path.join(DB_ROOT_PATH, config.channel)
     else:
@@ -818,6 +972,8 @@ def sim_bandpass_mismatch(
     if detector_list:
         gamma_T_dict = {}
         gamma_B_dict = {}
+        gamma_T_dict_lowres = {}
+        gamma_B_dict_lowres = {}
         assert len(detector_list) == len(syst.bpm.detectors)
         # now bandpass integration
         mbsparams.bandpass_int = True
@@ -833,149 +989,19 @@ def sim_bandpass_mismatch(
         if not detector_list_lowres:
             detector_list_lowres = detector_list
 
-        for d in detector_list_lowres:
-            if (
-                "pysm_dust_1" in fg_models
-                or "pysm_synch_1" in fg_models
-                or "pysm_co_1" in fg_models
-                or "pysm_ame_1" in fg_models
-            ):
-                if d.name[-1] == "T":
-                    gamma_T_dict[d.name] = np.zeros((len(fg_models), npix))
-                if d.name[-1] == "B":
-                    gamma_B_dict[d.name] = np.zeros((len(fg_models), npix))
-
-            else:
-                if d.name[-1] == "T":
-                    gamma_T_dict[d.name] = np.zeros(len(fg_models))
-                if d.name[-1] == "B":
-                    gamma_B_dict[d.name] = np.zeros(len(fg_models))
-
-            # index of bpm.detectors with same name as in d
+        for d in detector_list:
             input_maps_d = map_info_bp[d.name]
 
             returned_input_map += map_info_bp[d.name]
             pol_map[d.name] = input_maps_d[1] + 1.0j * input_maps_d[2]
 
-            # ind = np.where(np.isin(syst.bpm.detectors, d.name))
-            for ifg, fg in enumerate(fg_models):
-                if fg == "pysm_dust_0":
-                    g = color_correction_dust(
-                        nu=d.band_freqs_ghz,
-                        nu0=d.bandcenter_ghz,
-                        betad=1.54,
-                        band=d.band_weights,
-                    )
-                if fg == "pysm_synch_0":
-                    g = color_correction_synch(
-                        nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights
-                    )
+            fill_gamma_list(d, fg_models, gamma_T_dict,
+                             gamma_B_dict, npix, mbsparams, config, fg_tmap_list)
 
-                if fg == "pysm_dust_1":
-                    g = color_correction_dust(
-                        nu=d.band_freqs_ghz,
-                        nu0=d.bandcenter_ghz,
-                        betad=mbb_ind,
-                        band=d.band_weights,
-                        Td=mbb_T,
-                    )
-                if fg == "pysm_synch_1":
-                    g = color_correction_synch(
-                        nu=d.band_freqs_ghz,
-                        nu0=d.bandcenter_ghz,
-                        band=d.band_weights,
-                        betas=mbb_s,
-                    )
+        for d in detector_list_lowres:
+            fill_gamma_list(d, fg_models, gamma_T_dict_lowres,
+                             gamma_B_dict_lowres, npix, mbsparams, config, fg_tmap_list)
 
-                if fg == "pysm_freefree_1":
-                    g = color_correction_freefree(
-                        nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights
-                    )
-
-                if fg == "pysm_co_1":
-                    # setting the correct CO map, it would be otherwise 0
-                    # this is just the template map, to be multiplied with g
-                    # to get the full map
-                    # in principle they are the same for each det, but we never know
-                    # the freq range between one det and the other could be different
-                    # and so they could include different numbers of CO lines
-                    # not really expected but still possible
-                    co_map_d = co_map(
-                        nu=d.band_freqs_ghz,
-                        lines=lines,
-                        line_frequency=line_frequency,
-                        nside=config.nside,
-                        template=planck_templatemap,
-                    )[0]
-                    g = (
-                        color_correction_co(
-                            nu=d.band_freqs_ghz,
-                            band=d.band_weights,
-                            lines=lines,
-                            line_frequency=line_frequency,
-                            out_units=out_units,
-                        )
-                        * co_map_d
-                    )
-
-                    # we fix the I(nu0) map to 1, so that we recover the total CO map in g
-                    fg_tmap_list[ifg] = np.ones(npix)
-
-                if fg == "pysm_ame_1":
-                    sed_ame1 = sed_ame(
-                        d.band_freqs_ghz,
-                        d.band_weights,
-                        freq_ref_I1.value,
-                        freq_peak1.value,
-                        emissivity1,
-                        config.nside,
-                    )
-                    sed_ame2 = sed_ame(
-                        d.band_freqs_ghz,
-                        d.band_weights,
-                        freq_ref_I2.value,
-                        freq_peak2.value,
-                        emissivity2,
-                        config.nside,
-                    )
-
-                    # the gamma factor is the whole map in this case (sed_ame_1*I_1 + sed_ame_2*I_2)
-                    g = (
-                        sed_ame1 * I_ref1 + sed_ame2 * I_ref2
-                    ) * pysm3.bandpass_unit_conversion(
-                        d.band_freqs_ghz * u.GHz, d.band_weights, out_units
-                    )
-
-                    # we fix the I(nu0) map to 1, so that we recover the total AME map in g
-                    fg_tmap_list[ifg] = np.ones(npix)
-
-                if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (
-                    len(fg_models),
-                    npix,
-                ):
-                    if hasattr(g, "__len__"):
-                        gamma_T_dict[d.name][ifg, :] = g
-                    else:
-                        gamma_T_dict[d.name][ifg, :] = g * np.ones(npix)
-
-                if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (
-                    len(fg_models),
-                ):
-                    gamma_T_dict[d.name][ifg] = g
-
-                if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (
-                    len(fg_models),
-                    npix,
-                ):
-                    if hasattr(g, "__len__"):
-                        gamma_B_dict[d.name][ifg, :] = g
-                    else:
-                        gamma_B_dict[d.name][ifg, :] = g * np.ones(npix)
-
-                if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (
-                    len(fg_models),
-                ):
-                    gamma_B_dict[d.name][ifg] = g
 
     # using the values passed to the set_bandpass_mismatch class
     else:
@@ -986,6 +1012,7 @@ def sim_bandpass_mismatch(
         assert len(syst.bpm.detectors) // 2 == len(gamma_B_dict.keys())
 
     observed_map = np.zeros([3, npix])
+    observed_map_lr = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
 
     if config.parallel is True:
@@ -997,15 +1024,11 @@ def sim_bandpass_mismatch(
                 tname = idet
                 bname = idet[:-1] + "B"
 
-                if not compute_res_templ:
-                    if detector_list:
-                        # averaging over T and B pol input map
-                        pm = (pol_map[tname] + pol_map[bname]) / 2.0
-                    else:
-                        pm = pol_map
-
+                if detector_list:
+                    # averaging over T and B pol input map
+                    pm = (pol_map[tname] + pol_map[bname]) / 2.0
                 else:
-                    pm = np.zeros([npix])
+                    pm = pol_map
 
                 file_args.append(
                     (
@@ -1013,6 +1036,8 @@ def sim_bandpass_mismatch(
                         dirpath,
                         gamma_T_dict[tname],
                         gamma_B_dict[bname],
+                        gamma_T_dict_lowres[tname],
+                        gamma_B_dict_lowres[bname],
                         fg_tmap_list,
                         pm,
                         config.mdim,
@@ -1032,6 +1057,7 @@ def sim_bandpass_mismatch(
                 )
             ):
                 observed_map += result["map"]
+                observed_map_lr += result["map_lr"]
                 sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
 
     else:
@@ -1051,38 +1077,38 @@ def sim_bandpass_mismatch(
                 sf.xlink_threshold = config.xlink_threshold
                 sf.use_hwp = config.use_hwp
 
-                if not compute_res_templ:
-                    if detector_list:
-                        # averaging over T and B pol input map
-                        pm = (pol_map[tname] + pol_map[bname]) / 2.0
-                    else:
-                        pm = pol_map
-
+                if detector_list:
+                    # averaging over T and B pol input map
+                    pm = (pol_map[tname] + pol_map[bname]) / 2.0
                 else:
-                    pm = np.zeros([npix])
+                    pm = pol_map
 
-                #signal_field, bpm_q, bpm_u = SignalFields.bandpass_mismatch_field(
-                signal_field = SignalFields.bandpass_mismatch_field(
+                signal_field, signal_field_lowres = SignalFields.bandpass_mismatch_field(
                     sf,
                     config.mdim,
                     pm,
                     gamma_T_dict[tname],
                     gamma_B_dict[bname],
                     fg_tmap_list,
+                    gamma_T_dict_lowres[tname],
+                    gamma_B_dict_lowres[bname],
                 )
                 output = sf.map_make(signal_field, config.only_iqu)
+                output_lr = sf.map_make(signal_field_lowres, config.only_iqu)
                 observed_map += output
+                observed_map_lr += output_lr
                 xlink2 = np.abs(sf.get_xlink(2, 0))
                 sky_weight[xlink2 < config.xlink_threshold] += 1.0
 
     observed_map = np.array(observed_map) / sky_weight
+    observed_map_lr = np.array(observed_map_lr) / sky_weight
 
     if not detector_list:
         returned_input_map = input_map_nu0
     else:
         returned_input_map /= len(detector_list)
 
-    return observed_map, returned_input_map
+    return observed_map, observed_map_lr, returned_input_map
 
 
 def generate_noise_seeds(config: Configlation, syst: Systematics, num_of_dets: int):
