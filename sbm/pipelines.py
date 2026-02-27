@@ -14,6 +14,7 @@ from .scan_fields import ScanFields, DB_ROOT_PATH, channel_list
 from .signal_fields import SignalFields
 import pysm3
 import pysm3.units as u
+from astropy.cosmology import Planck18 as cosmo
 
 GREEN = "\033[92m"
 RESET = "\033[0m"
@@ -165,7 +166,7 @@ def generate_maps(mbs, config, lock=True):
     """Generate the maps with the lock file
 
     Args:
-        mbs (`lbs.MbsParameters`): The litebird_sim object
+        mbs (`lbs.SkyGenerationParams`): The litebird_sim object
         config (:class:`.Configlation`): The configuration class
         lock (`bool`): If `True`, the lock file is used
     """
@@ -201,7 +202,7 @@ def generate_maps(mbs, config, lock=True):
 def sim_diff_gain_per_ch(
     config: Configlation,
     syst: Systematics,
-    mbsparams: lbs.MbsParameters,
+    mbsparams: lbs.SkyGenerationParams,
 ):
     """Simulate the differential gain systematics for each channel
     The map-making is performed for each detector in the channel
@@ -211,7 +212,7 @@ def sim_diff_gain_per_ch(
 
         syst (:class:`.Systematics`): The systematics class
 
-        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
+        mbsparams (`lbs.SkyGenerationParams`): The parameters for the litebird_sim
 
     Returns:
         observed_map (`np.ndarray`): The observed map after the map-making
@@ -312,7 +313,7 @@ def sim_diff_gain_per_ch(
 def sim_diff_pointing_per_ch(
     config: Configlation,
     syst: Systematics,
-    mbsparams: lbs.MbsParameters,
+    mbsparams: lbs.SkyGenerationParams,
 ):
     """Simulate the differential pointing systematics for each channel
     The map-making is performed for each detector in the channel
@@ -322,7 +323,7 @@ def sim_diff_pointing_per_ch(
 
         syst (:class:`.Systematics`): The systematics class
 
-        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
+        mbsparams (`lbs.SkyGenerationParams`): The parameters for the litebird_sim
 
     Returns:
         observed_map (`np.ndarray`): The observed map after the map-making
@@ -486,9 +487,15 @@ def process_bpm(args):
     }
     return result
 
-
 def dBodTth(nu):
-    return lbs.hwp_sys.hwp_sys._dBodTth(nu)
+    x = const.h.value * nu * 1e9 / const.k_B.value / cosmo.Tcmb0.value
+    ex = np.exp(x)
+    exm1 = ex - 1.0e0
+    return 2 * const.h.value * nu * nu * nu * 1e27 / const.c.value / const.c.value / exm1 / exm1 * ex * x / cosmo.Tcmb0.value
+
+
+#def dBodTth(nu):
+#    return lbs.hwp_sys.hwp_sys._dBodTth(nu)
 
 
 def dBRJ_dT(nu):
@@ -676,14 +683,14 @@ def fill_gamma_list(
     if mbsparams.units == "K_CMB":
         out_units = u.K_CMB
 
-    if "pysm_dust_1" in fg_models:
+    if "pysm_dust_1" in fg_models or "d1" in fg_models:
         mbb_T = pysm3.read_map("pysm_2/dust_temp.fits", nside=config.nside)
         mbb_ind = pysm3.read_map("pysm_2/dust_beta.fits", nside=config.nside)
 
-    if "pysm_synch_1" in fg_models:
+    if "pysm_synch_1" in fg_models or "s1" in fg_models:
         mbb_s = pysm3.read_map("pysm_2/synch_beta.fits", nside=config.nside)
 
-    if "pysm_co_1" in fg_models:
+    if "pysm_co_1" in fg_models or "co1" in fg_models:
         lines = ["10", "21", "32"]
         line_index = {"10": 0, "21": 1, "32": 2}
         line_frequency = {
@@ -714,7 +721,7 @@ def fill_gamma_list(
             hp.ud_grade(np.array(map_in), nside_out=config.nside) << u.K_CMB,
         )
 
-    if "pysm_ame_1" in fg_models:
+    if "pysm_ame_1" in fg_models or "a1" in fg_models:
         freq_ref_I_1 = "22.8 GHz"
         emissivity_1 = "pysm_2/emissivity.txt"
         freq_peak_1 = "pysm_2/ame_nu_peak_0.fits"
@@ -749,34 +756,35 @@ def fill_gamma_list(
         "pysm_dust_1" in fg_models
         or "pysm_synch_1" in fg_models
         or "pysm_co_1" in fg_models
-        or "pysm_ame_1" in fg_models
+        or "pysm_ame_1" in fg_models or "d1" in fg_models or "s1" in fg_models
+        or "co1" in fg_models or "a1" in fg_models
     ):
-        if d.name[-1] == "T":
+        if d.name[-3:] == "000" or d.name[-3:] == "045":
             gamma_T_dict[d.name] = np.zeros((len(fg_models), npix))
-        if d.name[-1] == "B":
+        if d.name[-3:] == "090" or d.name[-3:] == "135":
             gamma_B_dict[d.name] = np.zeros((len(fg_models), npix))
 
     else:
-        if d.name[-1] == "T":
+        if d.name[-3:] == "000" or d.name[-3:] == "045":
             gamma_T_dict[d.name] = np.zeros(len(fg_models))
-        if d.name[-1] == "B":
+        if d.name[-3:] == "090" or d.name[-3:] == "135":
             gamma_B_dict[d.name] = np.zeros(len(fg_models))
 
     # ind = np.where(np.isin(syst.bpm.detectors, d.name))
     for ifg, fg in enumerate(fg_models):
-        if fg == "pysm_dust_0":
+        if fg == "d0" or fg == "pysm_dust_0":
             g = color_correction_dust(
                 nu=d.band_freqs_ghz,
                 nu0=d.bandcenter_ghz,
                 betad=1.54,
                 band=d.band_weights,
             )
-        if fg == "pysm_synch_0":
+        if fg == "s0" or fg == "pysm_synch_0":
             g = color_correction_synch(
                 nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights
             )
 
-        if fg == "pysm_dust_1":
+        if fg == "d1" or fg == "pysm_dust_1":
             g = color_correction_dust(
                 nu=d.band_freqs_ghz,
                 nu0=d.bandcenter_ghz,
@@ -784,7 +792,7 @@ def fill_gamma_list(
                 band=d.band_weights,
                 Td=mbb_T,
             )
-        if fg == "pysm_synch_1":
+        if fg == "s1" or fg == "pysm_synch_1":
             g = color_correction_synch(
                 nu=d.band_freqs_ghz,
                 nu0=d.bandcenter_ghz,
@@ -792,12 +800,12 @@ def fill_gamma_list(
                 betas=mbb_s,
             )
 
-        if fg == "pysm_freefree_1":
+        if fg == "f1" or fg == "pysm_freefree_1":
             g = color_correction_freefree(
                 nu=d.band_freqs_ghz, nu0=d.bandcenter_ghz, band=d.band_weights
             )
 
-        if fg == "pysm_co_1":
+        if fg == "co1" or fg == "pysm_co_1":
             # setting the correct CO map, it would be otherwise 0
             # this is just the template map, to be multiplied with g
             # to get the full map
@@ -826,7 +834,7 @@ def fill_gamma_list(
             # we fix the I(nu0) map to 1, so that we recover the total CO map in g
             fg_tmap_list[ifg] = np.ones(npix)
 
-        if fg == "pysm_ame_1":
+        if fg == "a1" or fg == "pysm_ame_1":
             sed_ame1 = sed_ame(
                 d.band_freqs_ghz,
                 d.band_weights,
@@ -854,7 +862,7 @@ def fill_gamma_list(
             # we fix the I(nu0) map to 1, so that we recover the total AME map in g
             fg_tmap_list[ifg] = np.ones(npix)
 
-        if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (
+        if (d.name[-3:] == "000" or d.name[-3:] == "045") and gamma_T_dict[d.name].shape == (
             len(fg_models),
             npix,
         ):
@@ -863,12 +871,12 @@ def fill_gamma_list(
             else:
                 gamma_T_dict[d.name][ifg, :] = g * np.ones(npix)
 
-        if d.name[-1] == "T" and gamma_T_dict[d.name].shape == (
+        if (d.name[-3:] == "000" or d.name[-3:] == "045") and gamma_T_dict[d.name].shape == (
             len(fg_models),
         ):
             gamma_T_dict[d.name][ifg] = g
 
-        if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (
+        if (d.name[-3:] == "090" or d.name[-3:] == "135") and gamma_B_dict[d.name].shape == (
             len(fg_models),
             npix,
         ):
@@ -877,7 +885,7 @@ def fill_gamma_list(
             else:
                 gamma_B_dict[d.name][ifg, :] = g * np.ones(npix)
 
-        if d.name[-1] == "B" and gamma_B_dict[d.name].shape == (
+        if (d.name[-3:] == "090" or d.name[-3:] == "135") and gamma_B_dict[d.name].shape == (
             len(fg_models),
         ):
             gamma_B_dict[d.name][ifg] = g
@@ -887,7 +895,8 @@ def fill_gamma_list(
 def sim_bandpass_mismatch(
     config: Configlation,
     syst: Systematics,
-    mbsparams: lbs.MbsParameters,
+    mbsparams: lbs.SkyGenerationParams,
+    fg_models: Union[list, None] = None,
     #compute_res_templ,
     detector_list: Union[list, None] = None,
     detector_list_lowres: Union[list, None] = None,
@@ -900,7 +909,7 @@ def sim_bandpass_mismatch(
 
         syst (:class:`.Systematics`): The systematics class
 
-        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
+        mbsparams (`lbs.SkyGenerationParams`): The parameters for the litebird_sim
 
         detector_list (list of `lbs.DetectorInfo`): List of DetectorInfo for each detector considered,
                                                     generated with `lbs.DetectorInfo`. In each DetectorInfo, the
@@ -921,7 +930,23 @@ def sim_bandpass_mismatch(
     telescope = config.channel[0] + "FT"
     sim = lbs.Simulation(base_path=config.lbs_base_path, random_seed=None)
 
-    if config.imo_version != "IMo_vReformationPlan_Option1M":
+    if config.imo_version == "IMo_vReformationPlan_Option1M" or config.imo_version == "IMo_vPostKDP2_Option1":
+        sim.set_instrument(
+            lbs.InstrumentInfo.from_imo(
+                config.imo,
+                f"/releases/{config.imo_version}/LMHFT/instrument_info",
+            )
+        )
+        ch_info = lbs.FreqChannelInfo.from_imo(
+            url="/releases/"
+            + config.imo_version
+            + "/LMHFT/"
+            + config.channel
+            + "/channel_info",
+            imo=config.imo,
+        )
+   
+    else:
         sim.set_instrument(
             lbs.InstrumentInfo.from_imo(
                 config.imo,
@@ -938,30 +963,25 @@ def sim_bandpass_mismatch(
             + "/channel_info",
             imo=config.imo,
         )
-    else:
-        sim.set_instrument(
-            lbs.InstrumentInfo.from_imo(
-                config.imo,
-                f"/releases/{config.imo_version}/LMHFT/instrument_info",
-            )
-        )
-        ch_info = lbs.FreqChannelInfo.from_imo(
-            url="/releases/"
-            + config.imo_version
-            + "/LMHFT/"
-            + config.channel
-            + "/channel_info",
-            imo=config.imo,
-        )
-    
-    fg_models = mbsparams.fg_models
+
+    #fg_models = mbsparams.fg_models
     # no bandpass integration to compute fg at nu0
-    mbsparams.bandpass_int = False
-    mbs = lbs.Mbs(simulation=sim, parameters=mbsparams, channel_list=ch_info)
-    map_info = mbs.run_all()[0]
-    input_map_nu0 = map_info[config.channel]
-    fgs = mbs.generate_fg()[0]
-    fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
+    mbsparams.bandpass_integration = False
+
+    fg_tmap_list = [] #np.zeros((len(fg_models), hp.nside2npix(mbsparams.nside)))
+    for ifg,fg in enumerate(fg_models):
+        mbsparams.fg_models = [fg]
+        mbs = lbs.SkyGenerator(parameters=mbsparams, channels=ch_info)
+        fgs = mbs.generate_foregrounds()
+        fg_tmap_list.append(fgs[config.channel].values[0])
+
+    # reset fg_models in mbsparams
+    mbsparams.fg_models = fg_models
+
+    #map_info = mbs.run_all()[0]
+    #input_map_nu0 = map_info[config.channel]
+    #fgs = mbs.generate_fg()[0]
+    #fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
 
     if not base_path:
         dirpath = os.path.join(DB_ROOT_PATH, config.channel)
@@ -976,11 +996,13 @@ def sim_bandpass_mismatch(
         gamma_B_dict_lowres = {}
         assert len(detector_list) == len(syst.bpm.detectors)
         # now bandpass integration
-        mbsparams.bandpass_int = True
-        mbs_bp = lbs.Mbs(
-            simulation=sim, parameters=mbsparams, detector_list=detector_list
+        mbsparams.bandpass_integration = True
+        mbs_bp = lbs.SkyGenerator(
+            parameters=mbsparams, detectors=detector_list
         )
-        map_info_bp = mbs_bp.run_all()[0]
+        map_info_bp = mbs_bp.execute()
+
+        #map_info_bp = mbs_bp.run_all()[0]
 
         returned_input_map = np.zeros([3, npix])
 
@@ -990,9 +1012,9 @@ def sim_bandpass_mismatch(
             detector_list_lowres = detector_list
 
         for d in detector_list:
-            input_maps_d = map_info_bp[d.name]
+            input_maps_d = map_info_bp[d.name].values
 
-            returned_input_map += map_info_bp[d.name]
+            returned_input_map += map_info_bp[d.name].values
             pol_map[d.name] = input_maps_d[1] + 1.0j * input_maps_d[2]
 
             fill_gamma_list(d, fg_models, gamma_T_dict,
@@ -1020,15 +1042,17 @@ def sim_bandpass_mismatch(
 
         for i, idet in enumerate(syst.bpm.detectors):
             #file_args = []
-            if idet[-1] == "T":
+            if idet[-3:] == "000" or idet[-3:] == "045":
                 tname = idet
-                bname = idet[:-1] + "B"
+                bname = idet[:-3] + str(int(idet[-3:]) + 90).zfill(3)
 
                 if detector_list:
                     # averaging over T and B pol input map
                     pm = (pol_map[tname] + pol_map[bname]) / 2.0
                 else:
                     pm = pol_map
+                
+                print(gamma_T_dict, gamma_B_dict)
 
                 file_args.append(
                     (
@@ -1069,9 +1093,14 @@ def sim_bandpass_mismatch(
                 colour="green",
             )
         ):
-            if idet[-1] == "T":
+
+            if idet[-3:] == "000" or idet[-3:] == "045":
                 tname = idet
-                bname = idet[:-1] + "B"
+                bname = idet[:-3] + str(int(idet[-3:]) + 90).zfill(3)
+
+            #if idet[-1] == "T":
+            #    tname = idet
+            #    bname = idet[:-1] + "B"
 
                 sf = ScanFields.load_det(idet, base_path=dirpath)
                 sf.xlink_threshold = config.xlink_threshold
