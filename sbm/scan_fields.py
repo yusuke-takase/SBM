@@ -339,7 +339,7 @@ class ScanFields:
         It assume top and bottom detector make a orthogonal pair.
         """
         class_copy = copy.deepcopy(self)
-        class_copy.h *= np.exp(-1j * self.spins_n * (np.pi / 4))
+        class_copy.h = class_copy.h * np.exp(-1j * self.spins_n * (np.pi / 4))
         return class_copy
 
     def t2b(self) -> "ScanFields":

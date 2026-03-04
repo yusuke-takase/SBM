@@ -14,6 +14,7 @@ from .scan_fields import ScanFields, DB_ROOT_PATH, channel_list
 from .signal_fields import SignalFields
 import pysm3
 import pysm3.units as u
+from astropy.cosmology import Planck18 as cosmo
 
 GREEN = "\033[92m"
 RESET = "\033[0m"
@@ -165,7 +166,7 @@ def generate_maps(mbs, config, lock=True):
     """Generate the maps with the lock file
 
     Args:
-        mbs (`lbs.MbsParameters`): The litebird_sim object
+        mbs (`lbs.SkyGenerationParams`): The litebird_sim object
         config (:class:`.Configlation`): The configuration class
         lock (`bool`): If `True`, the lock file is used
     """
@@ -201,7 +202,7 @@ def generate_maps(mbs, config, lock=True):
 def sim_diff_gain_per_ch(
     config: Configlation,
     syst: Systematics,
-    mbsparams: lbs.MbsParameters,
+    mbsparams: lbs.SkyGenerationParams,
 ):
     """Simulate the differential gain systematics for each channel
     The map-making is performed for each detector in the channel
@@ -211,7 +212,7 @@ def sim_diff_gain_per_ch(
 
         syst (:class:`.Systematics`): The systematics class
 
-        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
+        mbsparams (`lbs.SkyGenerationParams`): The parameters for the litebird_sim
 
     Returns:
         observed_map (`np.ndarray`): The observed map after the map-making
@@ -312,7 +313,7 @@ def sim_diff_gain_per_ch(
 def sim_diff_pointing_per_ch(
     config: Configlation,
     syst: Systematics,
-    mbsparams: lbs.MbsParameters,
+    mbsparams: lbs.SkyGenerationParams,
 ):
     """Simulate the differential pointing systematics for each channel
     The map-making is performed for each detector in the channel
@@ -322,7 +323,7 @@ def sim_diff_pointing_per_ch(
 
         syst (:class:`.Systematics`): The systematics class
 
-        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
+        mbsparams (`lbs.SkyGenerationParams`): The parameters for the litebird_sim
 
     Returns:
         observed_map (`np.ndarray`): The observed map after the map-making
@@ -897,7 +898,7 @@ def sim_bandpass_mismatch(
 
         syst (:class:`.Systematics`): The systematics class
 
-        mbsparams (`lbs.MbsParameters`): The parameters for the litebird_sim
+        mbsparams (`lbs.SkyGenerationParams`): The parameters for the litebird_sim
 
         fg_models: list of foreground model to use
 
@@ -969,6 +970,10 @@ def sim_bandpass_mismatch(
     #fgs = mbs.generate_fg()[0]
     #fg_tmap_list = [fgs[fg][0][0] for fg in fg_models]
 
+    if not base_path:
+        dirpath = os.path.join(DB_ROOT_PATH, config.channel)
+    else:
+        dirpath = os.path.join(base_path, config.channel)
 
     # computing the gamma factors from the bandpasses
     if detector_list:
