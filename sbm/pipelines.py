@@ -1052,7 +1052,7 @@ def sim_bandpass_mismatch(
                 else:
                     pm = pol_map
                 
-                print(gamma_T_dict, gamma_B_dict)
+                #print(gamma_T_dict, gamma_B_dict)
 
                 file_args.append(
                     (
