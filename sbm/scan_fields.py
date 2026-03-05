@@ -559,9 +559,9 @@ class ScanFields:
         channel = self.channel
         hitmap_tmp = self.hitmap.copy()
         hitmap_tmp[hitmap_tmp == 0] = 1  # avoid zero division
-        if channel:
+        if not net_ukrts:
             assert imo is not None, "imo is required when channel is given"
-            inst = get_instrument_table(imo, imo_version="v2")
+            inst = get_instrument_table(imo, imo_version="IMo_vPostKDP2_Option1")
             net_detector_ukrts = inst.loc[
                 inst["channel"] == channel, "net_detector_ukrts"
             ].values[0]

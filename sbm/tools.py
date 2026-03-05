@@ -130,7 +130,7 @@ def generate_cmb(nside, r=0.0, cmb_seed=None):
     return cmb
 
 
-def get_instrument_table(imo: Imo, imo_version="v2"):
+def get_instrument_table(imo: Imo, imo_version="IMo_vPostKDP2_Option1"):
     """
     This function generates DataFrame which is used for FGBuster as `instrument` from IMo.
 
@@ -142,7 +142,7 @@ def get_instrument_table(imo: Imo, imo_version="v2"):
     Returns:
         instrument (`pandas.DataFrame`): DataFrame which contains the instrument information
     """
-    telescopes = ["LFT", "MFT", "HFT"]
+    #telescopes = ["LFT", "MFT", "HFT"]
     channel_list = []
     freq = []
     depth_p = []
@@ -153,30 +153,33 @@ def get_instrument_table(imo: Imo, imo_version="v2"):
     net_detector_ukrts = []
     net_channel_ukrts = []
 
-    for i in telescopes:
-        inst_info = imo.query(
-            "/releases/" + imo_version + "/satellite/" + i + "/instrument_info"
+    #for i in telescopes:
+    #inst_info = imo.query(
+    #        "/releases/" + imo_version + "/LMHFT/" + i + "/instrument_info"
+    #    )
+    inst_info = imo.query(
+            "/releases/" + imo_version + "/LMHFT/instrument_info"
         )
-        channel_list.append(inst_info.metadata["channel_names"])
+    channel_list.append(inst_info.metadata["channel_names"])
     channel_list = [item for sublist in channel_list for item in sublist]
 
     for i in channel_list:
-        if i[0] == "L":
-            telescope = "LFT"
-        elif i[0] == "M":
-            telescope = "MFT"
-        elif i[0] == "H":
-            telescope = "HFT"
+        #if i[0] == "L":
+        #    telescope = "LFT"
+        #elif i[0] == "M":
+        #    telescope = "MFT"
+        #elif i[0] == "H":
+        #    telescope = "HFT"
         chinfo = lbs.FreqChannelInfo.from_imo(
             imo,
-            "/releases/{}/satellite/{}/{}/channel_info".format(
-                imo_version, telescope, i
+            "/releases/{}/LMHFT/{}/channel_info".format(
+                imo_version, i
             ),
         )
         freq.append(chinfo.band.bandcenter_ghz)
         depth_p.append(chinfo.pol_sensitivity_channel_ukarcmin)
         fwhm.append(chinfo.fwhm_arcmin)
-        telescope_list.append(telescope)
+        #telescope_list.append(telescope)
         bandwidth.append(chinfo.bandwidth_ghz)
         net_detector_ukrts.append(chinfo.net_detector_ukrts)
         net_channel_ukrts.append(chinfo.net_channel_ukrts)
@@ -197,7 +200,7 @@ def get_instrument_table(imo: Imo, imo_version="v2"):
             "reference": ["IMo-" + imo_version for i in range(len(channel_list))],
             "type": ["satellite" for i in range(len(channel_list))],
             "experiment": ["LiteBIRD" for i in range(len(channel_list))],
-            "telescope": telescope_list,
+         #   "telescope": telescope_list,
         }
     )
     return instrument
