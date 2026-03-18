@@ -417,14 +417,15 @@ class SignalFields:
             fields = [sp2, sp2.conj()]
             fields_lr = [sp2, sp2.conj()]
         elif mdim == 3:
-            fields = [s_0, sp2, sp2.conj()]
+            #fields = [s_0, sp2, sp2.conj()]
             fields_lr = [s_0_lr, sp2, sp2.conj()] 
         else:
             raise ValueError("mdim is 2 and 3 only supported")
-        signal_fields.build_linear_system(fields)
+        #signal_fields.build_linear_system(fields)
         signal_fields_lowres.build_linear_system(fields_lr)
         
-        return signal_fields, signal_fields_lowres
+        #return signal_fields, signal_fields_lowres
+        return signal_fields_lowres
 
     @staticmethod
     def hwp_ip_field(

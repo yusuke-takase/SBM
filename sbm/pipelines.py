@@ -466,8 +466,8 @@ def process_bpm(args):
     sf.xlink_threshold = xlink_threshold
     sf.use_hwp = False
 
-    #signal_field, bpm_q, bpm_u = SignalFields.bandpass_mismatch_field(
-    signal_field, signal_field_lowres = SignalFields.bandpass_mismatch_field(
+    #signal_field, signal_field_lowres = SignalFields.bandpass_mismatch_field(
+    signal_field_lowres = SignalFields.bandpass_mismatch_field(
         sf,
         mdim,
         pol_map,
@@ -477,11 +477,11 @@ def process_bpm(args):
         gamma_T_list_lowres,
         gamma_B_list_lowres,
     )
-    output = sf.map_make(signal_field, only_iqu)
+    #output = sf.map_make(signal_field, only_iqu)
     output_lowres = sf.map_make(signal_field_lowres, only_iqu)
     result = {
         "hitmap": sf.hitmap,
-        "map": output,
+        #"map": output,
         "map_lr": output_lowres,
         "xlink2": np.abs(sf.get_xlink(2, 0)),
     }
@@ -1011,6 +1011,7 @@ def sim_bandpass_mismatch(
         if not detector_list_lowres:
             detector_list_lowres = detector_list
 
+        # computing the polarization maps with the "real" bandpasses
         for d in detector_list:
             input_maps_d = map_info_bp[d.name].values
 
@@ -1020,6 +1021,7 @@ def sim_bandpass_mismatch(
             fill_gamma_list(d, fg_models, gamma_T_dict,
                              gamma_B_dict, npix, mbsparams, config, fg_tmap_list)
 
+        # filling the list of gamma factors with our bandpass estimate
         for d in detector_list_lowres:
             fill_gamma_list(d, fg_models, gamma_T_dict_lowres,
                              gamma_B_dict_lowres, npix, mbsparams, config, fg_tmap_list)
@@ -1033,7 +1035,7 @@ def sim_bandpass_mismatch(
         assert len(syst.bpm.detectors) // 2 == len(gamma_T_dict.keys())
         assert len(syst.bpm.detectors) // 2 == len(gamma_B_dict.keys())
 
-    observed_map = np.zeros([3, npix])
+    #observed_map = np.zeros([3, npix])
     observed_map_lr = np.zeros([3, npix])
     sky_weight = np.zeros(npix)
 
@@ -1080,7 +1082,7 @@ def sim_bandpass_mismatch(
                     colour="green",
                 )
             ):
-                observed_map += result["map"]
+                #observed_map += result["map"]
                 observed_map_lr += result["map_lr"]
                 sky_weight[result["xlink2"] < config.xlink_threshold] += 1.0
 
@@ -1112,7 +1114,8 @@ def sim_bandpass_mismatch(
                 else:
                     pm = pol_map
 
-                signal_field, signal_field_lowres = SignalFields.bandpass_mismatch_field(
+                #signal_field, signal_field_lowres = SignalFields.bandpass_mismatch_field(
+                signal_field_lowres = SignalFields.bandpass_mismatch_field(
                     sf,
                     config.mdim,
                     pm,
@@ -1122,14 +1125,14 @@ def sim_bandpass_mismatch(
                     gamma_T_dict_lowres[tname],
                     gamma_B_dict_lowres[bname],
                 )
-                output = sf.map_make(signal_field, config.only_iqu)
+                #output = sf.map_make(signal_field, config.only_iqu)
                 output_lr = sf.map_make(signal_field_lowres, config.only_iqu)
-                observed_map += output
+                #observed_map += output
                 observed_map_lr += output_lr
                 xlink2 = np.abs(sf.get_xlink(2, 0))
                 sky_weight[xlink2 < config.xlink_threshold] += 1.0
 
-    observed_map = np.array(observed_map) / sky_weight
+    #observed_map = np.array(observed_map) / sky_weight
     observed_map_lr = np.array(observed_map_lr) / sky_weight
 
     if not detector_list:
@@ -1137,8 +1140,8 @@ def sim_bandpass_mismatch(
     else:
         returned_input_map /= len(detector_list)
 
-    return observed_map, observed_map_lr, returned_input_map
-
+    #return observed_map, observed_map_lr, returned_input_map
+    return observed_map_lr, returned_input_map
 
 def generate_noise_seeds(config: Configlation, syst: Systematics, num_of_dets: int):
     channel_id = np.where(np.array(channel_list) == config.channel)[0][0]
