@@ -637,7 +637,7 @@ class SignalFields:
             raise ValueError("mdim is 3,5 and 9 only supported")
         signal_fields.build_linear_system(fields)
         return signal_fields
-
+"""
     @staticmethod
     def elliptical_beam_field(
         scan_field,
@@ -705,3 +705,4 @@ class SignalFields:
             raise ValueError("mdim is 2,3 and 5 only supported")
         signal_fields.build_linear_system(fields)
         return signal_fields
+"""
