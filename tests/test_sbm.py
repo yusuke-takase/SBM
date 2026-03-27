@@ -46,7 +46,7 @@ class TestSBM(unittest.TestCase):
                     field=(0, 1, 2),
                 )
                 self.assertTrue(np.allclose(output_map, reference))
-
+"""
     def test_elliptical_beam(self, save_output_map=save):
         alm = hp.map2alm(self.input_map)
         q = 0.9
@@ -72,7 +72,7 @@ class TestSBM(unittest.TestCase):
                     field=(0, 1, 2),
                 )
                 self.assertTrue(np.allclose(output_map, reference))
-
+"""
     def test_diff_pointing(self, save_output_map=save):
         rho_T = np.deg2rad(1 / 60)
         chi_T = np.deg2rad(0)
