@@ -50,7 +50,8 @@ class TestSBM(unittest.TestCase):
     def test_elliptical_beam(self, save_output_map=save):
         alm = hp.map2alm(self.input_map)
         q = 0.9
-        fwhm = np.deg2rad(1.0)
+        # the beam must be resolved at nside=32 (pixel size ~1.8 deg)
+        fwhm = np.deg2rad(5.0)
         beam = sbm.elliptical_beam(self.nside, fwhm, q)
         blm = hp.map2alm(beam)
         mdims = [2, 3]
