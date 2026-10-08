@@ -645,6 +645,7 @@ class SignalFields:
         alm: np.ndarray,
         blm: np.ndarray,
         use_hwp=False,
+        spin_k=(0, 2, 4),
     ):
         """Get the elliptical beam convolved field
 
@@ -659,35 +660,33 @@ class SignalFields:
 
             use_hwp (`bool`): whether the observation uses HWP or not
 
+            spin_k (`tuple`): non-negative spin moments of the beam to be included.
+            The spin `-k` fields are added as the complex conjugates. The scan field
+            must contain the cross-links up to spin ``max(spin_k) + 2`` (``mdim`` = 2, 3)
+            or ``max(spin_k) + 4`` (``mdim`` = 5).
+
         Returns:
             signal_fields (:class:`.SignalFields`): elliptical beam convolution field of the detector
         """
+        spin_k = sorted(set(abs(int(k)) for k in spin_k) | {0})
         alm_conv = Convolver(
-            alm=alm, nside=scan_field.nside, spin_k=[0, 2, 4], use_hwp=use_hwp
+            alm=alm, nside=scan_field.nside, spin_k=spin_k, use_hwp=use_hwp
         )
         blm_conv = Convolver(
-            alm=blm, nside=scan_field.nside, spin_k=[0, 2, 4], use_hwp=use_hwp
+            alm=blm, nside=scan_field.nside, spin_k=spin_k, use_hwp=use_hwp
         )
         all_maps = alm_conv * blm_conv
-        """ 
-        previous implementation
-
-        signal_fields = SignalFields(
-            Field(all_maps[0][0] + all_maps[0][1], spin_n=0, spin_m=0),
-            Field((all_maps[1][0] + all_maps[1][1]) / 2, spin_n=2, spin_m=0),
-            Field((all_maps[1][0] + all_maps[1][1]).conj() / 2, spin_n=-2, spin_m=0),
-            Field((all_maps[2][0] + all_maps[2][1]) / 2, spin_n=4, spin_m=0),
-            Field((all_maps[2][0] + all_maps[2][1]).conj() / 2, spin_n=-4, spin_m=0),
-        )
-        """
-        signal_fields = SignalFields(
-            Field(all_maps[0][0] + all_maps[0][1], spin_n=0, spin_m=0),
-            Field(all_maps[1][0] + all_maps[1][1]/2 , spin_n=2, spin_m=0),
-            Field(all_maps[1][0].conj() + all_maps[1][1].conj()/2 , spin_n=-2, spin_m=0),
-            Field(all_maps[2][0] + all_maps[2][1]/2 , spin_n=4, spin_m=0),
-            Field(all_maps[2][0].conj() + all_maps[2][1].conj()/2 , spin_n=-4, spin_m=0),
-        )
-        
+        # d(psi) = sum_k F_k exp(i k psi) with F_k = (T beam) + (pol. beam)/2 for every k,
+        # and F_{-k} = conj(F_k)
+        fields = []
+        for k_idx, k in enumerate(spin_k):
+            field_k = all_maps[k_idx][0] + all_maps[k_idx][1] / 2
+            if k == 0:
+                fields.append(Field(field_k, spin_n=0, spin_m=0))
+            else:
+                fields.append(Field(field_k, spin_n=k, spin_m=0))
+                fields.append(Field(field_k.conj(), spin_n=-k, spin_m=0))
+        signal_fields = SignalFields(*fields)
 
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
         sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
@@ -705,4 +704,3 @@ class SignalFields:
             raise ValueError("mdim is 2,3 and 5 only supported")
         signal_fields.build_linear_system(fields)
         return signal_fields
-
