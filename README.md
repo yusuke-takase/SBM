@@ -72,6 +72,27 @@ Now, following systematics are implemented:
   - tilted effect (RHWP)
 - Non-uniform white noise
 
+# Time-dependent random pointing
+
+`SignalFields.random_pointing_field` models co-pointed HWP detector pairs with
+independent per-hit Gaussian Cartesian displacements. It returns `SignalFields`
+for the existing `ScanFields.map_make` HWP 3x3 solver:
+
+```python
+signal_field = sbm.SignalFields.random_pointing_field(
+    scan_field, 3, sigma_rad, P, eth_P, o_eth_P, seed=12345
+)
+output_map = scan_field.map_make(signal_field)
+```
+
+`sigma_rad` is the per-hit standard deviation of each Cartesian component in
+radians. The ideal temperature is zero. Both covariance and pseudo-covariance
+of the weighted moments are included. Zero-hit pixels remain zero. The scan
+must contain all pairwise sum and difference harmonics of
+`(3,-4), (-1,4), (1,0), (5,-8), (-3,8)`.
+See [the random pointing tutorial](notebooks/random_pointing.ipynb) for a complete
+example and the required scan moments.
+
 # How to cite the code
 The basic formalism is published in [Y. Takase et al., 2024](https://arxiv.org/abs/2408.03040) and [Thesis of Y. Takase, 2025](https://arxiv.org/abs/2503.03176).
 Please cite the paper when you use the SBM for your publications. 
