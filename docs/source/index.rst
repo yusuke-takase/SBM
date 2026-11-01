@@ -13,6 +13,7 @@ SBM User's Manual
    installation.rst
    formalism.rst
    imprementation.rst
+   hwp_beam_convolution.rst
    reference.rst
 
 

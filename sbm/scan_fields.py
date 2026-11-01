@@ -487,7 +487,7 @@ class ScanFields:
         assert (
             signal_fields.coupled_fields is not None
         ), "No coupled field in the SignalFields.coupled_fields"
-        if np.all(signal_fields.spins_m == 0):
+        if np.all(np.asarray(signal_fields.spin_m_basis) == 0):
             self.use_hwp = False
         else:
             self.use_hwp = True

@@ -639,15 +639,16 @@ class SignalFields:
         return signal_fields
 
     @staticmethod
-    def elliptical_beam_field(
+    def beam_field(
         scan_field,
         mdim: int,
         alm: np.ndarray,
         blm: np.ndarray,
         use_hwp=False,
         spin_k=(0, 2, 4),
+        mueller=None,
     ):
-        """Get the elliptical beam convolved field
+        """Get the convolved signal field for a general asymmetric beam.
 
         Args:
             scan_field (:class:`.ScanFields`): scan field instance
@@ -656,51 +657,80 @@ class SignalFields:
 
             alm (`np.ndarray`): spherical harmonic expansion coefficients of sky
 
-            blm (`np.ndarray`): spherical harmonic expansion coefficients of beam
+            blm (`np.ndarray`): spherical harmonic expansion coefficients of the
+                beam. The beam need not have an elliptical profile.
 
             use_hwp (`bool`): whether the observation uses HWP or not
 
-            spin_k (`tuple`): non-negative spin moments of the beam to be included.
-            The spin `-k` fields are added as the complex conjugates. The scan field
-            must contain the cross-links up to spin ``max(spin_k) + 2`` (``mdim`` = 2, 3)
-            or ``max(spin_k) + 4`` (``mdim`` = 5).
+            spin_k (`tuple`): non-negative output crossing-angle spins to retain.
+                The spin `-k` fields are added as the complex conjugates. The scan field
+                must contain the cross-links up to spin ``max(spin_k) + 2`` (``mdim`` = 2, 3)
+                or ``max(spin_k) + 4`` (``mdim`` = 5).
+                With HWP the input beam order is ``k + spin_m``, so retaining
+                all beam orders through ``mmax`` can require output spins
+                through ``mmax + 4``.
+
+            mueller (`np.ndarray` or `None`): real 4x4 Stokes Mueller matrix of
+                the rotating HWP. Requires ``use_hwp=True``; defaults to an ideal
+                HWP. Uses the shifted-beam narrow-beam approximation. TEBV inputs
+                are supported; a missing V component is zero.
+
+        With HWP the polarization basis is (2,-4) and its conjugate; mdim=5
+        also solves (4,-4) and its conjugate. Cross-links must cover the
+        differences between these output pairs and the active signal pairs.
+        A general matrix can require HWP moments +/-2, +/-4, +/-6 and +/-8.
 
         Returns:
-            signal_fields (:class:`.SignalFields`): elliptical beam convolution field of the detector
+            signal_fields (:class:`.SignalFields`): beam convolution field of the detector
         """
         spin_k = sorted(set(abs(int(k)) for k in spin_k) | {0})
         alm_conv = Convolver(
-            alm=alm, nside=scan_field.nside, spin_k=spin_k, use_hwp=use_hwp
+            alm=alm, nside=scan_field.nside, spin_k=spin_k,
+            use_hwp=use_hwp, mueller=mueller
         )
         blm_conv = Convolver(
             alm=blm, nside=scan_field.nside, spin_k=spin_k, use_hwp=use_hwp
         )
         all_maps = alm_conv * blm_conv
-        # d(psi) = sum_k F_k exp(i k psi) with F_k = (T beam) + (pol. beam)/2 for every k,
-        # and F_{-k} = conj(F_k)
-        fields = []
-        for k_idx, k in enumerate(spin_k):
-            field_k = all_maps[k_idx][0] + all_maps[k_idx][1] / 2
-            if k == 0:
-                fields.append(Field(field_k, spin_n=0, spin_m=0))
-            else:
-                fields.append(Field(field_k, spin_n=k, spin_m=0))
-                fields.append(Field(field_k.conj(), spin_n=-k, spin_m=0))
+        if use_hwp:
+            # Convolver already includes both indices of F_{-n,-h}=conj(F_{n,h}).
+            fields = [
+                Field(value, spin_n=n, spin_m=h)
+                for (n, h), value in all_maps.items() if np.any(value)
+            ]
+            if not fields:
+                fields = [Field(np.zeros(scan_field.npix, dtype=complex), 0, 0)]
+        else:
+            # d(psi) = sum_k F_k exp(i k psi), F_-k = conj(F_k).
+            fields = []
+            for k_idx, k in enumerate(spin_k):
+                field_k = all_maps[k_idx][0] + all_maps[k_idx][1] / 2
+                if k == 0:
+                    fields.append(Field(field_k, spin_n=0, spin_m=0))
+                else:
+                    fields.append(Field(field_k, spin_n=k, spin_m=0))
+                    fields.append(Field(field_k.conj(), spin_n=-k, spin_m=0))
         signal_fields = SignalFields(*fields)
 
         s_0 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
-        sp2 = signal_fields.get_coupled_field(scan_field, spin_n_out=2, spin_m_out=0)
-        signal_fields.field_name = "elliptical_beam_field"
+        pol_harmonic = -4 if use_hwp else 0
+        sp2 = signal_fields.get_coupled_field(
+            scan_field, spin_n_out=2, spin_m_out=pol_harmonic
+        )
+        signal_fields.field_name = "beam_field"
         if mdim == 2:
             fields = [sp2, sp2.conj()]
         elif mdim == 3:
             fields = [s_0, sp2, sp2.conj()]
         elif mdim == 5:
             sp4 = signal_fields.get_coupled_field(
-                scan_field, spin_n_out=4, spin_m_out=0
+                scan_field, spin_n_out=4, spin_m_out=pol_harmonic
             )
             fields = [s_0, sp2, sp2.conj(), sp4, sp4.conj()]
         else:
             raise ValueError("mdim is 2,3 and 5 only supported")
         signal_fields.build_linear_system(fields)
         return signal_fields
+
+    # Compatibility with the original name.
+    elliptical_beam_field = beam_field
