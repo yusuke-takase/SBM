@@ -68,3 +68,49 @@ It is not an exact general spatial Mueller-field convolution: its accuracy
 at low multipoles and for a broad beam is inherited from that approximation.
 An identity Mueller matrix reproduces the unmodulated convolution, and
 ``use_hwp=False`` retains the existing array return format and behavior.
+
+Optional low-multipole intensity response
+----------------------------------------
+
+``lowell_hwp="full_sum"`` adds the I-input monopole and dipole 2f response::
+
+    signal = sbm.SignalFields.beam_field(
+        scan, mdim=3, alm=alm, blm=blm, use_hwp=True, mueller=M,
+        spin_k=(0, 2, 4), lowell_hwp="full_sum",
+    )
+    output_iqu = scan.map_make(signal)
+
+The same option can be passed to the sky ``Convolver``. The default
+``lowell_hwp="shifted"`` retains the previous results and LBS comparison model.
+Only the I-input ell=0,1 terms proportional to M_QI and M_UI are replaced;
+ell>=2, polarized inputs and V-input terms retain the shifted approximation.
+Spin-2 beam harmonics at ell<2 remain zero: the extension constructs a scalar
+effective beam by combining polarized beam harmonics with ell1>=2.
+
+The spatial assumption is a Mueller matrix uniform in the beam-centred
+Ludwig-3 frame. In spherical coordinates its spin-h shape is
+``exp(-i*h*phi)`` for h=+/-2. The corresponding Gaunt sum is retained rather
+than replacing all input beam multipoles ell1 by the output ell.
+Triangle selection leaves ell2=ell1 for ell=0, and at most three ell2 values
+for ell=1. The sum terminates at ell2<=beam_lmax+1 and costs O(beam_lmax)
+per output coefficient; there is no extra sum per TOD sample.
+
+Geometry is cached independently of beam, sky and Mueller matrix. The beam
+object also caches its prepared filters. Changes to the relevant coefficients
+of its mutable ``alm`` array invalidate that beam cache. Symbolic Wigner 3j
+evaluation is used only when a geometry cache entry is first constructed.
+
+The correction includes its n=0,+/-1 fields even if these moments were not
+requested in ``spin_k``. Other terms still follow ``spin_k``. For an asymmetric
+beam, the scan must therefore provide the odd crossing-angle cross-links
+needed by these fields (through absolute n=3 for IQU fitting, or n=5 for
+``mdim=5``), together with the required HWP moments. A database containing
+only even crossing moments cannot model the general dipole correction.
+
+The full sum is exact for this spatial Mueller model and the supplied
+finite-band beam in the added channels. A finite-band pencil beam is not an
+exact delta distribution, and its low-ell response need not equal the ideal
+point-detector formula. General beam accuracy at ell>=2 is a separate question.
+The retained coupling follows the real-space product before the narrow-beam
+step in `Duivenvoorden's implementation notes, equations 51--59
+<https://github.com/AdriJD/beamconv/files/8568824/beamconv_hwp.pdf>`_.

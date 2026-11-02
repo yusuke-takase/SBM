@@ -647,6 +647,7 @@ class SignalFields:
         use_hwp=False,
         spin_k=(0, 2, 4),
         mueller=None,
+        lowell_hwp="shifted",
     ):
         """Get the convolved signal field for a general asymmetric beam.
 
@@ -675,6 +676,12 @@ class SignalFields:
                 HWP. Uses the shifted-beam narrow-beam approximation. TEBV inputs
                 are supported; a missing V component is zero.
 
+            lowell_hwp (`str`): ``"full_sum"`` adds I-input ell=0,1 2f terms
+                using the beam multipole sum. Default ``"shifted"`` preserves
+                the original approximation. Extra n=0,+/-1 fields needed for
+                the correction are included; the scan must contain their
+                cross-links, including odd crossing moments for asymmetric beams.
+
         With HWP the polarization basis is (2,-4) and its conjugate; mdim=5
         also solves (4,-4) and its conjugate. Cross-links must cover the
         differences between these output pairs and the active signal pairs.
@@ -686,7 +693,7 @@ class SignalFields:
         spin_k = sorted(set(abs(int(k)) for k in spin_k) | {0})
         alm_conv = Convolver(
             alm=alm, nside=scan_field.nside, spin_k=spin_k,
-            use_hwp=use_hwp, mueller=mueller
+            use_hwp=use_hwp, mueller=mueller, lowell_hwp=lowell_hwp
         )
         blm_conv = Convolver(
             alm=blm, nside=scan_field.nside, spin_k=spin_k, use_hwp=use_hwp
