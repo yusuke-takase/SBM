@@ -56,6 +56,7 @@ class TestSBM(unittest.TestCase):
         blm = hp.map2alm(beam)
         mdims = [2, 3]
         for mdim in mdims:
+            # The original name remains supported for existing callers.
             signal_field = SignalFields.elliptical_beam_field(
                 self.scan_field, mdim, alm, blm
             )

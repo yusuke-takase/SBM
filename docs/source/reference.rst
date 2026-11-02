@@ -66,6 +66,7 @@ Methods
    sbm.ScanFields.t2b
    sbm.SignalFields.abs_pointing_field
    sbm.SignalFields.bandpass_mismatch_field
+   sbm.SignalFields.beam_field
    sbm.SignalFields.build_linear_system
    sbm.SignalFields.circular_pointing_field
    sbm.SignalFields.diff_gain_field
