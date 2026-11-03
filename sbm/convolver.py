@@ -18,10 +18,15 @@ class Convolver:
 
         mueller (`np.ndarray` or `None`): Real 4x4 Stokes matrix of the rotating
         HWP. Requires ``use_hwp=True``. None selects an ideal HWP.
+
+        lowell_hwp (`str`): ``"full_sum"`` retains the beam multipole sum for
+        I-input ell=0,1 2f terms. Requires ``use_hwp=True``. Default ``"shifted"``
+        preserves the original approximation. See ``hwp_beam_convolution``.
     """
 
     def __init__(
-        self, alm: np.ndarray, nside: int, spin_k: float, use_hwp=False, mueller=None
+        self, alm: np.ndarray, nside: int, spin_k: float, use_hwp=False, mueller=None,
+        lowell_hwp="shifted",
     ):
         self.alm = np.asarray(alm)
         if self.alm.ndim != 2 or self.alm.shape[0] not in (3, 4):
@@ -45,6 +50,11 @@ class Convolver:
         if mueller is not None and not use_hwp:
             raise ValueError("mueller requires use_hwp=True")
         self.mueller = None if mueller is None else self._validate_mueller(mueller)
+        if lowell_hwp not in ("shifted", "full_sum"):
+            raise ValueError("lowell_hwp must be 'shifted' or 'full_sum'")
+        if lowell_hwp != "shifted" and not use_hwp:
+            raise ValueError("lowell_hwp='full_sum' requires use_hwp=True")
+        self.lowell_hwp = lowell_hwp
 
     def to_spin(self):
         """Convert :math:`E` and :math:`B` convention to spin convention.
@@ -201,6 +211,10 @@ class Convolver:
         crossing moments are returned for the absolute moments in spin_k.
         The HWP harmonics are 0, +/-2 and +/-4; identically absent harmonics are
         omitted. Missing V components are zero. The default is an ideal HWP.
+
+        With lowell_hwp='full_sum', I-input ell=0,1 2f coefficients are
+        computed from the full beam multipole sum. Any extra n=0,+/-1 maps
+        contain only this correction; spin_k still selects all other terms.
         """
         if self.lmax != other.lmax:
             raise ValueError("sky and beam must have the same lmax")
@@ -227,15 +241,31 @@ class Convolver:
         spins = np.array([0, 2, -2, 0])
         differences = spins[:, None] - spins[None, :]
         harmonics = [h for h in (0, 2, -2, 4, -4) if np.any(coherence[differences == h])]
+        lowell_beam = None
+        lowell_sky = np.any(self.alm[0, :min(2, self.lmax + 1)])
+        if self.lmax >= 1:
+            lowell_sky |= self.alm[0, hp.Alm.getidx(self.lmax, 1, 1)] != 0
+        if (self.lowell_hwp == "full_sum" and lowell_sky
+                and np.any(coherence[1:3, 0]) and other.lmax >= 2):
+            from .hwp_lowell import prepare_lowell_beam
+            lowell_beam = prepare_lowell_beam(other)
+        requested = {abs(int(k)) for k in self.spin_k}
+        moments = requested | {0, 1} if lowell_beam is not None else requested
         all_maps = {}
-        for k in sorted({abs(int(k)) for k in self.spin_k}):
+        for k in sorted(moments):
             for spin_m in harmonics:
                 if k == 0 and spin_m < 0:
                     continue
                 sk_map = np.zeros(self.npix, dtype=complex)
                 if k <= self.lmax:
-                    blk = other.get_blk(k, spin_m)
-                    blk = self.get_hwp_blk(blk, spin_m, coherence)
+                    if k in requested:
+                        blk = other.get_blk(k, spin_m)
+                        blk = self.get_hwp_blk(blk, spin_m, coherence)
+                    else:
+                        blk = np.zeros((4, self.lmax + 1), dtype=complex)
+                    if lowell_beam is not None and (k, spin_m) in lowell_beam:
+                        row = 1 if spin_m == 2 else 2
+                        blk[0, :2] = coherence[row, 0]/root2 * lowell_beam[k, spin_m]
                     blk[:, :k] = 0.0
                     if np.any(blk):
                         clm = self.get_clm(blk, k)
