@@ -12,9 +12,9 @@ Its default is the ideal HWP, ``diag(1, 1, -1, -1)``. Harmonic inputs use the
 full HEALPix m-major layout with TEB or TEBV components; missing V is zero.
 For example::
 
-    sky = sbm.Convolver(alm, nside, spin_k=(0, 2, 4),
+    sky = sbm.Convolver(alm, nside, spin_k=range(5),
                         use_hwp=True, mueller=M)
-    beam = sbm.Convolver(blm, nside, spin_k=(0, 2, 4), use_hwp=True)
+    beam = sbm.Convolver(blm, nside, spin_k=range(5), use_hwp=True)
     fields = sky * beam
     # fields[(n, h)] is the complete complex signal map F_{n,h}.
 
@@ -27,12 +27,14 @@ To couple these fields to a scan and perform map-making::
 
     signal = sbm.SignalFields.beam_field(
         scan, mdim=3, alm=alm, blm=blm,
-        use_hwp=True, mueller=M, spin_k=(0, 2, 4),
+        use_hwp=True, mueller=M, spin_k=range(5),
     )
     output_iqu = scan.map_make(signal)
 
 ``beam_field`` accepts general asymmetric beams. The original name
 ``elliptical_beam_field`` remains available as a compatibility alias.
+These examples retain both odd and even crossing moments through absolute
+n=4. Increase ``spin_k`` if the beam requires additional moments.
 
 For an ideal HWP and an axisymmetric co-polar beam the polarization is at
 ``(n, h) = (2, -4)`` and its conjugate. ``mdim=2`` fits polarization only,
@@ -76,7 +78,7 @@ Optional low-multipole intensity response
 
     signal = sbm.SignalFields.beam_field(
         scan, mdim=3, alm=alm, blm=blm, use_hwp=True, mueller=M,
-        spin_k=(0, 2, 4), lowell_hwp="full_sum",
+        spin_k=range(5), lowell_hwp="full_sum",
     )
     output_iqu = scan.map_make(signal)
 
@@ -101,11 +103,16 @@ of its mutable ``alm`` array invalidate that beam cache. Symbolic Wigner 3j
 evaluation is used only when a geometry cache entry is first constructed.
 
 The correction includes its n=0,+/-1 fields even if these moments were not
-requested in ``spin_k``. Other terms still follow ``spin_k``. For an asymmetric
-beam, the scan must therefore provide the odd crossing-angle cross-links
-needed by these fields (through absolute n=3 for IQU fitting, or n=5 for
-``mdim=5``), together with the required HWP moments. A database containing
-only even crossing moments cannot model the general dipole correction.
+requested in ``spin_k``. Other terms still follow ``spin_k``: with the default
+``spin_k=(0, 2, 4)``, an asymmetric beam's M_II response to the intensity dipole
+at n=+/-1 remains omitted, even though the low-ell 2f correction is included.
+The examples therefore use ``spin_k=range(5)`` to retain both odd and even
+signal moments through absolute n=4.
+
+For these examples, the scan must provide crossing-angle cross-links through
+absolute n=6 for IQU fitting, or n=8 for ``mdim=5``, including odd moments,
+together with the required HWP moments. A database containing only even
+crossing moments cannot model the general asymmetric-beam dipole response.
 
 The full sum is exact for this spatial Mueller model and the supplied
 finite-band beam in the added channels. A finite-band pencil beam is not an

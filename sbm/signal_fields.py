@@ -663,13 +663,15 @@ class SignalFields:
 
             use_hwp (`bool`): whether the observation uses HWP or not
 
-            spin_k (`tuple`): non-negative output crossing-angle spins to retain.
+            spin_k (`sequence`): non-negative output crossing-angle spins to retain.
                 The spin `-k` fields are added as the complex conjugates. The scan field
                 must contain the cross-links up to spin ``max(spin_k) + 2`` (``mdim`` = 2, 3)
                 or ``max(spin_k) + 4`` (``mdim`` = 5).
                 With HWP the input beam order is ``k + spin_m``, so retaining
                 all beam orders through ``mmax`` can require output spins
-                through ``mmax + 4``.
+                through ``mmax + 4``. For asymmetric beams, ``range(5)`` retains
+                both odd and even moments through spin 4; increase the range
+                if additional moments are needed.
 
             mueller (`np.ndarray` or `None`): real 4x4 Stokes Mueller matrix of
                 the rotating HWP. Requires ``use_hwp=True``; defaults to an ideal
@@ -681,6 +683,8 @@ class SignalFields:
                 the original approximation. Extra n=0,+/-1 fields needed for
                 the correction are included; the scan must contain their
                 cross-links, including odd crossing moments for asymmetric beams.
+                Other signal terms still follow ``spin_k``. Use ``spin_k=range(5)``
+                to also retain their odd moments through spin 4.
 
         With HWP the polarization basis is (2,-4) and its conjugate; mdim=5
         also solves (4,-4) and its conjugate. Cross-links must cover the
