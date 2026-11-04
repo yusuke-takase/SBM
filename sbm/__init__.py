@@ -1,6 +1,18 @@
 # -*- encoding: utf-8 -*-
 
 
+from .hmaps import HMaps
+from .signal_model import SignalModel, SpinComponent
+from .basis import Basis
+from .sky import Sky
+from .map_making import (
+    MapMakingResult,
+    map_make,
+    noise_covariance,
+    noise_maps,
+    orientation_matrix,
+)
+
 from .scan_fields import (
     read_scanfiled,
     ScanFields,
