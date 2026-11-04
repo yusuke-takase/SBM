@@ -19,7 +19,7 @@ from sbm.map_making import (
 from sbm.signal_model import SignalModel
 from sbm.sky import Sky
 
-from .tod import least_squares, random_samples, tod_from_components
+from sbm.testing import least_squares, random_samples, tod_from_components
 
 NSIDE = 2
 NPIX = hp.nside2npix(NSIDE)

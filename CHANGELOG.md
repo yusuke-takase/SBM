@@ -1,4 +1,10 @@
 # Head
+- the systematics are a package that follows the path of the signal through the instrument (`sbm/systematics/{sky,pointing,optics,hwp,detector}.py`; the names `sbm.systematics.<function>` do not change). Each systematic is declared with `@systematic(data=..., templates=[...])`: `f.templates` gives the couples to add to the basis (`Basis.extend(sy.abs_pointing.templates)`) and `sbm.systematics.ALL` lists them all. The tests check every systematic against TOD written in real space, check that its templates absorb the first-order perturbation, and fail if a systematic has no test case or is missing from the documentation.
+- add `hwp_mueller`: a non-ideal HWP Mueller matrix with harmonics in the HWP angle, `M(phi) = M_0 + sum_k (M_k e^{ik phi} + c.c.)`, in litebird_sim's chain; it returns the perturbation with respect to the ideal HWP and `hwp_ip` is one of its cases.
+- add `polarization_angle`: an error on the polarization angle of the detector(s), with and without HWP (the phase changes sign), checked against litebird_sim's polarization angles.
+- the product of two `SignalModel`s is the model of the product of their signals (for non-linear responses).
+- `sbm.testing` provides the tools to check a model against TOD (`random_samples`, `tod_from_components`, `least_squares`, `assert_matches_tod`, `RealSky`); `CONTRIBUTING.md`, the documentation page "Adding a systematic" and `notebooks/adding_a_systematic.ipynb` explain how to add a systematic.
+- `hwp_lowell.py` is folded into `beam.py`; `lowell_hwp="shifted"` / `"full_sum"` are renamed `low_ell="narrow_beam"` / `"beam_sum"`, and the extra `lowell` is renamed `low-ell`.
 - **Breaking**: the API is rebuilt around the parts of the map-maker, without aliases of the former names (see `docs/source/migration.rst`):
   `HMaps` (orientation functions and hits; reads and writes the h-map files of litebird_sim and Falcons.jl, reads the cross-link files of SBM 0.4),
   `SignalModel` (spin components of the data; models add up), `Basis` (the components solved for, formerly `mdim`),

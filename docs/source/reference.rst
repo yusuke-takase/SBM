@@ -32,7 +32,10 @@ Systematics
    sbm.systematics.abs_pointing
    sbm.systematics.hwp_wedge
    sbm.systematics.hwp_ip
+   sbm.systematics.hwp_mueller
+   sbm.systematics.polarization_angle
    sbm.systematics.beam
+   sbm.systematics.systematic
 
 Beam convolution
 ----------------
@@ -59,3 +62,15 @@ Spectra and forecasts
    sbm.d2c
    sbm.forecast
    sbm.get_cmap
+
+Testing a model
+---------------
+
+.. autosummary::
+   :toctree: generated/
+
+   sbm.testing.random_samples
+   sbm.testing.tod_from_components
+   sbm.testing.least_squares
+   sbm.testing.assert_matches_tod
+   sbm.testing.RealSky

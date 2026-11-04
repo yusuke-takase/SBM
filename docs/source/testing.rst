@@ -7,13 +7,18 @@ of SBM 0.4, and take about ten seconds.
 
 Every test compares SBM with an independent computation:
 
-* ``tests/tod.py`` draws random crossing and HWP angles in every pixel of a
-  small map, writes the TOD of spin components and fits them per pixel by
-  least squares. ``test_core.py`` checks the map-maker, several detectors and
-  the white-noise covariance against it.
-* ``test_systematics.py`` writes the TOD of every systematic in real space: a
-  Taylor expansion of the sky at the offset pointing, the gains, the HWP
-  leakage, the response of the detector, with no spin decomposition.
+* :mod:`sbm.testing` draws random crossing and HWP angles in every pixel of a
+  small map, writes the TOD of spin components, fits them per pixel by least
+  squares (``assert_matches_tod``) and provides a random sky with its
+  derivatives (``RealSky``). ``test_core.py`` checks the map-maker, several
+  detectors and the white-noise covariance against it.
+* ``test_systematics.py`` holds one or more cases per systematic of
+  :data:`sbm.systematics.ALL`: the model and the TOD of the same signal written
+  in real space (a Taylor expansion of the sky at the offset pointing, the gains,
+  litebird_sim's Mueller chain and polarization angles), with no spin
+  decomposition. Every case is checked in several bases; the templates of every
+  systematic must absorb its first-order perturbation; a systematic without a
+  case, or missing from :doc:`systematics`, fails.
 * ``test_pointing_geometry.py`` samples a band-limited sky with ducc0 at the
   offset pointing and checks that the residual of the pointing models falls as
   :math:`\rho`, :math:`\rho^2` and :math:`\rho^3` at zeroth, first and second

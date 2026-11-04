@@ -1,13 +1,20 @@
-"""Signal models of the systematics against TOD simulated in real space.
+"""Every systematic of sbm.systematics against TOD simulated in real space.
 
-The sky is given by its values and real derivatives (gradient and Hessian along
-x = theta and y = phi) in every pixel. The TOD sample it at the offset pointing
-by a Taylor expansion and apply the response of the detector, without the
-spin decomposition; the least-squares fit of the TOD is compared with the
-map-maker.
+Each systematic of ``sbm.systematics.ALL`` has one or more cases in ``CASES``:
+the full signal model and the TOD of the same signal written without the spin
+decomposition (a Taylor expansion of the sky at the offset pointing, the gains,
+litebird_sim's Mueller chain, ...). The tests check, for every case, that the
+map-maker of the model is the least-squares fit of the TOD in several bases,
+that the templates of the systematic absorb its first-order perturbation, that
+no systematic lacks a case, and that the documentation lists every systematic.
+
+To add a systematic, add its cases here (see "Adding a systematic" in the docs).
 """
 
-import healpy as hp
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
 import numpy as np
 import pytest
 
@@ -15,89 +22,17 @@ from sbm import systematics as sy
 from sbm.basis import Basis
 from sbm.hmaps import HMaps
 from sbm.map_making import map_make
-from sbm.sky import Sky
+from sbm.testing import RealSky, assert_matches_tod, random_samples, tod_from_components
 
-from .tod import least_squares, random_samples
+from .test_hwp_convolution import (
+    LMAX,
+    pencil_beam,
+    point_response,
+    random_alms,
+    sky_maps,
+)
 
 NSIDE = 2
-NPIX = hp.nside2npix(NSIDE)
-COUPLES = [(n, m) for n in range(0, 13) for m in range(-16, 17)]
-
-
-class RealSky:
-    """I, Q, U with their gradients and Hessians, and the equivalent Sky."""
-
-    def __init__(self, seed):
-        rng = np.random.default_rng(seed)
-        self.x = {s: rng.standard_normal(NPIX) for s in "IQU"}
-        self.d = {(s, a): rng.standard_normal(NPIX) for s in "IQU" for a in ("x", "y")}
-        self.h = {
-            (s, a): rng.standard_normal(NPIX) for s in "IQU" for a in ("xx", "xy", "yy")
-        }
-
-    def eth(self, s):
-        return self.d[s, "y"] - 1j * self.d[s, "x"]
-
-    def eth2(self, s):  # (d_y - i d_x)^2
-        return self.h[s, "yy"] - self.h[s, "xx"] - 2j * self.h[s, "xy"]
-
-    def lap(self, s):
-        return self.h[s, "xx"] + self.h[s, "yy"]
-
-    def sky(self):
-        x, eth, eth2, lap = self.x, self.eth, self.eth2, self.lap
-        eth_bar = {s: np.conj(eth(s)) for s in "IQU"}
-        return Sky.from_maps(
-            x["I"],
-            x["Q"],
-            x["U"],
-            eth_i=eth("I"),
-            eth_p=eth("Q") + 1j * eth("U"),
-            eth_bar_p=eth_bar["Q"] + 1j * eth_bar["U"],
-            second_order={
-                "eth2_i": eth2("I"),
-                "lap_i": lap("I"),
-                "eth2_p": eth2("Q") + 1j * eth2("U"),
-                "eth_bar2_p": np.conj(eth2("Q")) + 1j * np.conj(eth2("U")),
-                "lap_p": lap("Q") + 1j * lap("U"),
-            },
-        )
-
-    def sample(self, s, pixels, rho, alpha, second_order):
-        """Value of s at the offset rho along -(sin(alpha) e_x + cos(alpha) e_y)."""
-        dx, dy = -rho * np.sin(alpha), -rho * np.cos(alpha)
-        v = (
-            self.x[s][pixels]
-            + dx * self.d[s, "x"][pixels]
-            + dy * self.d[s, "y"][pixels]
-        )
-        if second_order:
-            v = v + 0.5 * (
-                dx**2 * self.h[s, "xx"][pixels]
-                + 2 * dx * dy * self.h[s, "xy"][pixels]
-                + dy**2 * self.h[s, "yy"][pixels]
-            )
-        return v
-
-    def detector(self, pixels, psi, phi=None, rho=0.0, alpha=0.0, second_order=False):
-        """Single detector: I + Re[P e^{2i psi}] without HWP, I + Re[P e^{i(2 psi - 4 phi)}] with HWP."""
-        i, q, u = (self.sample(s, pixels, rho, alpha, second_order) for s in "IQU")
-        angle = 2 * psi if phi is None else 2 * psi - 4 * phi
-        return i + q * np.cos(angle) - u * np.sin(angle)
-
-
-def check(tod, samples, model, basis):
-    pixels, psi, phi = samples
-    hm = HMaps.from_samples(NSIDE, pixels, psi, phi, couples=COUPLES)
-    result = map_make((hm, model), basis)
-    expected = least_squares(tod, pixels, psi, phi, basis.couples, NPIX)
-    assert result.mask.all()
-    for c in basis.couples:
-        np.testing.assert_allclose(
-            result.component(*c), expected[c], rtol=1e-9, atol=1e-9
-        )
-
-
 NO_HWP_BASES = [
     Basis.qu(hwp=False),
     Basis.iqu(hwp=False),
@@ -106,149 +41,314 @@ NO_HWP_BASES = [
 HWP_BASES = [
     Basis.iqu(hwp=True),
     Basis.iqu(hwp=True).extend([(1, 0), (3, -4), (1, -4)]),
-    Basis.iqu(hwp=True).extend([(1, -1), (3, -5), (1, -3), (0, 4)]),
+    Basis.iqu(hwp=True).extend([(1, -1), (3, -5), (1, -3), (0, 4), (0, 2)]),
 ]
 
 
-@pytest.mark.parametrize("basis", NO_HWP_BASES)
-def test_sky_signal_of_a_detector_and_a_pair(basis):
-    real = RealSky(1)
-    samples = random_samples(NSIDE, 40, seed=2)
-    pixels, psi, _ = samples
-    single = real.detector(pixels, psi)
-    check(single, samples, sy.sky_signal(real.sky()), basis)
-    pair = (single - real.detector(pixels, psi + np.pi / 2)) / 2
-    check(pair, samples, sy.sky_signal(real.sky(), pair_difference=True), basis)
+# --------------------------------------------------------------------- #
+# Reference TOD written independently of SBM's spin components
 
 
-@pytest.mark.parametrize("basis", NO_HWP_BASES)
-def test_diff_gain(basis):
-    real = RealSky(3)
-    samples = random_samples(NSIDE, 40, seed=4)
-    pixels, psi, _ = samples
-    g_t, g_b = 0.013, -0.021
-    tod = (
-        (1 + g_t) * real.detector(pixels, psi)
-        - (1 + g_b) * real.detector(pixels, psi + np.pi / 2)
-    ) / 2
-    model = sy.sky_signal(real.sky(), pair_difference=True) + sy.diff_gain(
-        real.sky(), g_t, g_b
+def lbs_rotation(angle):
+    """litebird_sim's rotation of the Stokes parameters by 2 angle."""
+    c, s = np.cos(2 * angle), np.sin(2 * angle)
+    return np.array([[1, 0, 0, 0], [0, c, s, 0], [0, -s, c, 0], [0, 0, 0, 1]])
+
+
+def lbs_mueller_tod(real, pixels, psi, phi, harmonics):
+    """litebird_sim's chain det R(chi)^T M(chi) R(chi) R(psi') S with psi' = -psi, chi = phi."""
+    out = np.empty(pixels.size)
+    for j, (p, a, b) in enumerate(zip(pixels, psi, phi)):
+        mueller = np.zeros((4, 4))
+        for k, m_k in harmonics.items():
+            mueller += np.real(m_k) if k == 0 else 2 * np.real(m_k * np.exp(1j * k * b))
+        stokes = np.array([real.x["I"][p], real.x["Q"][p], real.x["U"][p], 0.0])
+        chain = lbs_rotation(b).T @ mueller @ lbs_rotation(b) @ lbs_rotation(-a)
+        out[j] = np.array([1.0, 1.0, 0.0, 0.0]) @ chain @ stokes
+    return out
+
+
+def lbs_polarizer_tod(real, pixels, angle):
+    """Detector seeing the polarization at litebird_sim's angle ``angle``."""
+    i, q, u = (real.x[s][pixels] for s in "IQU")
+    return i + q * np.cos(2 * angle) + u * np.sin(2 * angle)
+
+
+# --------------------------------------------------------------------- #
+# Cases: (systematic, the full model, its TOD)
+
+
+@dataclass
+class Case:
+    systematic: Callable
+    name: str
+    hwp: bool
+    build: Callable  # () -> (full SignalModel, tod(pixels, psi, phi))
+    absorbed: Callable | None = (
+        None  # () -> (base, base + perturbation the templates absorb)
     )
-    check(tod, samples, model, basis)
+
+    def __str__(self):
+        return self.name
 
 
-@pytest.mark.parametrize("second_order", [False, True])
-@pytest.mark.parametrize("basis", NO_HWP_BASES)
-def test_diff_pointing(basis, second_order):
-    real = RealSky(5)
-    samples = random_samples(NSIDE, 40, seed=6)
-    pixels, psi, _ = samples
-    rho_t, chi_t, rho_b, chi_b = 0.03, 0.4, 0.02, -1.3
-    d_t = real.detector(
-        pixels, psi, rho=rho_t, alpha=psi + chi_t, second_order=second_order
-    )
+def _pair(real, pixels, psi, gain_t=0.0, gain_b=0.0, **offsets):
+    rho_t, chi_t = offsets.get("rho_t", 0.0), offsets.get("chi_t", 0.0)
+    rho_b, chi_b = offsets.get("rho_b", 0.0), offsets.get("chi_b", 0.0)
+    so = offsets.get("second_order", False)
     psi_b = psi + np.pi / 2
-    d_b = real.detector(
-        pixels, psi_b, rho=rho_b, alpha=psi_b + chi_b, second_order=second_order
-    )
+    d_t = real.detector(pixels, psi, rho=rho_t, alpha=psi + chi_t, second_order=so)
+    d_b = real.detector(pixels, psi_b, rho=rho_b, alpha=psi_b + chi_b, second_order=so)
+    return ((1 + gain_t) * d_t - (1 + gain_b) * d_b) / 2
+
+
+def cases():
+    real = RealSky(NSIDE, seed=1)
     sky = real.sky()
-    model = sy.sky_signal(sky, pair_difference=True) + sy.diff_pointing(
-        sky, rho_t, chi_t, rho_b, chi_b, second_order=second_order
+    pair = sy.sky_signal(sky, pair_difference=True)
+    single = sy.sky_signal(sky)
+    single_hwp = sy.sky_signal(sky, hwp=True)
+    out = []
+
+    def add(fn, name, hwp, model, tod, absorbed=None):
+        out.append(Case(fn, name, hwp, lambda: (model, tod), absorbed))
+
+    add(
+        sy.sky_signal,
+        "sky_signal-single",
+        False,
+        single,
+        lambda px, ps, ph: real.detector(px, ps),
     )
-    check((d_t - d_b) / 2, samples, model, basis)
+    add(
+        sy.sky_signal,
+        "sky_signal-pair",
+        False,
+        pair,
+        lambda px, ps, ph: _pair(real, px, ps),
+    )
+    add(
+        sy.sky_signal,
+        "sky_signal-hwp",
+        True,
+        single_hwp,
+        lambda px, ps, ph: real.detector(px, ps, ph),
+    )
 
+    g_t, g_b = 0.013, -0.021
+    add(
+        sy.diff_gain,
+        "diff_gain",
+        False,
+        pair + sy.diff_gain(sky, g_t, g_b),
+        lambda px, ps, ph: _pair(real, px, ps, g_t, g_b),
+        lambda: (pair, pair + sy.diff_gain(sky, 0.01, -0.01)),
+    )
 
-@pytest.mark.parametrize("basis", NO_HWP_BASES)
-def test_bandpass_mismatch(basis):
-    real = RealSky(7)
-    samples = random_samples(NSIDE, 40, seed=8)
-    pixels, psi, _ = samples
-    rng = np.random.default_rng(9)
-    comps = [rng.standard_normal(NPIX) for _ in range(2)]
+    comps = [np.random.default_rng(2).standard_normal(real.npix) for _ in range(2)]
     gamma_t, gamma_b = [0.1, -0.03], [0.04, 0.02]
-    leak_t = sum(g * c[pixels] for g, c in zip(gamma_t, comps))
-    leak_b = sum(g * c[pixels] for g, c in zip(gamma_b, comps))
-    tod = (
-        real.detector(pixels, psi)
-        + leak_t
-        - real.detector(pixels, psi + np.pi / 2)
-        - leak_b
-    ) / 2
-    model = sy.sky_signal(real.sky(), pair_difference=True) + sy.bandpass_mismatch(
-        comps, gamma_t, gamma_b
-    )
-    check(tod, samples, model, basis)
 
+    def bandpass_tod(px, ps, ph):
+        leak = sum((gt - gb) * c[px] for gt, gb, c in zip(gamma_t, gamma_b, comps)) / 2
+        return _pair(real, px, ps) + leak
 
-@pytest.mark.parametrize("second_order", [False, True])
-@pytest.mark.parametrize("basis", HWP_BASES)
-def test_abs_pointing(basis, second_order):
-    real = RealSky(10)
-    samples = random_samples(NSIDE, 60, seed=11, hwp=True)
-    pixels, psi, phi = samples
-    rho, chi = 0.03, 0.7
-    tod = real.detector(
-        pixels, psi, phi, rho=rho, alpha=psi + chi, second_order=second_order
-    )
-    sky = real.sky()
-    model = sy.sky_signal(sky, hwp=True) + sy.abs_pointing(
-        sky, rho, chi, second_order=second_order
-    )
-    check(tod, samples, model, basis)
-
-
-@pytest.mark.parametrize("second_order", [False, True])
-@pytest.mark.parametrize("basis", HWP_BASES)
-def test_hwp_wedge(basis, second_order):
-    real = RealSky(12)
-    samples = random_samples(NSIDE, 60, seed=13, hwp=True)
-    pixels, psi, phi = samples
-    rho, chi = 0.03, -0.5
-    tod = real.detector(
-        pixels, psi, phi, rho=rho, alpha=psi - phi + chi, second_order=second_order
-    )
-    sky = real.sky()
-    model = sy.sky_signal(sky, hwp=True) + sy.hwp_wedge(
-        sky, rho, chi, second_order=second_order
-    )
-    check(tod, samples, model, basis)
-
-
-@pytest.mark.parametrize("basis", HWP_BASES)
-def test_hwp_ip(basis):
-    real = RealSky(14)
-    samples = random_samples(NSIDE, 60, seed=15, hwp=True)
-    pixels, psi, phi = samples
-    epsilon, phase = 2e-3, 0.8
-    tod = real.detector(pixels, psi, phi) + epsilon * real.x["I"][pixels] * np.cos(
-        4 * phi - phase
-    )
-    sky = real.sky()
-    check(
-        tod,
-        samples,
-        sy.sky_signal(sky, hwp=True) + sy.hwp_ip(sky, epsilon, phase),
-        basis,
+    bandpass = pair + sy.bandpass_mismatch(comps, gamma_t, gamma_b)
+    add(
+        sy.bandpass_mismatch,
+        "bandpass_mismatch",
+        False,
+        bandpass,
+        bandpass_tod,
+        lambda: (pair, bandpass),
     )
 
+    offsets = dict(rho_t=0.03, chi_t=0.4, rho_b=0.02, chi_b=-1.3)
+    for so in (False, True):
+        model = pair + sy.diff_pointing(sky, 0.03, 0.4, 0.02, -1.3, second_order=so)
+        add(
+            sy.diff_pointing,
+            f"diff_pointing-so{int(so)}",
+            False,
+            model,
+            lambda px, ps, ph, so=so: _pair(real, px, ps, second_order=so, **offsets),
+            None if so else (lambda model=model: (pair, model)),
+        )
 
-def test_hwp_ip_template_removes_the_leakage():
-    real = RealSky(16)
-    samples = random_samples(NSIDE, 60, seed=17, hwp=True)
-    pixels, psi, phi = samples
-    hm = HMaps.from_samples(NSIDE, pixels, psi, phi, couples=COUPLES)
-    leak = sy.hwp_ip(real.sky(), 1e-2, 0.3)
-    p3 = map_make((hm, leak), Basis.iqu(hwp=True)).iqu[1:]
-    p5 = map_make((hm, leak), Basis.iqu(hwp=True).extend([(0, 4)])).iqu[1:]
-    assert np.abs(p3).max() > 1e-4
-    assert np.abs(p5).max() < 1e-12 * np.abs(p3).max()
+    for fn, direction in (
+        (sy.abs_pointing, lambda ps, ph: ps),
+        (sy.hwp_wedge, lambda ps, ph: ps - ph),
+    ):
+        for so in (False, True):
+            model = single_hwp + fn(sky, 0.03, 0.7, second_order=so)
+            add(
+                fn,
+                f"{fn.__name__}-so{int(so)}",
+                True,
+                model,
+                lambda px, ps, ph, so=so, d=direction: real.detector(
+                    px, ps, ph, rho=0.03, alpha=d(ps, ph) + 0.7, second_order=so
+                ),
+                None if so else (lambda model=model: (single_hwp, model)),
+            )
+
+    ip = single_hwp + sy.hwp_ip(sky, 2e-3, 0.8)
+    add(
+        sy.hwp_ip,
+        "hwp_ip",
+        True,
+        ip,
+        lambda px, ps, ph: real.detector(px, ps, ph)
+        + 2e-3 * real.x["I"][px] * np.cos(4 * ph - 0.8),
+        lambda: (single_hwp, ip),
+    )
+
+    rng = np.random.default_rng(3)
+    harmonics = {
+        0: sy.IDEAL_HWP + 0.02 * rng.standard_normal((4, 4)),
+        2: 0.01 * (rng.standard_normal((4, 4)) + 1j * rng.standard_normal((4, 4))),
+        4: 0.01 * (rng.standard_normal((4, 4)) + 1j * rng.standard_normal((4, 4))),
+    }
+    add(
+        sy.hwp_mueller,
+        "hwp_mueller",
+        True,
+        single_hwp + sy.hwp_mueller(sky, harmonics),
+        lambda px, ps, ph: lbs_mueller_tod(real, px, ps, ph, harmonics),
+    )
+
+    delta = 0.05
+    add(
+        sy.polarization_angle,
+        "polarization_angle-single",
+        False,
+        single + sy.polarization_angle(sky, delta),
+        lambda px, ps, ph: lbs_polarizer_tod(real, px, -ps + delta),
+    )
+    add(
+        sy.polarization_angle,
+        "polarization_angle-pair",
+        False,
+        pair + sy.polarization_angle(sky, delta),
+        lambda px, ps, ph: lbs_polarizer_tod(real, px, -ps + delta) - real.x["I"][px],
+    )
+    add(
+        sy.polarization_angle,
+        "polarization_angle-hwp",
+        True,
+        single_hwp + sy.polarization_angle(sky, delta, hwp=True),
+        lambda px, ps, ph: lbs_polarizer_tod(real, px, 2 * ph - delta - ps),
+    )
+
+    # beam: a pencil beam behind a HWP of general Mueller matrix (see test_hwp_convolution)
+    alm = random_alms(30)
+    matrix = np.array(
+        [
+            [0.9, 0.04, -0.03, 0.02],
+            [0.06, 0.8, -0.07, 0.03],
+            [-0.02, 0.05, -0.7, -0.04],
+            [0.01, -0.03, 0.02, -0.8],
+        ]
+    )
+    detector = np.array([1.0, 1.0, 0.0, 0.0])
+    maps = sky_maps(alm)
+    beam_model = sy.beam(
+        alm, pencil_beam(detector), NSIDE, range(LMAX + 1), hwp=True, mueller=matrix
+    )
+    add(
+        sy.beam,
+        "beam-hwp",
+        True,
+        beam_model,
+        lambda px, ps, ph: np.array(
+            [
+                point_response(maps[:, p : p + 1], detector, matrix, [a], [b])[0]
+                for p, a, b in zip(px, ps, ph)
+            ]
+        ),
+    )
+    return out
+
+
+CASES = cases()
+
+
+@pytest.mark.parametrize("case", CASES, ids=str)
+def test_model_matches_tod(case):
+    model, tod = case.build()
+    samples = random_samples(NSIDE, 60 if case.hwp else 40, seed=7, hwp=case.hwp)
+    data = tod(*samples)
+    for basis in HWP_BASES if case.hwp else NO_HWP_BASES:
+        assert_matches_tod(model, data, samples, basis)
+
+
+@pytest.mark.parametrize("case", [c for c in CASES if c.absorbed is not None], ids=str)
+def test_templates_absorb_the_first_order_perturbation(case):
+    base, full = case.absorbed()
+    templates = case.systematic.templates
+    assert templates, f"{case.systematic.__name__} declares no templates"
+    samples = random_samples(NSIDE, 60 if case.hwp else 40, seed=8, hwp=case.hwp)
+    basis = (Basis.iqu(hwp=True) if case.hwp else Basis.qu(hwp=False)).extend(templates)
+    couples = (
+        full.required_couples(basis.full)
+        | base.required_couples(basis.full)
+        | {(a[0] - b[0], a[1] - b[1]) for a in basis.full for b in basis.full}
+    )
+    hm = HMaps.from_samples(NSIDE, *samples, couples=couples)
+    with_systematic = map_make((hm, full), basis)
+    without = map_make((hm, base), basis)
+    np.testing.assert_allclose(with_systematic.iqu[1:], without.iqu[1:], atol=1e-12)
+
+
+def test_every_systematic_has_a_case():
+    covered = {c.systematic for c in CASES}
+    missing = [f.__name__ for f in sy.ALL if f not in covered]
+    assert not missing, f"add cases for {missing} to tests/test_systematics.py"
+    absorbed = {c.systematic for c in CASES if c.absorbed is not None}
+    lacking = [f.__name__ for f in sy.ALL if f.templates and f not in absorbed]
+    assert not lacking, f"add a case with `absorbed` for the templates of {lacking}"
+
+
+def test_every_systematic_is_documented():
+    text = (
+        Path(__file__).parents[1] / "docs" / "source" / "systematics.rst"
+    ).read_text()
+    missing = [
+        f.__name__ for f in sy.ALL if f"sbm.systematics.{f.__name__}" not in text
+    ]
+    assert not missing, f"list {missing} in docs/source/systematics.rst"
+
+
+def test_declarations():
+    for f in sy.ALL:
+        assert f.data in sy.DATA
+        assert all(isinstance(t, tuple) and len(t) == 2 for t in f.templates)
+    assert sy.abs_pointing.templates == ((1, 0), (3, -4), (1, -4))
+    with pytest.raises(ValueError, match="data"):
+        sy.systematic(data="unknown")
+
+
+# --------------------------------------------------------------------- #
+# Relations between the models
+
+
+def test_hwp_ip_is_a_case_of_hwp_mueller():
+    sky = RealSky(NSIDE, seed=9).sky()
+    eps, phase = 3e-3, 0.7
+    m2 = np.zeros((4, 4), complex)
+    m2[1, 0] = eps / 2 * np.exp(-1j * phase)
+    m2[2, 0] = -1j * eps / 2 * np.exp(-1j * phase)
+    general, ip = sy.hwp_mueller(sky, {2: m2}), sy.hwp_ip(sky, eps, phase)
+    assert general.couples == ip.couples == [(0, 4)]
+    np.testing.assert_allclose(general.component(0, 4), ip.component(0, 4), atol=1e-17)
+    assert sy.hwp_mueller(sky, {0: sy.IDEAL_HWP}).couples == [(0, 0)]
+    assert not np.any(sy.hwp_mueller(sky, {0: sy.IDEAL_HWP}).component(0, 0))
 
 
 def test_hwp_spins_are_consistent():
     # The HWP-IP, the polarization and the temperature term of the wedge are
     # functions of the same angles: IP = 2 pol + 4 wedge_T between spins.
-    sky = RealSky(18).sky()
-    (ip,) = [c for c in sy.hwp_ip(sky, 1.0, 0.0).couples]
+    sky = RealSky(NSIDE, seed=10).sky()
+    (ip,) = sy.hwp_ip(sky, 1.0, 0.0).couples
     wedge_t = (1, -1)
     assert sy.hwp_wedge(sky, 1.0, 0.0).component(*wedge_t).any()
     pol = Basis.iqu(hwp=True).polarization
@@ -256,8 +356,25 @@ def test_hwp_spins_are_consistent():
     assert ip in (combination, (-combination[0], -combination[1]))
 
 
+def test_product_of_models_is_the_product_of_signals():
+    real = RealSky(NSIDE, seed=11)
+    sky = real.sky()
+    a = sy.sky_signal(sky, hwp=True) + sy.hwp_ip(sky, 0.1, 0.3)
+    b = sy.sky_signal(sky) + sy.diff_pointing(sky, 0.1, 0.2, 0.0, 0.0)
+    pixels, psi, phi = random_samples(NSIDE, 5, seed=12, hwp=True)
+
+    def tod(model):
+        comps = {
+            (c.n, c.m): c.map for c in model.components() if (c.n, c.m) in model.couples
+        }
+        return tod_from_components(comps, pixels, psi, phi)
+
+    np.testing.assert_allclose(tod(a * b), tod(a) * tod(b), rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(tod(a * a), tod(a) ** 2, rtol=1e-12, atol=1e-12)
+
+
 def test_models_add_up():
-    sky = RealSky(19).sky()
+    sky = RealSky(NSIDE, seed=13).sky()
     both = sy.diff_gain(sky, 0.01, 0.0) + sy.diff_gain(sky, 0.0, -0.01)
     np.testing.assert_allclose(
         both.component(0, 0), sy.diff_gain(sky, 0.01, -0.01).component(0, 0)

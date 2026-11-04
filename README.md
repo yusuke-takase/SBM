@@ -63,7 +63,11 @@ python -m sphinx -b html docs/source docs/build/html
 - HWP instrumental polarization [G. Patanchon et al.](https://iopscience.iop.org/article/10.1088/1475-7516/2024/04/074)
 - Second-order pointing terms
 - Arbitrary beams, with a general HWP Mueller matrix
+- Non-ideal HWP Mueller matrices, with harmonics in the HWP angle
+- Polarization angle errors
 - White noise with the correlations of the map-maker
+
+To add a systematic, see [CONTRIBUTING.md](CONTRIBUTING.md) and [`notebooks/adding_a_systematic.ipynb`](notebooks/adding_a_systematic.ipynb).
 
 # Tests
 

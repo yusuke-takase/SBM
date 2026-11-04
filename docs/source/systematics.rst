@@ -6,7 +6,14 @@ and physical parameters and returns a :class:`.SignalModel`. The model of a
 detector is :func:`~sbm.systematics.sky_signal` plus the perturbations of its
 systematics; :func:`~sbm.systematics.beam` is the whole signal through a beam
 and replaces :func:`~sbm.systematics.sky_signal`. The templates are the
-couples to add to the basis (:meth:`.Basis.extend`) to absorb the systematic.
+couples to add to the basis (:meth:`.Basis.extend`) to absorb the systematic;
+each function carries them as ``.templates`` (and the kind of data as
+``.data``), so that ``Basis.iqu(hwp=True).extend(sy.abs_pointing.templates)``
+works. :data:`sbm.systematics.ALL` lists every systematic.
+
+The modules follow the path of the signal through the instrument:
+``sky`` (the ideal detector), ``pointing``, ``optics`` (the beam), ``hwp`` and
+``detector``.
 
 .. list-table::
    :header-rows: 1
@@ -48,6 +55,16 @@ couples to add to the basis (:meth:`.Basis.extend`) to absorb the systematic.
      - single detector, HWP
      - :math:`(0,4)\colon \frac{\epsilon}{2} e^{-i\varphi} I`
      - :math:`(0,4)`
+   * - :func:`~sbm.systematics.hwp_mueller`
+     - single detector, HWP
+     - non-ideal Mueller matrix of the HWP, with its harmonics in the HWP angle
+       (perturbation with respect to the ideal HWP)
+     - depend on the harmonics: :math:`(0, k\pm2)` for the intensity
+   * - :func:`~sbm.systematics.polarization_angle`
+     - any
+     - :math:`(2,0)\colon (e^{-2i\delta}-1) P/2` without HWP,
+       :math:`(2,-4)\colon (e^{2i\delta}-1) P/2` with HWP
+     -
    * - :func:`~sbm.systematics.beam`
      - any
      - whole signal through the beam and the HWP Mueller matrix

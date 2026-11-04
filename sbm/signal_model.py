@@ -10,8 +10,9 @@ a :class:`SignalModel` stores one component per conjugate pair, and
 ``S_{0,0}`` is real. For example the sky seen by an ideal detector without HWP
 is ``S_{0,0} = I`` and ``S_{2,0} = P / 2`` with ``P = Q + iU``.
 
-Models are added like the signals they describe: the model of a detector with
-several systematics is the sum of the models of each.
+Models are added and multiplied like the signals they describe: the model of
+a detector with several systematics is the sum of the models of each, and the
+product of two models is the model of the product of their signals.
 """
 
 from __future__ import annotations
@@ -130,11 +131,33 @@ class SignalModel:
             return self
         return NotImplemented
 
-    def __mul__(self, factor: float) -> "SignalModel":
-        factor = float(factor)
+    def __mul__(self, other) -> "SignalModel":
+        """A number times the model, or the product of two models.
+
+        The product of the signals ``d_a d_b`` is the convolution of their spin
+        components: ``S_{n,m} = sum S^a_{n_a,m_a} S^b_{n-n_a,m-m_a}`` over every
+        component of each, conjugates included (for instance the non-linear
+        response ``d + beta d**2`` of a detector).
+        """
+        if isinstance(other, SignalModel):
+            if other.npix != self.npix:
+                raise ValueError("the models have different numbers of pixels")
+            out: dict[Couple, np.ndarray] = {}
+            for a in self.components():
+                for b in other.components():
+                    key = (a.n + b.n, a.m + b.m)
+                    if canonical(*key)[1]:
+                        continue  # the conjugate couple carries the same information
+                    value = a.map * b.map
+                    out[key] = out[key] + value if key in out else value
+            if (0, 0) in out:
+                out[(0, 0)] = out[(0, 0)].real  # real up to rounding errors
+            return SignalModel(out)
+        factor = float(other)
         return SignalModel({key: factor * value for key, value in self._s.items()})
 
-    __rmul__ = __mul__
+    def __rmul__(self, factor) -> "SignalModel":
+        return self * float(factor)
 
     def __neg__(self) -> "SignalModel":
         return -1.0 * self
