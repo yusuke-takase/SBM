@@ -235,6 +235,7 @@ def second_order_maps(
     step_rad: float | None = None,
     nthreads: int = 4,
     epsilon: float = 1e-12,
+    transport: bool = True,
 ) -> dict:
     """Second-order maps ``eth2_i``, ``lap_i``, ``eth2_p``, ``eth_bar2_p``, ``lap_p``.
 
@@ -244,6 +245,11 @@ def second_order_maps(
         nside: resolution of the maps, evaluated at the pixel centres.
         step_rad: finite-difference step (default: one arcminute).
         nthreads, epsilon: passed to ``ducc0.sht.experimental.synthesis_general``.
+        transport: take Q and U in the frame transported from the point (the
+            covariant maps, consistent with the first derivatives of
+            :class:`Sky`); ``False`` takes them in the local basis of the
+            displaced points, consistent with derivatives of Q and U as scalar
+            maps (SBM 0.4).
     """
     sh = SphericalHarmonics.of(alm).full()
     alm, lmax = sh.values, sh.lmax
@@ -257,7 +263,9 @@ def second_order_maps(
         """I, Q, U at the displaced points, Q and U in the transported frame."""
         theta_d, phi_d, delta = _displaced(theta, phi, alpha, step)
         i, q, u = _synthesize(alm_t, alm_eb, lmax, theta_d, phi_d, nthreads, epsilon)
-        p = (q + 1j * u) * np.exp(-2j * delta)
+        p = q + 1j * u
+        if transport:
+            p = p * np.exp(-2j * delta)
         return np.array([i, p.real, p.imag])
 
     def second_difference(alpha):

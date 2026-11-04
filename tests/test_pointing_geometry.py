@@ -193,3 +193,16 @@ def test_sky_derivatives_are_the_covariant_ones():
     # from the maps alone (healpy.map2alm of I, Q, U), at a resolution where it is exact
     from_maps = Sky.from_maps(*hp.alm2map(alm, NSIDE, lmax=LMAX), lmax=LMAX)
     np.testing.assert_allclose(from_maps.eth_p, exact.eth_p, atol=1e-6)
+
+
+def test_second_order_maps_without_transport_are_the_local_frame():
+    # transport=False: Q and U of the displaced points in their own local basis
+    from sbm.sky import second_order_maps
+
+    alm = band_limited_alm(7)
+    transported = second_order_maps(alm, NSIDE)
+    local = second_order_maps(alm, NSIDE, transport=False)
+    np.testing.assert_array_equal(transported["lap_i"], local["lap_i"])
+    assert np.max(np.abs(transported["lap_p"] - local["lap_p"])) > 1e-3 * np.max(
+        np.abs(local["lap_p"])
+    )
