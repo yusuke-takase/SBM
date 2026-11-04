@@ -308,15 +308,20 @@ class SignalFields:
             1j * chi_B
         )  # \overline{\zeta}
 
+        # Pair difference d = (d_T - d_B)/2: the temperature gradient enters with the
+        # difference of the offsets (zeta) and weight 1/4, while the polarization
+        # gradient enters with their sum (o_zeta) and weight 1/8, because the
+        # polarization term of each detector carries the factor 1/2 of the pair.
         spin_1_field = Field(
-            -1.0 / 4.0 * (zeta * eth_temp_map + o_zeta.conj() * o_eth_pol_map),
+            -1.0 / 4.0 * zeta * eth_temp_map
+            - 1.0 / 8.0 * o_zeta.conj() * o_eth_pol_map,
             spin_n=1,
             spin_m=0,
         )
         spin_m1_field = spin_1_field.conj()
         spin_2_field = Field(pol_map / 2.0, spin_n=2, spin_m=0)
         spin_m2_field = spin_2_field.conj()
-        spin_3_field = Field(-1.0 / 4.0 * o_zeta * eth_pol_map, spin_n=3, spin_m=0)
+        spin_3_field = Field(-1.0 / 8.0 * o_zeta * eth_pol_map, spin_n=3, spin_m=0)
         spin_m3_field = spin_3_field.conj()
 
         signal_fields = SignalFields(
