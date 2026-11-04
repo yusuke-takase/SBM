@@ -69,3 +69,13 @@ def test_forecast_recovers_injected_tensor_bias():
         assert abs(sbm.forecast(_full(r_in * cl_tens))["delta_r"] / r_in - 1.0) < 1e-9
         got = sbm.forecast(_full(r_in * cl_tens), n_el=_full(noise))["delta_r"]
         assert abs(got / r_in - 1.0) < 1e-9
+
+
+def test_forecast_rejects_non_finite_spectra():
+    import pytest
+
+    cl = np.zeros(300)
+    cl[2:] = 1e-6 / np.arange(2, 300) ** 2
+    cl[10] = np.nan
+    with pytest.raises(ValueError, match="non-finite"):
+        sbm.forecast(cl)

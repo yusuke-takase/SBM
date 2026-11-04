@@ -64,7 +64,7 @@ class HMaps:
         coordinate_system: str | None = None,
         name: str | None = None,
     ):
-        hits = np.asarray(hits, dtype=float)
+        hits = np.array(hits, dtype=float)  # a copy: it is made read-only
         self.nside = hp.npix2nside(hits.size)
         self.hits = hits
         self.hits.setflags(write=False)
@@ -269,14 +269,15 @@ class HMaps:
         """
         path = Path(path)
         with h5py.File(path, "w") as f:
-            f.attrs["coordinate_system"] = self.coordinate_system or "Galactic"
+            f.attrs["coordinate_system"] = _LBS_COORDINATES.get(
+                self.coordinate_system, self.coordinate_system or "Galactic"
+            )
             f.attrs["det"] = self.name or ""
             f.attrs["detector_split"] = "full"
             f.attrs["time_split"] = "full"
-            if self.duration_s is not None:
-                f.attrs["duration_s"] = self.duration_s
-            if self.sampling_rate_hz is not None:
-                f.attrs["sampling_rate_Hz"] = self.sampling_rate_hz
+            # litebird_sim reads both attributes; NaN stands for unknown
+            f.attrs["duration_s"] = _nan_if_none(self.duration_s)
+            f.attrs["sampling_rate_Hz"] = _nan_if_none(self.sampling_rate_hz)
             f["0,0/Re"] = self.hits
             f["0,0/Im"] = np.zeros_like(self.hits)
             for n, m in self.couples:
@@ -286,8 +287,19 @@ class HMaps:
         return path
 
 
+# names of litebird_sim's CoordinateSystem for the codes of the legacy files
+_LBS_COORDINATES = {"G": "Galactic", "E": "Ecliptic"}
+
+
 def _float_or_none(value):
-    return None if value is None else float(value)
+    if value is None:
+        return None
+    value = float(value)
+    return None if np.isnan(value) else value
+
+
+def _nan_if_none(value):
+    return np.nan if value is None else float(value)
 
 
 def _str_or_none(value):

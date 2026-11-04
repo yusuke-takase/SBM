@@ -16,7 +16,7 @@ import healpy as hp
 import numpy as np
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class SphericalHarmonics:
     """Harmonic coefficients ``values`` of shape ``(nstokes, ncoeff)``.
 
@@ -34,6 +34,10 @@ class SphericalHarmonics:
     def __post_init__(self):
         values = np.atleast_2d(np.asarray(self.values, dtype=complex))
         mmax = self.lmax if self.mmax is None else int(self.mmax)
+        if self.lmax < 0 or not 0 <= mmax <= self.lmax:
+            raise ValueError(
+                f"need 0 <= mmax <= lmax, got lmax={self.lmax}, mmax={mmax}"
+            )
         if values.ndim != 2 or values.shape[0] not in (1, 3, 4):
             raise ValueError("values must have 1 (T), 3 (TEB) or 4 (TEBV) components")
         expected = hp.Alm.getsize(int(self.lmax), mmax)
@@ -54,7 +58,11 @@ class SphericalHarmonics:
     def of(cls, alm, mmax: int | None = None) -> "SphericalHarmonics":
         """``alm`` as :class:`SphericalHarmonics`: itself, an object with the
         attributes ``values``, ``lmax`` and ``mmax`` (such as litebird_sim's), or an
-        array of coefficients with ``mmax = lmax`` unless ``mmax`` is given."""
+        array of coefficients with ``mmax = lmax`` unless ``mmax`` is given.
+
+        An array does not tell its ``mmax``: one with ``mmax < lmax`` can have as
+        many coefficients as a full layout of a smaller ``lmax`` and would be
+        misread, so pass such coefficients as :class:`SphericalHarmonics`."""
         if isinstance(alm, cls):
             return alm
         if hasattr(alm, "values") and hasattr(alm, "lmax"):

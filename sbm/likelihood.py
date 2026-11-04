@@ -115,6 +115,8 @@ def forecast(
     cl_tens = load_fiducial_cl_tens(r=1.0, lmax=lmax)[2][2:]
     cl_lens = load_fiducial_cl_lens(lmax=lmax)[2][2:]
     cl_syst = cl_syst[2 : lmax + 1]
+    if not np.all(np.isfinite(cl_syst)):
+        raise ValueError("cl_syst has non-finite values (NaN pixels in the maps?)")
     if n_el is None:
         n_el = np.zeros_like(cl_lens)
     else:
@@ -122,6 +124,8 @@ def forecast(
             "First and second elements must be 0 because it is recognized as monopole and dipole"
         )
         n_el = n_el[2 : lmax + 1]
+        if not np.all(np.isfinite(n_el)):
+            raise ValueError("n_el has non-finite values")
 
     def wrapped_likelihood(r):
         return _get_likelihood(r, ell, cl_tens, cl_lens, cl_syst, n_el, fsky)

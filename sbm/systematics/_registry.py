@@ -4,7 +4,8 @@ A decorator is a function applied to another one where it is defined: writing
 ``@systematic(data="pair", templates=[(0, 0)])`` above ``def diff_gain(...)``
 is the same as ``diff_gain = systematic(data="pair", templates=[(0, 0)])(diff_gain)``.
 Here it only attaches two attributes to the function and appends it to
-:data:`ALL`; the function is called as usual.
+:data:`ALL` (or replaces the function of the same name and module, when a module
+is reloaded); the function is called as usual.
 """
 
 from __future__ import annotations
@@ -40,7 +41,13 @@ def systematic(data: str, templates=()):
     def register(function):
         function.data = data
         function.templates = templates
-        ALL.append(function)
+        key = (function.__module__, function.__qualname__)
+        for i, other in enumerate(ALL):
+            if (other.__module__, other.__qualname__) == key:
+                ALL[i] = function  # declared again, e.g. after reloading its module
+                break
+        else:
+            ALL.append(function)
         return function
 
     return register

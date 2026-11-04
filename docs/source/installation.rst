@@ -22,6 +22,5 @@ Optional dependencies are imported only by the functions that use them:
      - matplotlib
      - :func:`sbm.get_cmap`
 
-For example ``pip install -e ".[plot]"``. The tests need pytest
-and SciPy (``pip install -e ".[test]"``) and run with ``pytest`` from any
-directory.
+For example ``pip install -e ".[plot]"``. The tests need only pytest
+(``pip install -e ".[test]"``) and run with ``pytest`` from any directory.

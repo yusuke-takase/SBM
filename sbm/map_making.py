@@ -138,15 +138,31 @@ def solvable(
     return ok
 
 
+def _selection(a: np.ndarray, hits: np.ndarray, mask) -> np.ndarray:
+    """Pixels to solve: ``mask`` (by default all) restricted to :func:`solvable`."""
+    ok = solvable(a, hits)
+    if mask is None:
+        return ok
+    mask = np.asarray(mask, dtype=bool) & (hits > 0)
+    dropped = int((mask & ~ok).sum())
+    if dropped:
+        warnings.warn(
+            f"{dropped} pixels of the mask have an ill-conditioned system "
+            "and are not solved"
+        )
+    return mask & ok
+
+
 def map_make(data, basis: Basis, mask=None) -> MapMakingResult:
     """Solve the map-making system.
 
     Args:
         data: ``(HMaps, SignalModel)``, or a list of them, one per detector.
         basis: the components to solve for.
-        mask: pixels to solve. By default the observed pixels whose system is
-            well conditioned (:func:`solvable`). To reproduce the selection of
-            SBM 0.4 without HWP pass ``hmaps.crosslink_mask(threshold)``.
+        mask: pixels to solve, among the observed pixels whose system is well
+            conditioned (:func:`solvable`); all of these by default. To reproduce
+            the selection of SBM 0.4 without HWP pass
+            ``hmaps.crosslink_mask(threshold)``.
 
     Returns:
         :class:`MapMakingResult`; the pixels that are not solved are ``NaN``.
@@ -167,10 +183,7 @@ def map_make(data, basis: Basis, mask=None) -> MapMakingResult:
             a += weight[:, None, None] * orientation_matrix(hmaps, basis)
             b += weight[:, None] * _rhs(hmaps, model, basis)
             hits = hits + hmaps.hits
-    if mask is None:
-        mask = solvable(a, hits)
-    else:
-        mask = np.asarray(mask, dtype=bool) & (hits > 0)
+    mask = _selection(a, hits, mask)
     x = _solve(a, b, mask)
     unsolved = mask & np.any(np.isnan(x), axis=1)
     if np.any(unsolved):
@@ -200,10 +213,7 @@ class MapMaker:
         self.hmaps = hmaps
         self.basis = basis
         a = orientation_matrix(hmaps, basis)
-        if mask is None:
-            mask = solvable(a, hmaps.hits)
-        else:
-            mask = np.asarray(mask, dtype=bool) & (hmaps.hits > 0)
+        mask = _selection(a, hmaps.hits, mask)
         idx = np.flatnonzero(mask)
         inverse = np.empty((idx.size, basis.dimension, basis.dimension), dtype=complex)
         ok = np.ones(idx.size, dtype=bool)
@@ -255,14 +265,10 @@ def noise_covariance(
     ``Cov(y) = sigma^2 / N A^{-1}``. ``net_ukrts`` is the NET of the data that
     enter the map-maker: for a pair difference ``(d_T - d_B) / 2`` of two
     detectors with the same NET it is ``NET / sqrt(2)``. The covariance is
-    ``NaN`` in the pixels outside ``mask`` (by default :func:`solvable`).
+    ``NaN`` in the pixels that are not solved (as in :func:`map_make`).
     """
     a = orientation_matrix(hmaps, basis)
-    mask = (
-        solvable(a, hmaps.hits)
-        if mask is None
-        else np.asarray(mask, bool) & (hmaps.hits > 0)
-    )
+    mask = _selection(a, hmaps.hits, mask)
     cov = np.full(a.shape, complex(np.nan, np.nan), dtype=complex)
     idx = np.flatnonzero(mask)
     sigma2 = net_ukrts**2 * sampling_rate_hz

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..beam import IDEAL_HWP
 from ..signal_model import SignalModel
 from ..sky import Sky
 from ._registry import systematic
@@ -20,7 +21,6 @@ def hwp_ip(sky: Sky, epsilon: float, phase_rad: float) -> SignalModel:
 
 
 #: Mueller matrix of an ideal HWP in its own frame (Stokes I, Q, U, V).
-IDEAL_HWP = np.diag([1.0, 1.0, -1.0, -1.0])
 
 
 def _stokes_rotation(angle):

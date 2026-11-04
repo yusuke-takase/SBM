@@ -35,7 +35,7 @@ iqu = sbm.map_make((hmaps, model), sbm.Basis.iqu(hwp=True)).iqu
 git clone https://github.com/yusuke-takase/SBM.git
 cd SBM
 pip install -e .                 # or: uv pip install -e .
-pip install -e ".[test]"         # pytest and SciPy for the tests
+pip install -e ".[test]"         # pytest for the tests
 ```
 
 SBM needs NumPy (1.x or 2.x), healpy, h5py and ducc0. The extra `plot` adds

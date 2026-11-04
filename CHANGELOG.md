@@ -1,4 +1,8 @@
 # Head
+- a `mask` given to `map_make`, `MapMaker`, `noise_covariance` and `noise_maps` is restricted to the pixels whose system is well conditioned (`solvable`), with a warning for the pixels it drops: ill-conditioned pixels of the mask are `NaN` instead of meaningless values (and `noise_maps` no longer fails on them).
+- `forecast` raises `ValueError` for a spectrum with non-finite values (from `NaN` pixels), instead of returning a vanishing bias.
+- `HMaps` copies the hit counts it is given (they were made read-only in place); `HMaps.save` writes the coordinate system with the names of litebird_sim (`Galactic`, `Ecliptic`) and always writes `duration_s` and `sampling_rate_Hz` (`NaN` when unknown), which litebird_sim's reader needs.
+- `SphericalHarmonics` checks `0 <= mmax <= lmax` and compares by identity (no array-valued `==`); a systematic declared again (when its module is reloaded) replaces the former one in `sbm.systematics.ALL`; `assert_matches_tod` takes `atol` relative to the largest TOD value.
 - add `SphericalHarmonics(values, lmax, mmax)`, with the attribute names of litebird_sim's class (objects of litebird_sim are accepted as they are, arrays too): `from_maps`, `to_maps`, `full` (for `mmax < lmax`). The beam convolution, `Sky.from_alm` (`sky.alm`) and the second-order maps take it. The beams are built by `sbm.beam.pencil`, `sbm.beam.gaussian` (pencil times the transfer functions of `healpy.gauss_beam`) and `sbm.beam.elliptical`, which return `SphericalHarmonics`; `elliptical_beam`, which returned maps, is removed.
 - SBM needs only NumPy, healpy, h5py and ducc0 (0.40 or later): the Wigner 3j symbols of `low_ell="beam_sum"` come from ducc0 (`ducc0.misc.wigner3j_int`, equal to the exact symbols to 2e-15) instead of sympy, and the extra `low-ell` is removed; the tests need only pytest (the Wigner rotation of the HWP tests uses NumPy instead of SciPy). matplotlib remains optional for `get_cmap` (extra `plot`).
 - **Breaking**: `forecast` has no `method`, `r0` and `tol` any more: the MIGRAD minimisation (`method="minuit"`) is removed with the optional dependency iminuit; the bias is always the exact maximum of the likelihood.
@@ -7,7 +11,7 @@
 - add `polarization_angle`: an error on the polarization angle of the detector(s), with and without HWP (the phase changes sign), checked against litebird_sim's polarization angles.
 - the product of two `SignalModel`s is the model of the product of their signals (for non-linear responses).
 - `sbm.testing` provides the tools to check a model against TOD (`random_samples`, `tod_from_components`, `least_squares`, `assert_matches_tod`, `RealSky`); `CONTRIBUTING.md`, the documentation page "Adding a systematic" and `notebooks/adding_a_systematic.ipynb` explain how to add a systematic.
-- `hwp_lowell.py` is folded into `beam.py`; `lowell_hwp="shifted"` / `"full_sum"` are renamed `low_ell="narrow_beam"` / `"beam_sum"`, and the extra `lowell` is renamed `low-ell`.
+- `hwp_lowell.py` is folded into `beam.py`; `lowell_hwp="shifted"` / `"full_sum"` are renamed `low_ell="narrow_beam"` / `"beam_sum"` (the extra `lowell` is removed, see above).
 - **Breaking**: the API is rebuilt around the parts of the map-maker, without aliases of the former names (see `docs/source/migration.rst`):
   `HMaps` (orientation functions and hits; reads and writes the h-map files of litebird_sim and Falcons.jl, reads the cross-link files of SBM 0.4),
   `SignalModel` (spin components of the data; models add up), `Basis` (the components solved for, formerly `mdim`),

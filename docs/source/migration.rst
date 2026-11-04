@@ -62,7 +62,10 @@ The former classes and functions are removed, without aliases.
    * - ``generate_noise_pdf`` and ``generate_noise(spin_n, spin_m, seed)``
      - ``noise_maps(hmaps, basis, net_ukrts, sampling_rate_hz, rng)``, with the
        correlations between the components; the former maps had independent
-       components with twice the standard deviation of Q and U of an ideal scan
+       components with twice the standard deviation of Q and U of an ideal scan.
+       ``net_ukrts`` is the NET of the data that enter the map-maker: for a pair
+       difference of two detectors with the NET of the former ``scale=2``, pass
+       ``NET / sqrt(2)``
    * - ``pa45``, ``t2b``
      - removed (zero polarization angle)
    * - ``Configlation``, ``Systematics``, ``sim_*``, ``generate_maps``,

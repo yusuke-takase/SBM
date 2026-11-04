@@ -68,7 +68,8 @@ The modules follow the path of the signal through the instrument:
    * - :func:`~sbm.systematics.beam`
      - any
      - whole signal through the beam and the HWP Mueller matrix
-     - :math:`(4,0)` or :math:`(4,-4)`
+     - none declared; the :math:`4\psi` term of the beam is fitted by
+       ``extend([(4, 0)])`` without HWP or ``extend([(4, -4)])`` with HWP
 
 In the pair difference the offsets of T and B are
 :math:`u_t = \rho_t e^{i\chi_t}` and :math:`u_b = i\rho_b e^{i\chi_b}` (B is

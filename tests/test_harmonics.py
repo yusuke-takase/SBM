@@ -91,3 +91,13 @@ def test_round_elliptical_beam_is_the_gaussian_beam():
 def test_pencil_beam_components():
     assert sbm_beam.pencil(4).nstokes == 3
     assert sbm_beam.pencil(4, (1.0, 1.0, 0.0, 0.2)).nstokes == 4
+
+
+def test_rejects_an_invalid_mmax_and_compares_by_identity():
+    values = np.zeros((3, hp.Alm.getsize(8)), complex)
+    for mmax in (-1, 9):
+        with pytest.raises(ValueError, match="mmax"):
+            SphericalHarmonics(values, 8, mmax)
+    sh = SphericalHarmonics(values, 8)
+    assert sh == sh and sh != SphericalHarmonics(values, 8)
+    assert isinstance(hash(sh), int)

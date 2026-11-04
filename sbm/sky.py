@@ -99,7 +99,7 @@ class Sky:
     @classmethod
     def from_alm(cls, alm, nside: int, **kwargs) -> "Sky":
         """Sky from T, E, B coefficients (:class:`.SphericalHarmonics`, litebird_sim's,
-        or an array in the healpy ordering)."""
+        or an array in the healpy ordering with ``mmax = lmax``)."""
         alm = SphericalHarmonics.of(alm)
         if alm.nstokes < 3:
             raise ValueError("the sky needs T, E and B coefficients")

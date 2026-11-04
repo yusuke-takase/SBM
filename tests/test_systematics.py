@@ -229,7 +229,11 @@ def cases():
         "polarization_angle-pair",
         False,
         pair + sy.polarization_angle(sky, delta),
-        lambda px, ps, ph: lbs_polarizer_tod(real, px, -ps + delta) - real.x["I"][px],
+        lambda px, ps, ph: (
+            lbs_polarizer_tod(real, px, -ps + delta)
+            - lbs_polarizer_tod(real, px, -(ps + np.pi / 2) + delta)
+        )
+        / 2,
     )
     add(
         sy.polarization_angle,
@@ -299,6 +303,16 @@ def test_templates_absorb_the_first_order_perturbation(case):
     np.testing.assert_allclose(with_systematic.iqu[1:], without.iqu[1:], atol=1e-12)
 
 
+def test_every_exported_function_is_a_registered_systematic():
+    exported = {
+        getattr(sy, name)
+        for name in sy.__all__
+        if callable(getattr(sy, name)) and name != "systematic"
+    }
+    assert exported == set(sy.ALL)
+    assert len(sy.ALL) == len(set(sy.ALL))
+
+
 def test_every_systematic_has_a_case():
     covered = {c.systematic for c in CASES}
     missing = [f.__name__ for f in sy.ALL if f not in covered]
@@ -316,6 +330,25 @@ def test_every_systematic_is_documented():
         f.__name__ for f in sy.ALL if f"sbm.systematics.{f.__name__}" not in text
     ]
     assert not missing, f"list {missing} in docs/source/systematics.rst"
+
+
+def test_declaring_a_systematic_again_replaces_it():
+    # e.g. when its module is reloaded: same module and qualified name
+    before = list(sy.ALL)
+
+    def declare():
+        @sy.systematic(data="any")
+        def probe(sky):
+            return sky
+
+        return probe
+
+    try:
+        first, second = declare(), declare()
+        assert second in sy.ALL and first not in sy.ALL
+        assert len(sy.ALL) == len(before) + 1
+    finally:
+        sy.ALL[:] = before
 
 
 def test_declarations():

@@ -225,6 +225,38 @@ def test_unobserved_and_singular_pixels_are_not_solved():
         )
 
 
+def test_a_given_mask_excludes_the_singular_pixels():
+    rng = np.random.default_rng(9)
+    pixels, psi, phi = random_samples(NSIDE, 8, seed=10)
+    psi = np.where(pixels == 5, 0.7, psi)  # one direction only in pixel 5
+    hm = HMaps.from_samples(NSIDE, pixels, psi, phi, couples=COUPLES)
+    _, model = _random_model(rng, [(0, 0), (2, 0)])
+    basis = Basis.iqu(hwp=False)
+    everywhere = np.ones(NPIX, bool)
+    with pytest.warns(UserWarning, match="ill-conditioned"):
+        result = map_make((hm, model), basis, mask=everywhere)
+    assert not result.mask[5] and np.all(np.isnan(result.iqu[:, 5]))
+    with pytest.warns(UserWarning, match="ill-conditioned"):
+        reused = MapMaker(hm, basis, mask=everywhere)(model)
+    np.testing.assert_array_equal(reused.mask, result.mask)
+    with pytest.warns(UserWarning, match="ill-conditioned"):
+        noise = noise_maps(hm, basis, 1.0, 1.0, rng, mask=everywhere)
+    assert not noise.mask[5] and noise.mask.sum() == NPIX - 1
+
+
+def test_hmaps_copy_the_hits_and_write_files_that_litebird_sim_reads(tmp_path):
+    hits = np.ones(NPIX)
+    hm = HMaps({(2, 0): np.zeros(NPIX, complex)}, hits, coordinate_system="G")
+    hits[0] = 3.0  # the caller's array stays writable and independent
+    assert hm.hits[0] == 1.0
+    path = hm.save(tmp_path / "h.h5")
+    with h5py.File(path) as f:
+        assert f.attrs["coordinate_system"] == "Galactic"
+        assert np.isnan(f.attrs["duration_s"]) and np.isnan(f.attrs["sampling_rate_Hz"])
+    back = HMaps.load(path)
+    assert back.duration_s is None and back.sampling_rate_hz is None
+
+
 # --------------------------------------------------------------------- #
 # White noise
 

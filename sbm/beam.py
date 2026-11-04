@@ -68,7 +68,7 @@ def beam_transfer(beam_alm, k: int, spin_m: int = 0) -> np.ndarray:
 
     Args:
         beam_alm: T, E, B (and V) coefficients of the beam (:class:`.SphericalHarmonics`
-            or an array).
+            or an array with ``mmax = lmax``).
         k: non-negative spin moment of the crossing angle; the spin ``-k`` maps
             are the complex conjugates of the spin ``k`` maps.
         spin_m: HWP harmonic; the beam order is ``k + spin_m``.
@@ -194,7 +194,7 @@ def convolve(
 
     Args:
         sky_alm: T, E, B (and V) coefficients of the sky (:class:`.SphericalHarmonics`,
-            litebird_sim's, or an array).
+            litebird_sim's, or an array with ``mmax = lmax``).
         beam_alm: T, E, B (and V) coefficients of the beam, with the same ``lmax``
             (:func:`pencil`, :func:`gaussian`, :func:`elliptical` or
             :meth:`.SphericalHarmonics.from_maps`). The beam need not be axially

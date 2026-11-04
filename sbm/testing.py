@@ -83,7 +83,8 @@ def assert_matches_tod(
 
     ``samples`` is ``(pixels, psi, phi)`` as from :func:`random_samples`. The
     h-maps are computed from the same samples, with every couple that the model
-    and the basis need.
+    and the basis need. ``atol`` is relative to the largest value of ``tod``, so
+    that the check does not depend on the units.
     """
     from .hmaps import HMaps
     from .map_making import map_make
@@ -97,12 +98,13 @@ def assert_matches_tod(
     hm = HMaps.from_samples(nside, pixels, psi, phi, couples=couples)
     result = map_make((hm, model), basis)
     expected = least_squares(tod, pixels, psi, phi, basis.couples, npix)
+    scale = max(float(np.max(np.abs(tod))), np.finfo(float).tiny)
     for c in basis.couples:
         np.testing.assert_allclose(
             result.component(*c),
             expected[c],
             rtol=rtol,
-            atol=atol,
+            atol=atol * scale,
             err_msg=f"component {c} of {basis}",
         )
 
