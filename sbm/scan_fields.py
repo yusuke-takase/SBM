@@ -99,6 +99,17 @@ def read_scanfiled(file_path: str) -> "ScanFields":
     return ScanFields.load_hdf5(file_path)
 
 
+def _attr_to_str(value) -> str:
+    """String value of an HDF5 attribute.
+
+    Fixed-length string attributes, such as those written by Falcons.jl, are read by
+    h5py as ``bytes`` and would otherwise become ``"b'...'"``.
+    """
+    if isinstance(value, (bytes, np.bytes_)):
+        return value.decode("utf-8")
+    return str(value)
+
+
 class ScanFields:
     """Class to store the scan fields data of detectors
 
@@ -193,6 +204,137 @@ class ScanFields:
         instance.duration = instance.ss["duration"]
         instance.sampling_rate = instance.ss["sampling_rate"]
         instance.npix = hp.nside2npix(instance.nside)
+        return instance
+
+    @classmethod
+    def load_lbs_h_maps(cls, file_paths) -> "ScanFields":
+        """Load h-maps written by litebird_sim's or Falcons.jl's `save_h_maps`
+
+        The files follow litebird_sim's layout (``h_maps_det_<name>.h5``): one
+        group ``"n,m"`` per couple holding the real and imaginary parts
+        ``Re`` and ``Im`` of
+
+        .. math:: h^{\\rm lbs}_{n,m} = \\langle e^{+i(n\\psi + m\\chi)} \\rangle,
+
+        where :math:`\\psi` is litebird_sim's orientation angle and
+        :math:`\\chi` the HWP angle, and the ``(0, 0)`` couple holds the hit
+        counts. SBM's crossing angle is the opposite of litebird_sim's
+        orientation angle, :math:`\\psi_{\\rm SBM} = -\\psi`: with this choice
+        SBM's signal model reproduces litebird_sim's TOD model, including a
+        rotating HWP. The cross-links are therefore stored as
+
+        .. math:: \\tilde h_{n,m} = \\langle e^{-i(n\\psi_{\\rm SBM} + m\\chi)} \\rangle
+                  = h^{\\rm lbs}_{n,-m}.
+
+        The h-maps of litebird_sim do not include the detector polarisation
+        angle: the cross-links of a file are those of a detector with
+        polarisation angle 0. Unobserved pixels get cross-links equal to 1, as
+        with :meth:`.load_hdf5`.
+
+        Args:
+            file_paths (`str` or `list` of `str`): one file, or several files,
+                which are combined by hit-weighted averaging as in
+                :meth:`.load_channel`. Combine only detectors with the same
+                polarisation angle. The files do not hold it, and it changes the
+                cross-links of each detector (without HWP, a polarisation angle
+                :math:`\\alpha` shifts the phase of
+                :math:`\\langle e^{-in\\psi}\\rangle` by :math:`n\\alpha`), so the
+                average over detectors with different polarisation angles (e.g.
+                all the detectors of a channel) does not describe their scan.
+
+        Returns:
+            instance (:class:`.ScanFields`): scan fields with ``spins_n`` the
+            non-negative spin orders found in the files and ``spins_m`` the HWP orders
+        """
+        if isinstance(file_paths, (str, os.PathLike)):
+            file_paths = [file_paths]
+        assert len(file_paths) > 0, "No file given"
+        instance = None
+        for path in file_paths:
+            current = cls._load_single_lbs_h_map(path)
+            if instance is None:
+                instance = current
+                continue
+            assert np.array_equal(instance.spins_n, current.spins_n) and np.array_equal(
+                instance.spins_m, current.spins_m
+            ), f"{path} has different spin orders"
+            # valid only for detectors with the same polarisation angle (see the docstring)
+            seen_a, seen_b = instance.hitmap > 0, current.hitmap > 0
+            total = instance.hitmap + current.hitmap
+            weighted = (
+                np.where(seen_a, instance.hitmap, 0)[:, None, None] * instance.h
+                + np.where(seen_b, current.hitmap, 0)[:, None, None] * current.h
+            )
+            instance.h = np.where(
+                (total > 0)[:, None, None], weighted / np.maximum(total, 1)[:, None, None], 1.0
+            )
+            instance.hitmap = total
+            instance.duration = max(instance.duration, current.duration)
+        instance.ndet = len(file_paths)
+        return instance
+
+    @classmethod
+    def _load_single_lbs_h_map(cls, file_path) -> "ScanFields":
+        assert os.path.exists(file_path), f"File not found: {file_path}"
+        couples = {}
+        with h5py.File(file_path, "r") as f:
+            attrs = dict(f.attrs)
+            for key in f.keys():
+                parts = key.split(",")
+                if len(parts) != 2:
+                    continue
+                n, m = int(parts[0]), int(parts[1])
+                couples[(n, m)] = f[key]["Re"][()] + 1j * f[key]["Im"][()]
+        if (0, 0) not in couples:
+            raise ValueError(f"{file_path} has no (0, 0) couple, which holds the hit counts")
+        hitmap = np.rint(couples[(0, 0)].real).astype(np.int64)
+
+        # h_{n,m} in SBM's convention, from either (n, -m) or the conjugate of (-n, m)
+        def sbm_xlink(n, m):
+            if (n, -m) in couples:
+                return couples[(n, -m)]
+            if (-n, m) in couples:
+                return couples[(-n, m)].conj()
+            return None
+
+        spins_n = sorted({abs(n) for n, _ in couples})
+        spins_m = sorted({-m if n >= 0 else m for n, m in couples if n != 0} | {0})
+        npix = len(hitmap)
+        h = np.empty((npix, len(spins_m), len(spins_n)), dtype=np.complex128)
+        missing = []
+        for j, m in enumerate(spins_m):
+            for i, n in enumerate(spins_n):
+                if n == 0 and m == 0:
+                    h[:, j, i] = 1.0
+                    continue
+                value = sbm_xlink(n, m)
+                if value is None:
+                    missing.append((n, -m))
+                    continue
+                h[:, j, i] = value
+        if missing:
+            raise ValueError(
+                f"{file_path} lacks the (n, m) couples {missing} (litebird_sim orders) needed for the full grid"
+            )
+        h[hitmap == 0] = 1.0
+
+        instance = cls()
+        instance.hitmap = hitmap
+        instance.h = h
+        instance.spins_n = np.array(spins_n)
+        instance.spins_m = np.array(spins_m)
+        instance.npix = npix
+        instance.nside = hp.npix2nside(npix)
+        instance.duration = float(attrs.get("duration_s", 0.0))
+        instance.sampling_rate = float(attrs.get("sampling_rate_Hz", 0.0))
+        instance.ss = {
+            "nside": instance.nside,
+            "duration": instance.duration,
+            "sampling_rate": instance.sampling_rate,
+            "coord": _attr_to_str(attrs.get("coordinate_system", "")),
+            "name": _attr_to_str(attrs.get("det", "")),
+        }
+        instance.ndet = 1
         return instance
 
     @classmethod
