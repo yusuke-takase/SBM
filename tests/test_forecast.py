@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 import sbm
 from sbm.likelihood import _get_likelihood_gradient
@@ -39,6 +40,7 @@ def test_forecast_exact_matches_linearised_bias():
 
 
 def test_forecast_exact_is_stationary_and_matches_minuit():
+    pytest.importorskip("iminuit")
     ell, cl_tens, cl_lens = _spectra()
     dcl = 0.3 * cl_lens
     exact = sbm.forecast(_full(dcl))["delta_r"]

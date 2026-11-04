@@ -5,6 +5,8 @@ import healpy as hp
 import numpy as np
 import pytest
 
+pytest.importorskip("sympy", reason="lowell_hwp='full_sum' needs sympy")
+
 from sbm import systematics as sy
 from sbm.basis import Basis
 from sbm.beam import beam_transfer, convolve
