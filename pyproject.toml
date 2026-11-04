@@ -1,53 +1,44 @@
-[tool.poetry]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
 name = "sbm"
 version = "0.4.1"
-license = "GPL3"
 description = "Spin-based map-making (SBM) for CMB experiments"
-authors = ["yusuke-takase <takase_y@s.okayama-u.ac.jp>"]
 readme = "README.md"
-repository = "https://github.com/yusuke-takase/SBM"
-
-keywords = [
-    "CMB",
-    "Map-making",
-    "Cross-linking"
-]
-
+license = { file = "LICENSE" }
+authors = [{ name = "Yusuke Takase", email = "takase_y@s.okayama-u.ac.jp" }]
+requires-python = ">=3.10"
+keywords = ["CMB", "Map-making", "Cross-linking"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.11",
-    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
     "Operating System :: POSIX :: Linux",
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
+dependencies = [
+    "numpy>=1.23",
+    "healpy>=1.15",
+    "h5py>=3.11",
+    "ducc0>=0.34",
+]
 
+[project.optional-dependencies]
+minuit = ["iminuit>=2.30"]
+lowell = ["sympy>=1.13"]
+plot = ["matplotlib>=3.1"]
+test = ["pytest>=7", "scipy>=1.10"]
+docs = ["sphinx>=7", "pydata-sphinx-theme>=0.16"]
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-numpy = ">=1.23"
-healpy = ">=1.15.0"
-h5py = ">=3.11.0"
-ducc0 = ">=0.34"
-iminuit = { version = ">=2.30.1", optional = true }
-sympy = { version = ">=1.13.3", optional = true }
-matplotlib = { version = ">=3.1", optional = true }
+[project.urls]
+Repository = "https://github.com/yusuke-takase/SBM"
 
-[tool.poetry.extras]
-minuit = ["iminuit"]
-lowell = ["sympy"]
-plot = ["matplotlib"]
+[tool.hatch.build.targets.wheel]
+packages = ["sbm"]
 
-[tool.poetry.group.dev.dependencies]
-pytest = ">=7"
-scipy = ">=1.10"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.ruff]
+[tool.ruff.lint]
 extend-select = []
