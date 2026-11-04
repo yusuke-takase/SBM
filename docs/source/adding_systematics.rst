@@ -26,6 +26,11 @@ Where things are
      - the half-wave plate (``hwp_mueller``, ``hwp_ip``)
    * - ``sbm/systematics/detector.py``
      - gains, bandpasses, polarization angles
+   * - ``sbm/beam.py``
+     - beam convolution (:func:`.convolve`) and the beams ``pencil``,
+       ``gaussian``, ``elliptical``
+   * - ``sbm/harmonics.py``
+     - :class:`.SphericalHarmonics`: coefficients of a sky or a beam
    * - ``sbm/systematics/_registry.py``
      - the ``@systematic`` decorator and the list ``ALL``
    * - ``sbm/signal_model.py``

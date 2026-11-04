@@ -27,8 +27,9 @@ To couple these fields to a scan and perform map-making::
     model = sbm.systematics.beam(alm, blm, nside, spin_k=range(5), hwp=True, mueller=M)
     output_iqu = sbm.map_make((hmaps, model), sbm.Basis.iqu(hwp=True)).iqu
 
-``beam`` accepts general asymmetric beams; :func:`sbm.beam.elliptical_beam`
-gives the maps of an elliptical Gaussian beam. These examples retain both odd
+``beam`` accepts general asymmetric beams, as :class:`sbm.SphericalHarmonics`:
+:func:`sbm.beam.pencil`, :func:`sbm.beam.gaussian`, :func:`sbm.beam.elliptical`
+or :meth:`sbm.SphericalHarmonics.from_maps` of beam maps. These examples retain both odd
 and even crossing moments through absolute n=4. Increase ``spin_k`` if the
 beam requires additional moments.
 

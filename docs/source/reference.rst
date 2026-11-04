@@ -12,6 +12,7 @@ Scan, signal and map-making
    sbm.SpinComponent
    sbm.Basis
    sbm.Sky
+   sbm.SphericalHarmonics
    sbm.MapMakingResult
    sbm.map_make
    sbm.MapMaker
@@ -45,7 +46,9 @@ Beam convolution
 
    sbm.beam.convolve
    sbm.beam.beam_transfer
-   sbm.beam.elliptical_beam
+   sbm.beam.pencil
+   sbm.beam.gaussian
+   sbm.beam.elliptical
    sbm.sky.second_order_maps
 
 Spectra and forecasts

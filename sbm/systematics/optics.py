@@ -24,7 +24,10 @@ def beam(
     """Signal of the sky seen through an arbitrary beam (and HWP Mueller matrix).
 
     This is the whole signal, to be used instead of :func:`sky_signal`; see
-    :func:`sbm.beam.convolve` for the arguments. The h-maps must hold the
+    :func:`sbm.beam.convolve` for the arguments. ``sky_alm`` and ``beam_alm`` are
+    :class:`sbm.SphericalHarmonics` (or litebird_sim's, or arrays); the beam
+    comes from :func:`sbm.beam.pencil`, :func:`sbm.beam.gaussian`,
+    :func:`sbm.beam.elliptical` or :meth:`sbm.SphericalHarmonics.from_maps`. The h-maps must hold the
     couples between the basis and the components, up to spin
     ``max(spin_k) + 2`` (``max(spin_k) + 4`` with the template ``(4, 0)`` or
     ``(4, -4)``).

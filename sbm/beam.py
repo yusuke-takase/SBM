@@ -15,18 +15,18 @@ from functools import lru_cache
 import healpy as hp
 import numpy as np
 
+from .harmonics import SphericalHarmonics
+
 IDEAL_HWP = np.diag([1.0, 1.0, -1.0, -1.0])
 _ROOT2 = np.sqrt(2.0)
 
 
 def _check_alm(alm, name):
-    alm = np.asarray(alm)
-    if alm.ndim != 2 or alm.shape[0] not in (3, 4):
+    """Coefficients (any form accepted by SphericalHarmonics.of) with mmax = lmax."""
+    alm = SphericalHarmonics.of(alm).full()
+    if alm.nstokes not in (3, 4):
         raise ValueError(f"{name} must have TEB or TEBV components")
-    lmax = hp.Alm.getlmax(alm.shape[1])
-    if lmax < 0:
-        raise ValueError(f"{name} must use the full HEALPix m-major layout")
-    return alm, lmax
+    return alm.values, alm.lmax
 
 
 def _check_mueller(mueller):
@@ -67,7 +67,8 @@ def beam_transfer(beam_alm, k: int, spin_m: int = 0) -> np.ndarray:
     """Beam coefficients ``b_{l,k+spin_m}`` of the convolution integrals.
 
     Args:
-        beam_alm: T, E, B (and V) harmonic coefficients of the beam.
+        beam_alm: T, E, B (and V) coefficients of the beam (:class:`.SphericalHarmonics`
+            or an array).
         k: non-negative spin moment of the crossing angle; the spin ``-k`` maps
             are the complex conjugates of the spin ``k`` maps.
         spin_m: HWP harmonic; the beam order is ``k + spin_m``.
@@ -192,9 +193,12 @@ def convolve(
     """Spin components of the beam-convolved signal, ``{(n, m): F_{n,m}}``.
 
     Args:
-        sky_alm: T, E, B (and V) harmonic coefficients of the sky.
-        beam_alm: T, E, B (and V) harmonic coefficients of the beam, with the
-            same ``lmax``. The beam need not be axially symmetric.
+        sky_alm: T, E, B (and V) coefficients of the sky (:class:`.SphericalHarmonics`,
+            litebird_sim's, or an array).
+        beam_alm: T, E, B (and V) coefficients of the beam, with the same ``lmax``
+            (:func:`pencil`, :func:`gaussian`, :func:`elliptical` or
+            :meth:`.SphericalHarmonics.from_maps`). The beam need not be axially
+            symmetric.
         nside: resolution of the maps.
         spin_k: crossing-angle moments ``|n|`` to retain (0 is always retained).
         hwp: rotating HWP (narrow-beam approximation).
@@ -376,17 +380,70 @@ def _low_ell_filters(beam_alm):
     return filters
 
 
-def elliptical_beam(nside: int, fwhm_rad: float, q: float) -> np.ndarray:
-    """I, Q and U maps of an elliptical Gaussian beam at the north pole.
+def pencil(lmax: int, detector=(1.0, 1.0, 0.0, 0.0)) -> SphericalHarmonics:
+    """Coefficients of a unit point response at the north pole.
 
     Args:
-        nside: resolution of the maps.
+        lmax: maximum degree.
+        detector: Stokes sensitivity ``(i, q, u, v)`` of the detector; the ideal
+            polarized detector is ``(1, 1, 0, 0)``.
+
+    The components are T, E, B, plus V if ``v != 0``.
+    """
+    i, q, u, v = (float(x) for x in detector)
+    ncomp = 4 if v != 0 else 3
+    beam = np.zeros((ncomp, hp.Alm.getsize(lmax)), dtype=complex)
+    for ell in range(lmax + 1):
+        scale = np.sqrt((2 * ell + 1) / (4 * np.pi))
+        beam[0, hp.Alm.getidx(lmax, ell, 0)] = i * scale
+        if ncomp == 4:
+            beam[3, hp.Alm.getidx(lmax, ell, 0)] = v * scale
+        if ell >= 2:
+            idx = hp.Alm.getidx(lmax, ell, 2)
+            beam[1, idx] = -(q - 1j * u) * scale / 2
+            beam[2, idx] = -1j * (q - 1j * u) * scale / 2
+    return SphericalHarmonics(beam, lmax)
+
+
+def gaussian(
+    fwhm_rad: float, lmax: int, detector=(1.0, 1.0, 0.0, 0.0)
+) -> SphericalHarmonics:
+    """Coefficients of an axially symmetric Gaussian beam: :func:`pencil` times the
+    temperature and polarization transfer functions of ``healpy.gauss_beam``."""
+    point = pencil(lmax, detector)
+    bl = hp.gauss_beam(fwhm_rad, lmax=lmax, pol=True)
+    ell = hp.Alm.getlm(lmax)[0]
+    values = point.values.copy()
+    values[0] *= bl[ell, 0]
+    values[1:3] *= bl[ell, 1]
+    if point.nstokes == 4:
+        values[3] *= bl[ell, 0]
+    return SphericalHarmonics(values, lmax)
+
+
+def elliptical(
+    fwhm_rad: float, q: float, lmax: int, nside: int | None = None
+) -> SphericalHarmonics:
+    """Coefficients of an elliptical Gaussian beam at the north pole.
+
+    Args:
         fwhm_rad: full width at half maximum of the major axis.
         q: ratio of the minor to the major axis.
-
-    The maps integrate to one; ``healpy.map2alm`` gives the ``beam_alm`` of
-    :func:`convolve`.
+        lmax: maximum degree.
+        nside: resolution of the maps that are analysed with ``healpy.map2alm``;
+            by default the smallest power of two with at least 5 pixels per FWHM
+            of the minor axis and ``2 nside >= lmax``. The pixelization limits the
+            accuracy: for a round beam the coefficients differ from
+            :func:`gaussian` by about 1 % at 5 pixels per FWHM and 0.1 % at 20.
     """
+    if nside is None:
+        need = max(lmax / 2, 5 * 1.0233 / (fwhm_rad * q), 16)
+        nside = int(2 ** np.ceil(np.log2(need)))
+    return SphericalHarmonics.from_maps(_elliptical_maps(nside, fwhm_rad, q), lmax=lmax)
+
+
+def _elliptical_maps(nside: int, fwhm_rad: float, q: float) -> np.ndarray:
+    """I, Q and U maps of an elliptical Gaussian beam at the north pole (unit integral)."""
     sigma = fwhm_rad / (2.0 * np.sqrt(2 * np.log(2.0)))
     npix = hp.nside2npix(nside)
     maps = np.zeros((3, npix), np.float64)

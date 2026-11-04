@@ -29,6 +29,8 @@ from functools import cached_property
 import healpy as hp
 import numpy as np
 
+from .harmonics import SphericalHarmonics
+
 
 SECOND_ORDER_KEYS = ("eth2_i", "lap_i", "eth2_p", "eth_bar2_p", "lap_p")
 
@@ -41,7 +43,8 @@ class Sky:
         p: polarization map ``Q + iU``.
         eth_i, eth_p, eth_bar_p: derivatives, if already known; otherwise they
             are computed from the maps the first time they are used.
-        alm: T, E, B harmonic coefficients of the maps, if known; the
+        alm: T, E, B coefficients of the maps (:class:`.SphericalHarmonics` or an
+            array), if known; the
             second-order maps are computed from them (otherwise from
             ``healpy.map2alm`` of the maps).
         second_order: the second-order maps, if already known, as a dictionary
@@ -79,7 +82,7 @@ class Sky:
             )
         elif (eth_p is None) != (eth_bar_p is None):
             raise ValueError("give both eth_p and eth_bar_p, or neither")
-        self._alm = None if alm is None else np.asarray(alm, dtype=complex)
+        self.alm = None if alm is None else SphericalHarmonics.of(alm)
         if second_order is not None:
             missing = set(SECOND_ORDER_KEYS) - set(second_order)
             if missing:
@@ -95,9 +98,12 @@ class Sky:
 
     @classmethod
     def from_alm(cls, alm, nside: int, **kwargs) -> "Sky":
-        """Sky from T, E, B harmonic coefficients (healpy ordering)."""
-        alm = np.asarray(alm, dtype=complex)
-        i, q, u = hp.alm2map(alm, nside)
+        """Sky from T, E, B coefficients (:class:`.SphericalHarmonics`, litebird_sim's,
+        or an array in the healpy ordering)."""
+        alm = SphericalHarmonics.of(alm)
+        if alm.nstokes < 3:
+            raise ValueError("the sky needs T, E and B coefficients")
+        i, q, u = alm.to_maps(nside)
         return cls.from_maps(i, q, u, alm=alm, **kwargs)
 
     @property
@@ -145,8 +151,8 @@ class Sky:
     def second_order(self) -> dict:
         """Second-order maps (see the module documentation), computed with ducc0
         from the harmonic coefficients of the sky with a step of one arcminute."""
-        if self._alm is not None:
-            alm = self._alm
+        if self.alm is not None:
+            alm = self.alm
         else:
             alm = np.array(
                 hp.map2alm([self.i, self.q, self.u], lmax=self._lmax, iter=self._iter)
@@ -189,13 +195,14 @@ def second_order_maps(
     """Second-order maps ``eth2_i``, ``lap_i``, ``eth2_p``, ``eth_bar2_p``, ``lap_p``.
 
     Args:
-        alm: band-limited T, E, B harmonic coefficients (healpy ordering).
+        alm: band-limited T, E, B coefficients (:class:`.SphericalHarmonics` or an
+            array in the healpy ordering).
         nside: resolution of the maps, evaluated at the pixel centres.
         step_rad: finite-difference step (default: one arcminute).
         nthreads, epsilon: passed to ``ducc0.sht.experimental.synthesis_general``.
     """
-    alm = np.asarray(alm, dtype=complex)
-    lmax = hp.Alm.getlmax(alm.shape[1])
+    sh = SphericalHarmonics.of(alm).full()
+    alm, lmax = sh.values, sh.lmax
     h = np.deg2rad(1.0 / 60.0) if step_rad is None else float(step_rad)
     alm_t = np.ascontiguousarray(alm[:1])
     alm_eb = np.ascontiguousarray(alm[1:3])

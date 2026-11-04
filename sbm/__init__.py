@@ -10,6 +10,7 @@ map-maker solves for the components of a :class:`Basis` in every pixel
 
 from . import beam, systematics
 from .basis import Basis
+from .harmonics import SphericalHarmonics
 from .hmaps import HMaps
 from .likelihood import forecast
 from .map_making import (
@@ -41,6 +42,7 @@ __all__ = [
     "MapMaker",
     "MapMakingResult",
     "SignalModel",
+    "SphericalHarmonics",
     "Sky",
     "SpinComponent",
     "beam",
