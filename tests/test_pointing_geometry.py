@@ -1,14 +1,14 @@
 """Pointing models against the sky sampled at the offset pointing.
 
 The TOD sample a band-limited sky (ducc0 at arbitrary points) at the point
-displaced along the geodesic, with Q and U taken in the local frame of that
-point and the crossing angle of the undisplaced pointing, as a TOD simulation
-does. The first derivatives of I, Q and U are central differences of the same
-synthesis (Q and U are not band-limited as scalar fields, so their healpy
-derivatives would add an error unrelated to the models); the second-order maps
-are those that Sky computes from the alm. The residual must fall as rho (sky
-only), rho^2 (first order) and rho^3 (second order): a wrong direction, sign or
-weight of the offset breaks the hierarchy.
+displaced along the geodesic, with the polarization in the frame transported
+along the displacement (the detector is displaced rigidly) and the crossing angle
+of the undisplaced pointing. The first derivatives are central differences of
+the same synthesis along geodesics, independent of the spin transforms of Sky;
+the second-order maps are those that Sky computes from the alm. The residual
+must fall as rho (sky only), rho^2 (first order) and rho^3 (second order): a
+wrong direction, sign or weight of the offset, or a missing transport of the
+polarization frame, breaks the hierarchy.
 """
 
 import healpy as hp
@@ -36,8 +36,7 @@ def band_limited_alm(seed):
     return alm
 
 
-def displaced(theta, phi, alpha, rho):
-    """Geodesic step rho along -(sin(alpha) e_theta + cos(alpha) e_phi)."""
+def local_basis(theta, phi):
     n = np.array(
         [np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)]
     )
@@ -45,10 +44,35 @@ def displaced(theta, phi, alpha, rho):
         [np.cos(theta) * np.cos(phi), np.cos(theta) * np.sin(phi), -np.sin(theta)]
     )
     e_phi = np.array([-np.sin(phi), np.cos(phi), np.zeros_like(phi)])
-    v = np.cos(rho) * n - np.sin(rho) * (
-        np.sin(alpha) * e_theta + np.cos(alpha) * e_phi
+    return n, e_theta, e_phi
+
+
+def displaced(theta, phi, alpha, rho):
+    """Geodesic step rho along -(sin(alpha) e_theta + cos(alpha) e_phi), and the
+    rotation (angle of the transported e_theta in the new local basis)."""
+    n, e_theta, e_phi = local_basis(theta, phi)
+    t = -(np.sin(alpha) * e_theta + np.cos(alpha) * e_phi)
+    v = np.cos(rho) * n + np.sin(rho) * t
+    # the rotation about n x t that moves n to v, applied to e_theta
+    axis = np.cross(n, t, axis=0)
+    w = (
+        np.cos(rho) * e_theta
+        + np.sin(rho) * np.cross(axis, e_theta, axis=0)
+        + (1 - np.cos(rho)) * np.sum(axis * e_theta, axis=0) * axis
     )
-    return np.arccos(np.clip(v[2], -1, 1)), np.mod(np.arctan2(v[1], v[0]), 2 * np.pi)
+    theta_new = np.arccos(np.clip(v[2], -1, 1))
+    phi_new = np.mod(np.arctan2(v[1], v[0]), 2 * np.pi)
+    _, e_theta_new, e_phi_new = local_basis(theta_new, phi_new)
+    delta = np.arctan2(np.sum(w * e_phi_new, axis=0), np.sum(w * e_theta_new, axis=0))
+    return theta_new, phi_new, delta
+
+
+def iqu_displaced(alm, theta, phi, alpha, rho):
+    """I, Q, U at the displaced point, Q and U in the transported frame."""
+    theta_new, phi_new, delta = displaced(theta, phi, alpha, rho)
+    i, q, u = iqu_at(alm, theta_new, phi_new)
+    p = (q + 1j * u) * np.exp(-2j * delta)
+    return i, p.real, p.imag
 
 
 def iqu_at(alm, theta, phi):
@@ -63,17 +87,17 @@ def iqu_at(alm, theta, phi):
 
 
 def exact_sky(alm, h=1e-5):
-    """Sky with the first derivatives of I, Q, U from central differences."""
+    """Sky with the first derivatives from central differences along geodesics."""
     theta, phi = hp.pix2ang(NSIDE, np.arange(hp.nside2npix(NSIDE)))
     i, q, u = iqu_at(alm, theta, phi)
-    d_theta = (
-        np.array(iqu_at(alm, theta + h, phi)) - np.array(iqu_at(alm, theta - h, phi))
-    ) / (2 * h)
-    d_phi = (
-        np.array(iqu_at(alm, theta, phi + h)) - np.array(iqu_at(alm, theta, phi - h))
-    ) / (2 * h * np.sin(theta))
-    x, y = d_theta, d_phi  # x along theta, y along phi
-    eth = y - 1j * x  # of each of I, Q, U
+
+    def derivative(alpha):  # along -(sin(alpha) e_theta + cos(alpha) e_phi)
+        plus = np.array(iqu_displaced(alm, theta, phi, alpha, h))
+        minus = np.array(iqu_displaced(alm, theta, phi, alpha, -h))
+        return (plus - minus) / (2 * h)
+
+    x, y = -derivative(np.pi / 2), -derivative(0.0)  # along theta and phi
+    eth = y - 1j * x  # of each of I, Q, U (Q, U in the transported frame)
     return Sky.from_maps(
         i,
         q,
@@ -129,9 +153,7 @@ def test_single_detector_offsets(kind):
     pixels, theta, phi_sky, psi, phi = samples(3)
     chi = 0.6
     alpha = psi + chi if kind == "abs_pointing" else psi - phi + chi
-    true = response(
-        iqu_at(alm, *displaced(theta, phi_sky, alpha, RHO)), 2 * psi - 4 * phi
-    )
+    true = response(iqu_displaced(alm, theta, phi_sky, alpha, RHO), 2 * psi - 4 * phi)
     base = sy.sky_signal(sky, hwp=True)
     fn = getattr(sy, kind)
     hierarchy(
@@ -149,10 +171,8 @@ def test_pair_difference_offsets():
     pixels, theta, phi_sky, psi, phi = samples(5)
     rho_t, chi_t, rho_b, chi_b = RHO, 0.3, 0.7 * RHO, -1.2
     psi_b = psi + np.pi / 2
-    d_t = response(iqu_at(alm, *displaced(theta, phi_sky, psi + chi_t, rho_t)), 2 * psi)
-    d_b = response(
-        iqu_at(alm, *displaced(theta, phi_sky, psi_b + chi_b, rho_b)), 2 * psi_b
-    )
+    d_t = response(iqu_displaced(alm, theta, phi_sky, psi + chi_t, rho_t), 2 * psi)
+    d_b = response(iqu_displaced(alm, theta, phi_sky, psi_b + chi_b, rho_b), 2 * psi_b)
     base = sy.sky_signal(sky, pair_difference=True)
     models = [
         base,
@@ -160,3 +180,16 @@ def test_pair_difference_offsets():
         base + sy.diff_pointing(sky, rho_t, chi_t, rho_b, chi_b, second_order=True),
     ]
     hierarchy((d_t - d_b) / 2, models, pixels, psi, np.zeros_like(psi))
+
+
+def test_sky_derivatives_are_the_covariant_ones():
+    alm = band_limited_alm(6)
+    exact = exact_sky(alm)
+    sky = Sky.from_alm(alm, NSIDE)
+    for name in ("eth_i", "eth_p", "eth_bar_p"):
+        np.testing.assert_allclose(
+            getattr(sky, name), getattr(exact, name), atol=1e-7, err_msg=name
+        )
+    # from the maps alone (healpy.map2alm of I, Q, U), at a resolution where it is exact
+    from_maps = Sky.from_maps(*hp.alm2map(alm, NSIDE, lmax=LMAX), lmax=LMAX)
+    np.testing.assert_allclose(from_maps.eth_p, exact.eth_p, atol=1e-6)

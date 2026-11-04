@@ -67,7 +67,12 @@ This is the shifted-beam narrow-beam approximation with the fundamental
 spatial Mueller modes, as in the derivation supplied with the HWP project.
 It is not an exact general spatial Mueller-field convolution: its accuracy
 at low multipoles and for a broad beam is inherited from that approximation.
-An identity Mueller matrix reproduces the unmodulated convolution.
+An identity Mueller matrix reproduces the unmodulated convolution. For a beam
+whose centre is off the boresight, the polarization terms of the offset
+(``(1, -4)``, ``(3, -4)``) differ from those of the exact rigid offset by an
+amount that falls linearly with the width of the beam: in the tests, a Gaussian
+beam offset by 5 % of its FWHM is off by about 0.8 % of these terms per degree
+of FWHM (``tests/test_beam_pointing.py``). Without HWP the convolution is exact.
 
 Optional low-multipole intensity response
 -----------------------------------------

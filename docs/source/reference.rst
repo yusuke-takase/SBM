@@ -50,6 +50,7 @@ Beam convolution
    sbm.beam.gaussian
    sbm.beam.elliptical
    sbm.sky.second_order_maps
+   sbm.sky.spin_derivatives
 
 Spectra and forecasts
 ---------------------

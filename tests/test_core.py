@@ -331,13 +331,26 @@ def test_sky_derivatives_of_a_dipole():
     nside = 64
     theta, phi = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
     i = np.cos(theta)  # d/dtheta = -sin(theta), d/dphi = 0
-    sky = Sky.from_maps(i, np.zeros_like(i), i, lmax=4)  # Q = 0, U = cos(theta)
+    sky = Sky.from_maps(i, np.zeros_like(i), np.zeros_like(i), lmax=4)
     np.testing.assert_allclose(sky.eth_i, 1j * np.sin(theta), atol=1e-3)
     np.testing.assert_allclose(sky.eth_bar_i, -1j * np.sin(theta), atol=1e-3)
-    # eth P = (Q_phi + U_theta) - i (Q_theta - U_phi) = U_theta
-    # eth_bar P = (Q_phi - U_theta) + i (Q_theta + U_phi) = -U_theta
-    np.testing.assert_allclose(sky.eth_p, -np.sin(theta), atol=1e-3)
-    np.testing.assert_allclose(sky.eth_bar_p, np.sin(theta), atol=1e-3)
+
+
+def test_polarization_derivatives_are_covariant():
+    # E_{2,0} = 1: P = -2Y_20 = -c sin^2(theta). Its covariant derivatives are
+    # eth P = 0 (no spin-3 harmonic at l = 2) and eth_bar P = -4i c sin cos, while
+    # the derivatives of Q and U as scalars would give +-2i c sin cos.
+    lmax, nside = 4, 32
+    alm = np.zeros((3, hp.Alm.getsize(lmax)), complex)
+    alm[1, hp.Alm.getidx(lmax, 2, 0)] = 1.0
+    sky = Sky.from_alm(alm, nside)
+    theta, _ = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
+    c = 0.25 * np.sqrt(15 / (2 * np.pi))
+    np.testing.assert_allclose(sky.p, -c * np.sin(theta) ** 2, atol=1e-14)
+    np.testing.assert_allclose(sky.eth_p, 0.0, atol=1e-13)
+    np.testing.assert_allclose(
+        sky.eth_bar_p, -4j * c * np.sin(theta) * np.cos(theta), atol=1e-13
+    )
 
 
 def test_sky_accepts_known_derivatives():

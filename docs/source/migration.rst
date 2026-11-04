@@ -55,8 +55,11 @@ The former classes and functions are removed, without aliases.
      - ``SignalModel({(n, m): map})``, ``model.project(hmaps, n, m)``; the
        system is built by :func:`.map_make`
    * - eth maps passed to every builder
-     - :class:`.Sky` (``Sky.from_maps``, ``Sky.from_alm``), which computes them
-       with the same healpy calls, or takes them
+     - :class:`.Sky` (``Sky.from_maps``, ``Sky.from_alm``), which computes the
+       covariant derivatives of P with spin transforms, or takes them
+       (``Sky(i, p, eth_i=..., eth_p=..., eth_bar_p=...)``). The former maps
+       were healpy's derivatives of Q and U as scalar maps; to reproduce former
+       results pass them to :class:`.Sky`
    * - ``pointing_second_order_maps(...)`` and ``second_order=dict``
      - ``second_order=True``; the maps are :attr:`.Sky.second_order`
    * - ``generate_noise_pdf`` and ``generate_noise(spin_n, spin_m, seed)``

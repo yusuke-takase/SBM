@@ -36,8 +36,11 @@ Derivatives and pointing offsets
 
 On the local tangent plane, with :math:`x` along :math:`\theta` and :math:`y`
 along :math:`\phi`, :math:`\eth = \partial_y - i\partial_x` and
-:math:`\bar\eth = \partial_y + i\partial_x` act on :math:`I` and on each of
-:math:`Q` and :math:`U` (:class:`.Sky`). A pointing offset of size
+:math:`\bar\eth = \partial_y + i\partial_x` (:class:`.Sky`). On the
+polarization :math:`P = Q + iU` they are the covariant (spin-weighted)
+derivatives: the beam is displaced rigidly, so the polarization direction of
+the detector is carried along the displacement, and :math:`\eth P` is
+:math:`\eth Q + i\,\eth U` in a frame transported from the point. A pointing offset of size
 :math:`\rho` in direction :math:`\chi`, measured in the frame of the detector,
 samples the sky at the point displaced by :math:`\rho` along
 :math:`-(\sin\alpha\, e_\theta + \cos\alpha\, e_\phi)` with
@@ -52,11 +55,15 @@ samples the sky at the point displaced by :math:`\rho` along
 The deflection of a wedged HWP rotates with the HWP:
 :math:`\alpha = \psi - \phi + \chi`.
 
-:math:`Q` and :math:`U` are not band-limited as scalar fields: the derivatives
-that :class:`.Sky` computes with healpy (``map2alm`` and ``alm2map_der1`` of
-each map) need ``lmax`` well above the band limit of the sky, the default
-``3 nside - 1`` being the safe choice. Known derivatives can be passed to
-:class:`.Sky` directly.
+:class:`.Sky` computes the derivatives with spin transforms of the T, E and B
+coefficients (:func:`sbm.sky.spin_derivatives`), and the second-order maps from
+geodesic differences with the polarization transported back to the point. The
+derivatives of :math:`Q` and :math:`U` taken as scalar maps (healpy's
+``alm2map_der1`` of each map, as in SBM 0.4) omit the rotation of the local
+basis: they differ from the covariant ones by a term of order
+:math:`\cot\theta\, P`, small on scales much smaller than the distance to the
+poles but not near them, and :math:`Q`, :math:`U` are not band-limited as
+scalar maps. Known derivatives can be passed to :class:`.Sky` directly.
 
 litebird_sim and Falcons.jl
 ---------------------------
