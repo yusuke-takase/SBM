@@ -14,6 +14,7 @@ Scan, signal and map-making
    sbm.Sky
    sbm.MapMakingResult
    sbm.map_make
+   sbm.MapMaker
    sbm.orientation_matrix
    sbm.noise_covariance
    sbm.noise_maps

@@ -13,6 +13,7 @@ from .basis import Basis
 from .hmaps import HMaps
 from .likelihood import forecast
 from .map_making import (
+    MapMaker,
     MapMakingResult,
     map_make,
     noise_covariance,
@@ -37,6 +38,7 @@ __all__ = [
     "__version__",
     "Basis",
     "HMaps",
+    "MapMaker",
     "MapMakingResult",
     "SignalModel",
     "Sky",

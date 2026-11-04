@@ -181,6 +181,63 @@ def map_make(data, basis: Basis, mask=None) -> MapMakingResult:
     return MapMakingResult(basis=basis, solution=x.T.copy(), mask=mask)
 
 
+class MapMaker:
+    """Map-maker for fixed h-maps and basis, reused for many signal models.
+
+    The system matrix depends only on the scan and the basis: it is inverted
+    once in the solved pixels, and each model costs one product with its
+    right-hand side. The result is that of :func:`map_make` for the same
+    arguments, up to rounding errors.
+
+    Args:
+        hmaps: the h-maps of the detector.
+        basis: the components to solve for.
+        mask: pixels to solve, as in :func:`map_make`.
+        chunk: number of pixels inverted at once (bounds the memory).
+    """
+
+    def __init__(self, hmaps: HMaps, basis: Basis, mask=None, chunk: int = 262144):
+        self.hmaps = hmaps
+        self.basis = basis
+        a = orientation_matrix(hmaps, basis)
+        if mask is None:
+            mask = solvable(a, hmaps.hits)
+        else:
+            mask = np.asarray(mask, dtype=bool) & (hmaps.hits > 0)
+        idx = np.flatnonzero(mask)
+        inverse = np.empty((idx.size, basis.dimension, basis.dimension), dtype=complex)
+        ok = np.ones(idx.size, dtype=bool)
+        for start in range(0, idx.size, chunk):
+            block = a[idx[start : start + chunk]]
+            try:
+                inverse[start : start + chunk] = np.linalg.inv(block)
+            except np.linalg.LinAlgError:
+                for j in range(block.shape[0]):
+                    try:
+                        inverse[start + j] = np.linalg.inv(block[j])
+                    except np.linalg.LinAlgError:
+                        ok[start + j] = False
+        if not ok.all():
+            warnings.warn(
+                f"{int((~ok).sum())} pixels of the mask have a singular system"
+            )
+            mask = mask.copy()
+            mask[idx[~ok]] = False
+        self.mask = mask
+        self._idx = idx[ok]
+        self._inverse = inverse[ok]
+
+    def __call__(self, model: SignalModel) -> MapMakingResult:
+        b = _rhs(self.hmaps, model, self.basis)[self._idx]
+        x = np.full(
+            (self.basis.dimension, self.hmaps.npix),
+            complex(np.nan, np.nan),
+            dtype=complex,
+        )
+        x[:, self._idx] = np.einsum("pij,pj->ip", self._inverse, b)
+        return MapMakingResult(basis=self.basis, solution=x, mask=self.mask)
+
+
 # ---------------------------------------------------------------------- #
 # White noise
 

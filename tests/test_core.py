@@ -9,7 +9,13 @@ import pytest
 
 from sbm.basis import Basis
 from sbm.hmaps import HMaps
-from sbm.map_making import map_make, noise_covariance, noise_maps, orientation_matrix
+from sbm.map_making import (
+    MapMaker,
+    map_make,
+    noise_covariance,
+    noise_maps,
+    orientation_matrix,
+)
 from sbm.signal_model import SignalModel
 from sbm.sky import Sky
 
@@ -310,3 +316,24 @@ def test_sky_accepts_known_derivatives():
     np.testing.assert_array_equal([sky.eth_i, sky.eth_p, sky.eth_bar_p], e)
     with pytest.raises(ValueError, match="both"):
         Sky.from_maps(i, q, u, eth_p=e[1])
+
+
+def test_map_maker_reuses_the_inverse_for_many_models():
+    rng = np.random.default_rng(15)
+    pixels, psi, phi = random_samples(NSIDE, 30, seed=16, hwp=True)
+    keep = pixels != 4
+    hm = HMaps.from_samples(NSIDE, pixels[keep], psi[keep], phi[keep], couples=COUPLES)
+    basis = Basis.iqu(hwp=True).extend([(1, 0)])
+    maker = MapMaker(hm, basis)
+    assert not maker.mask[4] and maker.mask.sum() == NPIX - 1
+    for seed in range(3):
+        _, model = _random_model(
+            np.random.default_rng(seed), [(0, 0), (2, -4), (1, 0), (0, 4)]
+        )
+        expected = map_make((hm, model), basis)
+        actual = maker(model)
+        np.testing.assert_array_equal(actual.mask, expected.mask)
+        np.testing.assert_allclose(
+            actual.solution, expected.solution, rtol=1e-12, atol=1e-12
+        )
+    del rng
