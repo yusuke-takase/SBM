@@ -50,6 +50,75 @@ class Field:
         return result
 
 
+# HWP angle conventions for the HWP-synchronous systematics (wedge, HWP-IP).
+#
+# All SBM fields are evaluated against the same orientation functions
+# h_{n,m} = <exp(-i(n psi + m phi))>, with phi = omega_HWP t, and the polarization
+# is placed at spin (2,-4), i.e. the TOD modulation is cos(4 phi - 2 psi). Which
+# physical angles ``psi`` and ``phi`` stand for fixes the spins of every signal that
+# depends on the HWP orientation, so the wedge and the HWP-IP must be written in the
+# same convention.
+#
+# Physically, let psi_0 be the crossing angle and a the HWP angle in the focal plane,
+# both counted in the sense of SBM's crossing angle without HWP (the sense in which
+# the polarization enters as P exp(2i psi_0) and the absolute pointing offset points
+# along psi_0 + chi). The HWP modulates the polarization as P exp(i(2 psi_0 + 4a)),
+# the wedge, fixed to the HWP, deflects the beam along psi_0 + a + chi, and the 4f
+# HWP-IP depends on 4a = 2 (2 psi_0 + 4a) - 4 (psi_0 + a) alone. Offset directions
+# and ``chi`` are counted in this sense in every convention. Between spin vectors,
+# IP = 2 pol - 4 wedge_T up to conjugation of the IP, whatever the angle variables.
+#
+# "sky"        phi is the HWP angle with respect to the sky reference frame
+#              (Patanchon et al. 2024, rho = omega t) and the angles are counted in
+#              the opposite sense, psi = -psi_0, phi = -(psi_0 + a). The HWP angle in
+#              the focal plane is phi - psi = -a, the wedge offset points along
+#              psi_0 + a + chi = -phi + chi (spin (0,-1)), and the 4f HWP-IP (a
+#              function of the focal-plane HWP angle) sits at spin (4,-4).
+# "telescope"  phi is the HWP rotation angle with respect to the telescope, on which
+#              the HWP is mounted; cos(4 phi - 2 psi) then implies that phi is
+#              counted in the opposite sense to psi: psi = psi_0, phi = -a. This is
+#              the convention of the h-maps of litebird_sim and Falcons.jl read by
+#              ScanFields.load_lbs_h_maps (phi is litebird_sim's HWP angle).
+#              The wedge offset points along psi - phi + chi (spin (1,-1)) and the
+#              HWP-IP sits at spin (0,+-4).
+# "legacy"     previous SBM behaviour: HWP-IP as in "sky", wedge offset along
+#              psi + phi + chi. The two are not mutually consistent (the identity
+#              IP = 2 pol - 4 wedge_T between spin vectors fails); kept only to
+#              reproduce earlier results.
+HWP_ANGLE_FRAMES = ("legacy", "sky", "telescope")
+
+
+def _check_hwp_angle_frame(hwp_angle_frame: str) -> None:
+    if hwp_angle_frame not in HWP_ANGLE_FRAMES:
+        raise ValueError(
+            f"hwp_angle_frame must be one of {HWP_ANGLE_FRAMES}, got {hwp_angle_frame!r}"
+        )
+
+
+def wedge_offset_direction_spin(hwp_angle_frame: str = "legacy") -> tuple:
+    """Spin (dn, dm) of exp(i alpha) for the wedge offset direction alpha = dn psi + dm phi.
+
+    ``"legacy"``: psi + phi, ``"sky"``: -phi, ``"telescope"``: psi - phi (see the notes
+    above; the direction is counted like SBM's crossing angle without HWP, as for the
+    absolute pointing offset). The first-order temperature-gradient term of the wedge
+    sits at this spin.
+    """
+    _check_hwp_angle_frame(hwp_angle_frame)
+    return {"legacy": (1, 1), "sky": (0, -1), "telescope": (1, -1)}[hwp_angle_frame]
+
+
+def hwp_ip_route_spins(hwp_angle_frame: str = "legacy") -> tuple:
+    """Spins of the two HWP-IP routes (route a carries exp(-i phi_qi), route b its conjugate).
+
+    The 4f instrumental polarization depends only on the focal-plane HWP angle:
+    phi - psi (``"sky"``/``"legacy"``) or -phi (``"telescope"``).
+    """
+    _check_hwp_angle_frame(hwp_angle_frame)
+    if hwp_angle_frame == "telescope":
+        return (0, 4), (0, -4)
+    return (4, -4), (-4, 4)
+
+
 class SignalFields:
     """Class to store the signal fields data of detectors"""
 
@@ -415,8 +484,14 @@ class SignalFields:
         epsilon: float,
         phi_qi: float,
         temp_map: np.ndarray,
+        hwp_angle_frame: str = "legacy",
     ):
         """Get the HWP instrumental polarization field of the detector
+
+        The 4f term ``epsilon cos(4 phi_fp + phi_qi)`` depends on the focal-plane HWP
+        angle ``phi_fp``; its spin follows ``hwp_angle_frame`` (see
+        :func:`hwp_ip_route_spins`): (4,-4) for ``"sky"``/``"legacy"``, (0,+-4) for
+        ``"telescope"``.
 
         Args:
             scan_field (:class:`.ScanFields`): scan field instance
@@ -428,13 +503,19 @@ class SignalFields:
             phi_qi (`float`): phase shift in the HWP
 
             temp_map (`np.ndarray`): temperature map
+
+            hwp_angle_frame (`str`): meaning of the HWP angle ``phi`` of the scan
+                fields, ``"legacy"`` (default, same as ``"sky"``), ``"sky"`` or
+                ``"telescope"`` (that of :meth:`.ScanFields.load_lbs_h_maps`). Use
+                the same value as for the wedge.
         """
-        spin_4m4_field = Field(
-            epsilon / 2.0 * np.exp(-1j * phi_qi) * temp_map, spin_n=4, spin_m=-4
+        (na, ma), _ = hwp_ip_route_spins(hwp_angle_frame)
+        route_a_field = Field(
+            epsilon / 2.0 * np.exp(-1j * phi_qi) * temp_map, spin_n=na, spin_m=ma
         )
         signal_fields = SignalFields(
-            spin_4m4_field,
-            spin_4m4_field.conj(),
+            route_a_field,
+            route_a_field.conj(),
         )
         signal_fields.field_name = "hwp_ip_field"
         s_00 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
@@ -442,10 +523,10 @@ class SignalFields:
         if mdim == 3:
             fields = [s_00, sp2m4, sp2m4.conj()]
         elif mdim == 5:
-            sp4m4 = signal_fields.get_coupled_field(
-                scan_field, spin_n_out=4, spin_m_out=-4
+            s_ip = signal_fields.get_coupled_field(
+                scan_field, spin_n_out=na, spin_m_out=ma
             )
-            fields = [s_00, sp2m4, sp2m4.conj(), sp4m4, sp4m4.conj()]
+            fields = [s_00, sp2m4, sp2m4.conj(), s_ip, s_ip.conj()]
         else:
             raise ValueError("mdim is 3 and 5 only supported")
         signal_fields.build_linear_system(fields)
@@ -557,8 +638,22 @@ class SignalFields:
         eth_temp_map: np.ndarray,
         eth_pol_map: np.ndarray,
         o_eth_pol_map: np.ndarray,
+        hwp_angle_frame: str = "legacy",
     ):
-        """Get the absolute pointing field of the detector
+        """Get the HWP wedge field of the detector
+
+        The wedge is the absolute-pointing model with the offset direction
+        ``psi + chi`` replaced by ``alpha + chi``, where ``alpha = dn psi + dm phi`` is
+        the sky orientation of the HWP-fixed deflection
+        (:func:`wedge_offset_direction_spin`): ``psi + phi`` (``"legacy"``), ``-phi``
+        (``"sky"``) or ``psi - phi`` (``"telescope"``). The direction and ``chi`` are
+        counted like SBM's crossing angle without HWP in every convention. The
+        first-order terms sit at (dn, dm), (2+dn, -4+dm), (2-dn, -4-dm) and their
+        conjugates.
+
+        The scan fields read by :meth:`.ScanFields.load_lbs_h_maps` are in the
+        ``"telescope"`` convention; the default ``"legacy"`` only reproduces earlier
+        results.
 
         Args:
             scan_field (:class:`.ScanFields`): scan field instance
@@ -567,7 +662,8 @@ class SignalFields:
 
             rho (`float`): magnitude of pointing offset in radian
 
-            chi (`float`): direction of the pointing offset in radian
+            chi (`float`): direction of the pointing offset in radian, with respect
+                to the HWP
 
             temp_map (`np.ndarray`): temperature map
 
@@ -578,32 +674,37 @@ class SignalFields:
             eth_pol_map (`np.ndarray`): spin up gradient of the polarization map
 
             o_eth_pol_map (`np.ndarray`): spin down gradient of the polarization map
+
+            hwp_angle_frame (`str`): meaning of the HWP angle ``phi`` of the scan
+                fields, ``"legacy"`` (default), ``"sky"`` or ``"telescope"`` (that of
+                :meth:`.ScanFields.load_lbs_h_maps`). Use the same value as for
+                :meth:`hwp_ip_field`.
         """
+        dn, dm = wedge_offset_direction_spin(hwp_angle_frame)
         spin_00_field = Field(temp_map, spin_n=0, spin_m=0)
         spin_p2m4_field = Field(pol_map / 2.0, spin_n=2, spin_m=-4)
         spin_m2p4_field = spin_p2m4_field.conj()
-        spin_p1p1_field = Field(
-            -rho / 2.0 * np.exp(1j * chi) * eth_temp_map, spin_n=1, spin_m=1
+        t1_field = Field(
+            -rho / 2.0 * np.exp(1j * chi) * eth_temp_map, spin_n=dn, spin_m=dm
         )
-        spin_m1m1_field = spin_p1p1_field.conj()
-        spin_p1m5_field = Field(
-            -rho / 4.0 * np.exp(-1j * chi) * o_eth_pol_map, spin_n=1, spin_m=-5
+        pdown_field = Field(
+            -rho / 4.0 * np.exp(-1j * chi) * o_eth_pol_map,
+            spin_n=2 - dn,
+            spin_m=-4 - dm,
         )
-        spin_m1p5_field = spin_p1m5_field.conj()
-        spin_p3m3_field = Field(
-            -rho / 4.0 * np.exp(1j * chi) * eth_pol_map, spin_n=3, spin_m=-3
+        pup_field = Field(
+            -rho / 4.0 * np.exp(1j * chi) * eth_pol_map, spin_n=2 + dn, spin_m=-4 + dm
         )
-        spin_m3p3_field = spin_p3m3_field.conj()
         signal_fields = SignalFields(
             spin_00_field,
             spin_p2m4_field,
             spin_m2p4_field,
-            spin_p1p1_field,
-            spin_m1m1_field,
-            spin_p3m3_field,
-            spin_m3p3_field,
-            spin_p1m5_field,
-            spin_m1p5_field,
+            t1_field,
+            t1_field.conj(),
+            pup_field,
+            pup_field.conj(),
+            pdown_field,
+            pdown_field.conj(),
         )
         signal_fields.field_name = "hwp_wedge_field"
         s_00 = signal_fields.get_coupled_field(scan_field, spin_n_out=0, spin_m_out=0)
@@ -611,31 +712,31 @@ class SignalFields:
         if mdim == 3:
             fields = np.array([s_00, sp2m4, sp2m4.conj()])
         elif mdim == 5:
-            sp1p1 = signal_fields.get_coupled_field(
-                scan_field, spin_n_out=1, spin_m_out=1
+            s_t = signal_fields.get_coupled_field(
+                scan_field, spin_n_out=dn, spin_m_out=dm
             )
-            fields = np.array([s_00, sp1p1, sp1p1.conj(), sp2m4, sp2m4.conj()])
+            fields = np.array([s_00, s_t, s_t.conj(), sp2m4, sp2m4.conj()])
         elif mdim == 9:
-            sp1p1 = signal_fields.get_coupled_field(
-                scan_field, spin_n_out=1, spin_m_out=1
+            s_t = signal_fields.get_coupled_field(
+                scan_field, spin_n_out=dn, spin_m_out=dm
             )
-            sp1m5 = signal_fields.get_coupled_field(
-                scan_field, spin_n_out=1, spin_m_out=-5
+            s_down = signal_fields.get_coupled_field(
+                scan_field, spin_n_out=2 - dn, spin_m_out=-4 - dm
             )
-            sp3m3 = signal_fields.get_coupled_field(
-                scan_field, spin_n_out=3, spin_m_out=-3
+            s_up = signal_fields.get_coupled_field(
+                scan_field, spin_n_out=2 + dn, spin_m_out=-4 + dm
             )
             fields = np.array(
                 [
                     s_00,
-                    sp1p1,
-                    sp1p1.conj(),
+                    s_t,
+                    s_t.conj(),
                     sp2m4,
                     sp2m4.conj(),
-                    sp3m3,
-                    sp3m3.conj(),
-                    sp1m5,
-                    sp1m5.conj(),
+                    s_up,
+                    s_up.conj(),
+                    s_down,
+                    s_down.conj(),
                 ]
             )
         else:

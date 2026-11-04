@@ -226,6 +226,12 @@ class ScanFields:
         .. math:: \\tilde h_{n,m} = \\langle e^{-i(n\\psi_{\\rm SBM} + m\\chi)} \\rangle
                   = h^{\\rm lbs}_{n,-m}.
 
+        The HWP angle of these scan fields is litebird_sim's :math:`\\chi`, which
+        is the ``"telescope"`` HWP-angle convention of
+        :meth:`.SignalFields.circular_pointing_field` (HWP wedge) and
+        :meth:`.SignalFields.hwp_ip_field`: pass ``hwp_angle_frame="telescope"``
+        to them (their default ``"legacy"`` only reproduces earlier results).
+
         The h-maps of litebird_sim do not include the detector polarisation
         angle: the cross-links of a file are those of a detector with
         polarisation angle 0. Unobserved pixels get cross-links equal to 1, as
