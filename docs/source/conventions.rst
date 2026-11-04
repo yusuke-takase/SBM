@@ -56,8 +56,8 @@ The deflection of a wedged HWP rotates with the HWP:
 :math:`\alpha = \psi - \phi + \chi`.
 
 :class:`.Sky` computes the derivatives with spin transforms of the T, E and B
-coefficients (:func:`sbm.sky.spin_derivatives`), and the second-order maps from
-geodesic differences with the polarization transported back to the point. The
+coefficients (:func:`sbm.sky.spin_derivatives`), and the covariant second-order
+maps exactly in the same way (:func:`sbm.sky.second_order_maps`). The
 derivatives of :math:`Q` and :math:`U` taken as scalar maps (healpy's
 ``alm2map_der1`` of each map, as in SBM 0.4) omit the rotation of the local
 basis: they differ from the covariant ones by a term of order

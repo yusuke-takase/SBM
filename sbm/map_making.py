@@ -126,10 +126,13 @@ def _solve(a: np.ndarray, b: np.ndarray, mask: np.ndarray) -> np.ndarray:
 
 
 def solvable(
-    a: np.ndarray, hits: np.ndarray, rcond_min: float = RCOND_MIN
+    a: np.ndarray, hits: np.ndarray, rcond_min: float = RCOND_MIN, among=None
 ) -> np.ndarray:
-    """Observed pixels whose system has a reciprocal condition number above ``rcond_min``."""
+    """Observed pixels whose system has a reciprocal condition number above
+    ``rcond_min`` (among the pixels ``among``, all by default)."""
     ok = hits > 0
+    if among is not None:
+        ok &= np.asarray(among, dtype=bool)
     idx = np.flatnonzero(ok)
     if idx.size:
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -140,10 +143,10 @@ def solvable(
 
 def _selection(a: np.ndarray, hits: np.ndarray, mask) -> np.ndarray:
     """Pixels to solve: ``mask`` (by default all) restricted to :func:`solvable`."""
-    ok = solvable(a, hits)
     if mask is None:
-        return ok
+        return solvable(a, hits)
     mask = np.asarray(mask, dtype=bool) & (hits > 0)
+    ok = solvable(a, hits, among=mask)
     dropped = int((mask & ~ok).sum())
     if dropped:
         warnings.warn(

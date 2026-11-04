@@ -202,7 +202,52 @@ def test_second_order_maps_without_transport_are_the_local_frame():
     alm = band_limited_alm(7)
     transported = second_order_maps(alm, NSIDE)
     local = second_order_maps(alm, NSIDE, transport=False)
-    np.testing.assert_array_equal(transported["lap_i"], local["lap_i"])
+    scale = np.max(np.abs(local["lap_i"]))
+    np.testing.assert_allclose(transported["lap_i"], local["lap_i"], atol=1e-4 * scale)
     assert np.max(np.abs(transported["lap_p"] - local["lap_p"])) > 1e-3 * np.max(
         np.abs(local["lap_p"])
     )
+
+
+def test_second_order_maps_are_transported_second_differences():
+    # independent of the spin transforms of Sky: second differences of the exact
+    # sky along geodesics, with the polarization in the transported frame
+    alm = band_limited_alm(8)
+    theta, phi = hp.pix2ang(NSIDE, np.arange(hp.nside2npix(NSIDE)))
+    h = 1e-3
+    s0 = np.array(iqu_at(alm, theta, phi))
+
+    def second_difference(alpha):
+        plus = np.array(iqu_displaced(alm, theta, phi, alpha, h))
+        minus = np.array(iqu_displaced(alm, theta, phi, alpha, -h))
+        return (plus + minus - 2 * s0) / 2
+
+    d0, d45, d90 = (second_difference(a) for a in (0.0, np.pi / 4, np.pi / 2))
+    lap = 2 * (d0 + d90) / h**2
+    a = 2 * (d0 - d90) / h**2 + 1j * (lap - 4 * d45 / h**2)
+    expected = {
+        "eth2_i": a[0],
+        "lap_i": lap[0],
+        "eth2_p": a[1] + 1j * a[2],
+        "eth_bar2_p": np.conj(a[1]) + 1j * np.conj(a[2]),
+        "lap_p": lap[1] + 1j * lap[2],
+    }
+    so = Sky.from_alm(alm, NSIDE).second_order
+    for key, value in expected.items():
+        np.testing.assert_allclose(
+            so[key], value, atol=1e-4 * np.max(np.abs(value)), err_msg=key
+        )
+
+
+def test_derivatives_of_a_sky_below_the_spin_of_the_transforms():
+    # lmax = 2 < 3: the spin-3 and spin-4 maps vanish (healpy would stop)
+    lmax = 2
+    alm = np.zeros((3, hp.Alm.getsize(lmax)), complex)
+    alm[0, hp.Alm.getidx(lmax, 1, 0)] = 1.0
+    alm[1, hp.Alm.getidx(lmax, 2, 0)] = 1.0
+    sky = Sky.from_alm(alm, NSIDE)
+    np.testing.assert_allclose(sky.eth_p, 0.0, atol=1e-14)
+    assert np.max(np.abs(sky.eth_i)) > 0.1 and np.max(np.abs(sky.eth_bar_p)) > 0.1
+    np.testing.assert_allclose(sky.second_order["eth2_p"], 0.0, atol=1e-14)
+    one = Sky.from_maps(*hp.alm2map(alm, 1, lmax=lmax), lmax=lmax)  # nside 1
+    assert np.all(np.isfinite(one.eth_i)) and np.all(np.isfinite(one.eth_bar_p))
