@@ -5,7 +5,11 @@ import numpy as np
 import pytest
 from scipy.linalg import expm
 
-from sbm import Convolver, ScanFields, SignalFields
+from sbm import systematics as sy
+from sbm.basis import Basis
+from sbm.beam import convolve as beam_convolve
+from sbm.hmaps import HMaps
+from sbm.map_making import map_make
 
 
 NSIDE = 2
@@ -70,9 +74,7 @@ def reconstruct(fields, psi, alpha, pixels=None):
 
 
 def convolve(sky, beam, matrix=None, spins=range(LMAX + 1)):
-    return Convolver(sky, NSIDE, spins, use_hwp=True, mueller=matrix) * Convolver(
-        beam, NSIDE, spins, use_hwp=True
-    )
+    return beam_convolve(sky, beam, NSIDE, spins, hwp=True, mueller=matrix)
 
 
 def point_response(maps, detector, matrix, psi, alpha):
@@ -113,12 +115,12 @@ def test_each_real_mueller_coupling_against_stokes_measurement(row, col):
 def test_identity_mueller_reproduces_unmodulated_convolution(components):
     sky, beam = random_alms(15, components), random_alms(16, components)
     spins = np.arange(LMAX + 1)
-    old = Convolver(sky, NSIDE, spins) * Convolver(beam, NSIDE, spins)
+    unmodulated = beam_convolve(sky, beam, NSIDE, spins)
     fields = convolve(sky, beam, np.eye(4))
     assert all(h == 0 for n, h in fields)
-    for idx, n in enumerate(spins):
-        np.testing.assert_allclose(fields[n, 0], old[idx, 0] + old[idx, 1]/2,
-                                   rtol=2e-12, atol=2e-12)
+    assert set(unmodulated) == {(n, 0) for n in range(-LMAX, LMAX + 1)}
+    for n in spins:
+        np.testing.assert_allclose(fields[n, 0], unmodulated[n, 0], rtol=2e-12, atol=2e-12)
 
 
 def test_missing_v_matches_explicit_zero_v():
@@ -196,18 +198,18 @@ def test_asymmetric_beam_against_direct_wigner_sum(identity):
         assert np.max(np.abs(fields[1, -4])) > 1e-3
 
 
-def scan_fields(psi, alpha):
-    scan = ScanFields()
-    scan.nside = NSIDE
-    scan.npix = hp.nside2npix(NSIDE)
-    scan.spins_n = np.arange(9)
-    scan.spins_m = np.arange(-8, 9, 2)
-    scan.hitmap = np.full(scan.npix, psi.shape[1])
-    scan.h = np.array([
-        [np.mean(np.exp(-1j*(n*psi + h*alpha)), axis=1) for n in scan.spins_n]
-        for h in scan.spins_m
-    ]).transpose(2, 0, 1)
-    return scan
+def hmaps_of(psi, alpha):
+    """h-maps of the samples psi, alpha of shape (npix, nsamples)."""
+    pixels = np.repeat(np.arange(psi.shape[0]), psi.shape[1])
+    couples = [(n, m) for n in range(9) for m in range(-8, 9, 2)]
+    return HMaps.from_samples(NSIDE, pixels, psi.ravel(), alpha.ravel(), couples=couples)
+
+
+BASES = {
+    2: Basis.qu(hwp=True),
+    3: Basis.iqu(hwp=True),
+    5: Basis.iqu(hwp=True).extend([(4, -4)]),
+}
 
 
 @pytest.mark.parametrize("mdim", [2, 3, 5])
@@ -224,12 +226,8 @@ def test_mapmaking_against_sampled_tod_least_squares(mdim, kind):
     matrix = matrices[kind]
     rng = np.random.default_rng(31)
     psi, alpha = rng.uniform(-np.pi, np.pi, (2, hp.nside2npix(NSIDE), 64))
-    scan = scan_fields(psi, alpha)
-    signal = SignalFields.beam_field(
-        scan, mdim, sky, pencil_beam(detector), use_hwp=True, mueller=matrix,
-        spin_k=range(LMAX + 1)
-    )
-    actual = scan.map_make(signal)
+    model = sy.beam(sky, pencil_beam(detector), NSIDE, range(LMAX + 1), hwp=True, mueller=matrix)
+    actual = map_make((hmaps_of(psi, alpha), model), BASES[mdim]).iqu
     expected = np.zeros_like(actual)
     for pixel, stokes in enumerate(sky_maps(sky).T):
         phase = 4*alpha[pixel] - 2*psi[pixel]
@@ -252,9 +250,9 @@ def test_mapmaking_against_sampled_tod_least_squares(mdim, kind):
 @pytest.mark.parametrize("matrix", [np.eye(3), np.eye(4)*1j, np.full((4, 4), np.nan)])
 def test_rejects_invalid_mueller_matrix(matrix):
     with pytest.raises(ValueError, match="mueller"):
-        Convolver(random_alms(40), NSIDE, [0, 2], use_hwp=True, mueller=matrix)
+        beam_convolve(random_alms(40), random_alms(42), NSIDE, [0, 2], hwp=True, mueller=matrix)
 
 
 def test_mueller_requires_hwp_mode():
-    with pytest.raises(ValueError, match="use_hwp"):
-        Convolver(random_alms(41), NSIDE, [0, 2], mueller=np.eye(4))
+    with pytest.raises(ValueError, match="hwp"):
+        beam_convolve(random_alms(41), random_alms(43), NSIDE, [0, 2], mueller=np.eye(4))

@@ -22,7 +22,6 @@ Main functions
    sbm.sim_diff_gain_per_ch
    sbm.sim_diff_pointing_per_ch
    sbm.sim_noise_per_ch
-   sbm.spin_derivatives
 
 Classes
 -------

@@ -5,10 +5,13 @@ import healpy as hp
 import numpy as np
 import pytest
 
-from sbm import Convolver, SignalFields
+from sbm import systematics as sy
+from sbm.basis import Basis
+from sbm.beam import beam_transfer, convolve
 from sbm.hwp_lowell import _beam_source, prepare_lowell_beam
+from sbm.map_making import map_make
 from .test_hwp_convolution import (
-    LMAX, NSIDE, random_alms, reconstruct, rotation, scan_fields,
+    LMAX, NSIDE, hmaps_of, random_alms, reconstruct, rotation,
 )
 
 
@@ -75,17 +78,12 @@ def test_full_sum_against_realspace_tod_and_map():
     theta, phi = hp.pix2ang(NSIDE, pixels)
     expected = realspace_tod(beam, monopole, dipole, theta, phi,
                              psi.ravel(), alpha.ravel(), matrix)
-    fields = Convolver(sky, NSIDE, range(5), use_hwp=True, mueller=matrix,
-                       lowell_hwp="full_sum") * Convolver(beam, NSIDE, range(5))
+    fields = convolve(sky, beam, NSIDE, range(5), hwp=True, mueller=matrix, lowell_hwp="full_sum")
     actual = reconstruct(fields, psi.ravel(), alpha.ravel(), pixels)
     np.testing.assert_allclose(actual, expected, rtol=2e-11, atol=2e-12)
     for (n, h), field in fields.items():
         np.testing.assert_array_equal(field.conj(), fields[-n, -h])
-    scan = scan_fields(psi, alpha)
-    signal = SignalFields.beam_field(
-        scan, 3, sky, beam, use_hwp=True, mueller=matrix,
-        spin_k=range(5), lowell_hwp="full_sum",
-    )
+    model = sy.beam(sky, beam, NSIDE, range(5), hwp=True, mueller=matrix, lowell_hwp="full_sum")
     expected_map = np.empty((3, npix))
     for pixel in range(npix):
         phase = 4*alpha[pixel]-2*psi[pixel]
@@ -93,7 +91,8 @@ def test_full_sum_against_realspace_tod_and_map():
         expected_map[:, pixel] = np.linalg.lstsq(
             design, expected.reshape(npix, hits)[pixel], rcond=None
         )[0]
-    np.testing.assert_allclose(scan.map_make(signal), expected_map, rtol=2e-11, atol=2e-12)
+    actual_map = map_make((hmaps_of(psi, alpha), model), Basis.iqu(hwp=True)).iqu
+    np.testing.assert_allclose(actual_map, expected_map, rtol=2e-11, atol=2e-12)
 
 
 def test_full_sum_restores_odd_crossing_correction_without_adding_other_terms():
@@ -101,8 +100,7 @@ def test_full_sum_restores_odd_crossing_correction_without_adding_other_terms():
     beam = beam_fixture()
     matrix = np.zeros((4, 4))
     matrix[1, 0], matrix[2, 0] = .013, -.008
-    fields = Convolver(sky, NSIDE, (0, 2, 4), use_hwp=True, mueller=matrix,
-                       lowell_hwp="full_sum") * Convolver(beam, NSIDE, (0, 2, 4))
+    fields = convolve(sky, beam, NSIDE, (0, 2, 4), hwp=True, mueller=matrix, lowell_hwp="full_sum")
     assert np.max(abs(fields[1, -2])) > 1e-4
     pixels = np.arange(hp.nside2npix(NSIDE))
     theta, phi = hp.pix2ang(NSIDE, pixels)
@@ -114,10 +112,9 @@ def test_full_sum_restores_odd_crossing_correction_without_adding_other_terms():
 
 def test_beam_source_is_the_spin_beam_transfer():
     beam = beam_fixture()
-    conv = Convolver(beam, NSIDE, (0, 2, 4))
     for n, h in ((0, 2), (1, 2), (1, -2)):
         component = 2 if h == 2 else 1
-        expected = conv.get_blk(n, h)[component]
+        expected = beam_transfer(beam, n, h)[component]
         expected[:2] = 0
         np.testing.assert_array_equal(_beam_source(beam, n, h), expected)
     first = prepare_lowell_beam(beam)
@@ -129,15 +126,13 @@ def test_lowell_mode_validation_and_unchanged_high_ell_and_identity():
     sky, beam = random_alms(63, components=3), beam_fixture()
     matrix = np.random.default_rng(64).normal(size=(4, 4))
     for input_sky, mueller in ((sky, matrix), (lowell_sky()[0], np.eye(4))):
-        other = Convolver(beam, NSIDE, (0, 2, 4))
-        baseline = Convolver(input_sky, NSIDE, (0, 2, 4), use_hwp=True,
-                             mueller=mueller) * other
-        actual = Convolver(input_sky, NSIDE, (0, 2, 4), use_hwp=True,
-                           mueller=mueller, lowell_hwp="full_sum") * other
+        baseline = convolve(input_sky, beam, NSIDE, (0, 2, 4), hwp=True, mueller=mueller)
+        actual = convolve(input_sky, beam, NSIDE, (0, 2, 4), hwp=True, mueller=mueller,
+                          lowell_hwp="full_sum")
         assert actual.keys() == baseline.keys()
         for pair in baseline:
             np.testing.assert_array_equal(actual[pair], baseline[pair])
     with pytest.raises(ValueError, match="lowell_hwp"):
-        Convolver(sky, NSIDE, (0, 2), use_hwp=True, lowell_hwp="ell1_2")
-    with pytest.raises(ValueError, match="use_hwp"):
-        Convolver(sky, NSIDE, (0, 2), lowell_hwp="full_sum")
+        convolve(sky, beam, NSIDE, (0, 2), hwp=True, lowell_hwp="ell1_2")
+    with pytest.raises(ValueError, match="hwp"):
+        convolve(sky, beam, NSIDE, (0, 2), lowell_hwp="full_sum")
