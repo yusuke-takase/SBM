@@ -18,7 +18,7 @@ Every test compares SBM with an independent computation:
   offset pointing and checks that the residual of the pointing models falls as
   :math:`\rho`, :math:`\rho^2` and :math:`\rho^3` at zeroth, first and second
   order.
-* ``test_hwp_convolution.py`` and ``test_hwp_lowell.py`` compare the beam
+* ``test_hwp_convolution.py`` and ``test_beam_low_ell.py`` compare the beam
   convolution with Stokes measurements, direct Wigner sums and real-space beam
   integrals, and the map-maker with sampled TOD.
 * ``test_lbs_h_maps.py`` writes h-map files in the layout of litebird_sim and

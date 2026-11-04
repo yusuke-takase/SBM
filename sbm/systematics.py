@@ -188,7 +188,7 @@ def beam(
     *,
     hwp: bool = False,
     mueller=None,
-    lowell_hwp: str = "shifted",
+    low_ell: str = "narrow_beam",
 ) -> SignalModel:
     """Signal of the sky seen through an arbitrary beam (and HWP Mueller matrix).
 
@@ -205,7 +205,7 @@ def beam(
         spin_k,
         hwp=hwp,
         mueller=mueller,
-        lowell_hwp=lowell_hwp,
+        low_ell=low_ell,
     )
     components = {}
     for (n, m), value in maps.items():

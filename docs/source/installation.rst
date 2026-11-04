@@ -21,13 +21,13 @@ Optional dependencies are imported only by the functions that use them:
    * - ``minuit``
      - iminuit
      - :func:`sbm.forecast` with ``method="minuit"``
-   * - ``lowell``
+   * - ``low-ell``
      - sympy
-     - :func:`sbm.beam.convolve` with ``lowell_hwp="full_sum"``
+     - :func:`sbm.beam.convolve` with ``low_ell="beam_sum"``
    * - ``plot``
      - matplotlib
      - :func:`sbm.get_cmap`
 
-For example ``pip install -e ".[minuit,lowell,plot]"``. The tests need pytest
+For example ``pip install -e ".[minuit,low-ell,plot]"``. The tests need pytest
 and SciPy (``pip install -e ".[test]"``) and run with ``pytest`` from any
 directory.

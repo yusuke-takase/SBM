@@ -10,6 +10,8 @@ beam order ``n + m``.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 import healpy as hp
 import numpy as np
 
@@ -185,7 +187,7 @@ def convolve(
     *,
     hwp: bool = False,
     mueller=None,
-    lowell_hwp: str = "shifted",
+    low_ell: str = "narrow_beam",
 ) -> dict:
     """Spin components of the beam-convolved signal, ``{(n, m): F_{n,m}}``.
 
@@ -197,9 +199,11 @@ def convolve(
         spin_k: crossing-angle moments ``|n|`` to retain (0 is always retained).
         hwp: rotating HWP (narrow-beam approximation).
         mueller: real 4x4 Mueller matrix of the HWP; an ideal HWP by default.
-        lowell_hwp: ``"full_sum"`` keeps the beam multipole sum for the
-            ``ell = 0, 1`` 2f terms of the temperature (see :mod:`sbm.hwp_lowell`);
-            the default ``"shifted"`` keeps the narrow-beam approximation.
+        low_ell: how the ``ell = 0, 1`` 2f terms of the temperature are
+            computed with a HWP: ``"narrow_beam"`` (default) in the narrow-beam
+            approximation like the other terms, ``"beam_sum"`` exactly, with the
+            beam multipole sum of a Mueller matrix uniform in the beam-centred
+            Ludwig-3 frame (needs sympy, the ``low-ell`` extra).
 
     Both ``(n, m)`` and ``(-n, -m)`` are returned. Without HWP only ``m = 0``
     appears; with HWP the harmonics are 0, +/-2 and +/-4, and those that vanish
@@ -212,10 +216,10 @@ def convolve(
     spins = sorted(set(_check_spins(spin_k)) | {0})
     if mueller is not None and not hwp:
         raise ValueError("mueller requires hwp=True")
-    if lowell_hwp not in ("shifted", "full_sum"):
-        raise ValueError("lowell_hwp must be 'shifted' or 'full_sum'")
-    if lowell_hwp != "shifted" and not hwp:
-        raise ValueError("lowell_hwp='full_sum' requires hwp=True")
+    if low_ell not in ("narrow_beam", "beam_sum"):
+        raise ValueError("low_ell must be 'narrow_beam' or 'beam_sum'")
+    if low_ell != "narrow_beam" and not hwp:
+        raise ValueError("low_ell='beam_sum' requires hwp=True")
     sky_spin = _to_spin(sky_alm)
     npix = hp.nside2npix(nside)
     out = {}
@@ -238,21 +242,19 @@ def convolve(
     stokes_spins = np.array([0, 2, -2, 0])
     differences = stokes_spins[:, None] - stokes_spins[None, :]
     harmonics = [h for h in (0, 2, -2, 4, -4) if np.any(coherence[differences == h])]
-    lowell_beam = None
-    lowell_sky = np.any(sky_alm[0, : min(2, lmax + 1)])
+    low_ell_filters = None
+    low_ell_sky = np.any(sky_alm[0, : min(2, lmax + 1)])
     if lmax >= 1:
-        lowell_sky |= sky_alm[0, hp.Alm.getidx(lmax, 1, 1)] != 0
+        low_ell_sky |= sky_alm[0, hp.Alm.getidx(lmax, 1, 1)] != 0
     if (
-        lowell_hwp == "full_sum"
-        and lowell_sky
+        low_ell == "beam_sum"
+        and low_ell_sky
         and np.any(coherence[1:3, 0])
         and lmax >= 2
     ):
-        from .hwp_lowell import prepare_lowell_beam
-
-        lowell_beam = prepare_lowell_beam(beam_alm)
+        low_ell_filters = _low_ell_filters(beam_alm)
     requested = set(spins)
-    moments = requested | {0, 1} if lowell_beam is not None else requested
+    moments = requested | {0, 1} if low_ell_filters is not None else requested
     for k in sorted(moments):
         for spin_m in harmonics:
             if k == 0 and spin_m < 0:
@@ -265,9 +267,9 @@ def convolve(
                     )
                 else:
                     blk = np.zeros((4, lmax + 1), dtype=complex)
-                if lowell_beam is not None and (k, spin_m) in lowell_beam:
+                if low_ell_filters is not None and (k, spin_m) in low_ell_filters:
                     row = 1 if spin_m == 2 else 2
-                    blk[0, :2] = coherence[row, 0] / _ROOT2 * lowell_beam[k, spin_m]
+                    blk[0, :2] = coherence[row, 0] / _ROOT2 * low_ell_filters[k, spin_m]
                 blk[:, :k] = 0.0
                 if np.any(blk):
                     clm = _clm(sky_spin, blk)
@@ -281,6 +283,88 @@ def convolve(
             if k != 0 or spin_m != 0:
                 out[-k, -spin_m] = f.conj()
     return out
+
+
+# ---------------------------------------------------------------------- #
+# Low multipoles of the intensity with a HWP (low_ell="beam_sum")
+#
+# Scalar I-input ell=0,1 HWP filters with the beam multipole sum retained.
+#
+# Assume a spatially uniform Mueller matrix in the beam-centred Ludwig-3 frame.
+# Its spin-h shape in spherical coordinates is exp(-i*h*phi), h=+/-2. Multiplying
+# this shape by a spin-minus-h beam and projecting onto scalar harmonics gives
+# the Gaunt weights below. Other input channels and ell>=2 retain the shifted
+# model. All filters use SBM's sqrt(4*pi/(2*ell+1)) beam normalization.
+
+
+@lru_cache(maxsize=128)
+def _low_ell_weights(ell, n, h, lmax):
+    """Cache geometry shared by all beams, skies and Mueller matrices.
+
+    The spatial spin-h coefficient is 8*pi*N_L*(-1)^L/[L*(L+1)], L>=2.
+    Triangle selection leaves L=ell1 at ell=0, or at most three L at ell=1.
+    The sum therefore has O(lmax) terms for each output coefficient.
+    """
+    from sympy.physics.wigner import wigner_3j  # exact 3j symbols, only for this option
+
+    weights = np.zeros(lmax + 1)
+    for ell1 in range(max(2, abs(n + h)), lmax + 1):
+        for ell2 in range(max(2, abs(ell1 - ell)), ell1 + ell + 1):
+            spin = float(wigner_3j(ell1, ell2, ell, h, -h, 0))
+            order = float(wigner_3j(ell1, ell2, ell, n + h, -h, -n))
+            weights[ell1] += (
+                (-1) ** (n + ell2)
+                * (2 * ell1 + 1)
+                * 2
+                * (2 * ell2 + 1)
+                / (ell2 * (ell2 + 1))
+                * spin
+                * order
+            )
+    weights.setflags(write=False)
+    return weights
+
+
+def _low_ell_beam_source(beam_alm, n, h):
+    """Read only the required signed-m spin beam, without copying all TEB alm."""
+    lmax = hp.Alm.getlmax(beam_alm.shape[1])
+    order = n + h
+    q = abs(order)
+    source = np.zeros(lmax + 1, dtype=complex)
+    start = max(2, q)
+    if start <= lmax:
+        first = hp.Alm.getidx(lmax, start, q)
+        last = hp.Alm.getidx(lmax, lmax, q) + 1
+        # Positive h uses P*, negative h uses P. Negative m interchanges them.
+        p_sign = -1 if h == 2 else 1
+        if order < 0:
+            p_sign = -p_sign
+        value = -(beam_alm[1, first:last] + p_sign * 1j * beam_alm[2, first:last])
+        if order < 0:
+            value = (-1) ** q * value.conj()
+        source[start:] = value * np.sqrt(
+            4 * np.pi / (2 * np.arange(start, lmax + 1) + 1)
+        )
+    return source
+
+
+def _low_ell_filters(beam_alm):
+    """The three independent scalar 2f beam filters ``{(n, h): f_ell}``, ell = 0, 1.
+
+    The n=0, h=-2 filter follows from reality and is not prepared separately.
+    The geometric weights are cached across beams.
+    """
+    beam_alm = np.asarray(beam_alm)
+    lmax = hp.Alm.getlmax(beam_alm.shape[1])
+    filters = {}
+    for n, h in ((0, 2), (1, 2), (1, -2)):
+        source = _low_ell_beam_source(beam_alm, n, h)
+        result = np.zeros(2, dtype=complex)
+        for ell in range(n, min(1, lmax) + 1):
+            result[ell] = _low_ell_weights(ell, n, h, lmax) @ source
+        result.setflags(write=False)
+        filters[n, h] = result
+    return filters
 
 
 def elliptical_beam(nside: int, fwhm_rad: float, q: float) -> np.ndarray:

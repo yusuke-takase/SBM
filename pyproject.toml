@@ -29,7 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 minuit = ["iminuit>=2.30"]
-lowell = ["sympy>=1.13"]
+"low-ell" = ["sympy>=1.13"]
 plot = ["matplotlib>=3.1"]
 test = ["pytest>=7", "scipy>=1.10"]
 docs = ["sphinx>=7", "pydata-sphinx-theme>=0.16"]

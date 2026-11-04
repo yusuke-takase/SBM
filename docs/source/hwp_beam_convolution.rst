@@ -71,15 +71,15 @@ An identity Mueller matrix reproduces the unmodulated convolution.
 Optional low-multipole intensity response
 -----------------------------------------
 
-``lowell_hwp="full_sum"`` (needs sympy) adds the I-input monopole and dipole
+``low_ell="beam_sum"`` (needs sympy, the ``low-ell`` extra) adds the I-input monopole and dipole
 2f response::
 
     model = sbm.systematics.beam(alm, blm, nside, spin_k=range(5), hwp=True,
-                                 mueller=M, lowell_hwp="full_sum")
+                                 mueller=M, low_ell="beam_sum")
     output_iqu = sbm.map_make((hmaps, model), sbm.Basis.iqu(hwp=True)).iqu
 
 The same option can be passed to :func:`sbm.beam.convolve`. The default
-``lowell_hwp="shifted"`` retains the previous results and LBS comparison model.
+``low_ell="narrow_beam"`` retains the previous results and LBS comparison model.
 Only the I-input ell=0,1 terms proportional to M_QI and M_UI are replaced;
 ell>=2, polarized inputs and V-input terms retain the shifted approximation.
 Spin-2 beam harmonics at ell<2 remain zero: the extension constructs a scalar

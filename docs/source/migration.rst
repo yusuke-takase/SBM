@@ -46,7 +46,7 @@ The former classes and functions are removed, without aliases.
    * - ``bandpass_mismatch_field(scan, mdim, P, gamma_T, gamma_B, comps)``
      - ``sky_signal(sky, pair_difference=True) + bandpass_mismatch(comps, gamma_t, gamma_b)``
    * - ``beam_field(scan, mdim, alm, blm, use_hwp, spin_k, mueller, lowell_hwp)``
-     - ``beam(alm, blm, nside, spin_k, hwp=..., mueller=..., lowell_hwp=...)``
+     - ``beam(alm, blm, nside, spin_k, hwp=..., mueller=..., low_ell=...)``; ``lowell_hwp="shifted"`` / ``"full_sum"`` are ``low_ell="narrow_beam"`` / ``"beam_sum"``
    * - ``Convolver(sky, ...) * Convolver(beam, ...)``
      - ``sbm.beam.convolve(sky_alm, beam_alm, nside, spin_k, hwp=...)``, which
        always returns ``{(n, m): map}``

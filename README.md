@@ -39,8 +39,8 @@ pip install -e ".[test]"         # pytest and SciPy for the tests
 ```
 
 SBM needs NumPy (1.x or 2.x), healpy, h5py and ducc0. The extras `minuit`,
-`lowell` and `plot` add iminuit (`forecast(method="minuit")`), sympy
-(`lowell_hwp="full_sum"`) and matplotlib (`get_cmap`).
+`low-ell` and `plot` add iminuit (`forecast(method="minuit")`), sympy
+(`low_ell="beam_sum"`) and matplotlib (`get_cmap`).
 
 # Documentation
 
