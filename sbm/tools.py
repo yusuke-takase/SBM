@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 
 from pathlib import Path
+import warnings
 import numpy as np
 import pandas as pd
 import litebird_sim as lbs
@@ -222,6 +223,41 @@ def _get_likelihood(x, ell, cl_tens, cl_lens, cl_syst, n_el, fsky):  # x is r
     )
 
 
+def _get_likelihood_gradient(x, ell, cl_tens, cl_lens, cl_syst, n_el, fsky):  # x is r
+    """Derivative in r of the negative log-likelihood returned by `_get_likelihood`."""
+    Cl_hat = cl_syst[ell - 2] + cl_lens[ell - 2] + n_el[ell - 2]
+    Cl = x * cl_tens[ell - 2] + cl_lens[ell - 2] + n_el[ell - 2]
+    return np.sum(0.5 * fsky * (2.0 * ell + 1.0) * cl_tens[ell - 2] * (Cl - Cl_hat) / Cl**2)
+
+
+def _maximize_likelihood(ell, cl_tens, cl_lens, cl_syst, n_el, fsky, rmax, rtol=1e-12, maxiter=400):
+    """Maximum of the likelihood over 0 <= r <= rmax, found as the root of its derivative.
+
+    The derivative is negative below the maximum and positive above it, so the root is bracketed
+    by bisection to a relative precision `rtol`. If the likelihood already decreases at r = 0
+    (no positive bias, e.g. a residual at the level of rounding errors) the maximum is r = 0.
+    """
+
+    def grad(r):
+        return _get_likelihood_gradient(r, ell, cl_tens, cl_lens, cl_syst, n_el, fsky)
+
+    if grad(0.0) >= 0.0:
+        return 0.0
+    if grad(rmax) <= 0.0:
+        warnings.warn(f"likelihood maximum is above rmax={rmax}; returning rmax")
+        return float(rmax)
+    lo, hi = 0.0, float(rmax)
+    for _ in range(maxiter):
+        mid = 0.5 * (lo + hi)
+        if grad(mid) < 0.0:
+            lo = mid
+        else:
+            hi = mid
+        if hi - lo <= rtol * hi:
+            break
+    return 0.5 * (lo + hi)
+
+
 def forecast(
     cl_syst,
     n_el=None,
@@ -232,6 +268,7 @@ def forecast(
     rmin=1e-10,
     rmax=100,
     rresol=1000,
+    method="exact",
 ):
     """
     This function estimates the bias on the tensor-to-scalar ratio due to pointing systematics
@@ -244,11 +281,18 @@ def forecast(
 
         lmax (`int`): maximum multipole considered in the maximization
 
-        rmin (`float`): minimum value of r considered in the maximization
+        rmin (`float`): lower limit of r for ``method="minuit"`` (``"exact"`` searches
+            from r = 0), and the scale of the displayed grid when the bias is zero
 
         rmax (`float`): maximum value of r considered in the maximization
 
         rresol (`int`): resolution of the grid in the r range
+
+        method (`str`): how the maximum of the likelihood in r is found.
+            ``"exact"`` (default) solves for the root of its derivative by bisection over 0 <= r <= rmax
+            to a relative precision of 1e-12, and returns 0 when the likelihood decreases from r = 0.
+            ``"minuit"`` is the previous MIGRAD minimisation; its precision is limited to about 1e-9 by
+            `tol`, and it returns `rmin` when the maximum lies below it.
     """
     assert (
         cl_syst[0] == cl_syst[1] == 0.0
@@ -273,15 +317,22 @@ def forecast(
     def wrapped_likelihood(r):
         return _get_likelihood(r, ell, cl_tens, cl_lens, cl_syst, n_el, fsky)
 
-    m = Minuit(wrapped_likelihood, r0)
-    m.limits = (rmin, rmax)
-    m.errordef = Minuit.LIKELIHOOD
-    m.tol = tol
-    m.migrad()
-    delta_r = m.values[0]  # delta_r value
-    # Calculate likelihood function one last time in the range delta_r*1e-3 < delta_r < delta_r*3
-    # Note that delta_r has already been estimated, this likelihood is just used for display
-    r_grid_display = np.linspace(delta_r * 1e-2, delta_r * 3.0, rresol)
+    if method == "exact":
+        delta_r = _maximize_likelihood(ell, cl_tens, cl_lens, cl_syst, n_el, fsky, rmax)
+    elif method == "minuit":
+        m = Minuit(wrapped_likelihood, r0)
+        m.limits = (rmin, rmax)
+        m.errordef = Minuit.LIKELIHOOD
+        m.tol = tol
+        m.migrad()
+        delta_r = m.values[0]  # delta_r value
+    else:
+        raise ValueError(f"unknown method {method!r}; use 'exact' or 'minuit'")
+    # Calculate likelihood function one last time in the range delta_r*1e-2 < r < delta_r*3
+    # Note that delta_r has already been estimated, this likelihood is just used for display.
+    # A zero bias uses rmin as the scale, or 1e-10 (the default rmin) if rmin is not positive.
+    scale = delta_r if delta_r > 0 else (rmin if rmin > 0 else 1e-10)
+    r_grid_display = np.linspace(scale * 1e-2, scale * 3.0, rresol)
     likelihood = np.zeros(rresol)
     for i, r in enumerate(r_grid_display):
         likelihood[i] = wrapped_likelihood(r)
