@@ -33,7 +33,7 @@ jobs:
       - name: Install SBM
         run: |
           uv venv --python ${{ matrix.python }}
-          uv pip install --python .venv/bin/python -e ".[test,low-ell,plot]" "${{ matrix.numpy }}"
+          uv pip install --python .venv/bin/python -e ".[test,plot]" "${{ matrix.numpy }}"
 
       - name: Run pytest
         run: .venv/bin/python -m pytest tests -q

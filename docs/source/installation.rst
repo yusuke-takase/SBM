@@ -18,13 +18,10 @@ Optional dependencies are imported only by the functions that use them:
    * - Extra
      - Package
      - Needed by
-   * - ``low-ell``
-     - sympy
-     - :func:`sbm.beam.convolve` with ``low_ell="beam_sum"``
    * - ``plot``
      - matplotlib
      - :func:`sbm.get_cmap`
 
-For example ``pip install -e ".[low-ell,plot]"``. The tests need pytest
+For example ``pip install -e ".[plot]"``. The tests need pytest
 and SciPy (``pip install -e ".[test]"``) and run with ``pytest`` from any
 directory.

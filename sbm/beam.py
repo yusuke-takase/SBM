@@ -203,7 +203,7 @@ def convolve(
             computed with a HWP: ``"narrow_beam"`` (default) in the narrow-beam
             approximation like the other terms, ``"beam_sum"`` exactly, with the
             beam multipole sum of a Mueller matrix uniform in the beam-centred
-            Ludwig-3 frame (needs sympy, the ``low-ell`` extra).
+            Ludwig-3 frame.
 
     Both ``(n, m)`` and ``(-n, -m)`` are returned. Without HWP only ``m = 0``
     appears; with HWP the harmonics are 0, +/-2 and +/-4, and those that vanish
@@ -297,6 +297,17 @@ def convolve(
 # model. All filters use SBM's sqrt(4*pi/(2*ell+1)) beam normalization.
 
 
+def _wigner_3j(j1, j2, j3, m1, m2, m3) -> float:
+    """Wigner 3j symbol (j1 j2 j3; m1 m2 m3) of integer arguments, with ducc0."""
+    from ducc0.misc import wigner3j_int
+
+    if m1 + m2 + m3 != 0 or abs(m1) > j1 or abs(m2) > j2 or abs(m3) > j3:
+        return 0.0
+    j1_min, values = wigner3j_int(j2, j3, m2, m3)  # all j1 for m1 = -m2 - m3
+    i = j1 - int(j1_min)
+    return float(values[i]) if 0 <= i < len(values) else 0.0
+
+
 @lru_cache(maxsize=128)
 def _low_ell_weights(ell, n, h, lmax):
     """Cache geometry shared by all beams, skies and Mueller matrices.
@@ -305,13 +316,11 @@ def _low_ell_weights(ell, n, h, lmax):
     Triangle selection leaves L=ell1 at ell=0, or at most three L at ell=1.
     The sum therefore has O(lmax) terms for each output coefficient.
     """
-    from sympy.physics.wigner import wigner_3j  # exact 3j symbols, only for this option
-
     weights = np.zeros(lmax + 1)
     for ell1 in range(max(2, abs(n + h)), lmax + 1):
         for ell2 in range(max(2, abs(ell1 - ell)), ell1 + ell + 1):
-            spin = float(wigner_3j(ell1, ell2, ell, h, -h, 0))
-            order = float(wigner_3j(ell1, ell2, ell, n + h, -h, -n))
+            spin = _wigner_3j(ell1, ell2, ell, h, -h, 0)
+            order = _wigner_3j(ell1, ell2, ell, n + h, -h, -n)
             weights[ell1] += (
                 (-1) ** (n + ell2)
                 * (2 * ell1 + 1)

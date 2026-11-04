@@ -71,7 +71,7 @@ An identity Mueller matrix reproduces the unmodulated convolution.
 Optional low-multipole intensity response
 -----------------------------------------
 
-``low_ell="beam_sum"`` (needs sympy, the ``low-ell`` extra) adds the I-input monopole and dipole
+``low_ell="beam_sum"`` adds the I-input monopole and dipole
 2f response::
 
     model = sbm.systematics.beam(alm, blm, nside, spin_k=range(5), hwp=True,
@@ -94,8 +94,8 @@ for ell=1. The sum terminates at ell2<=beam_lmax+1 and costs O(beam_lmax)
 per output coefficient; there is no extra sum per TOD sample.
 
 The geometry is cached independently of beam, sky and Mueller matrix.
-Symbolic Wigner 3j evaluation is used only when a geometry cache entry is
-first constructed.
+The Wigner 3j symbols (from ducc0) are evaluated only when a geometry cache
+entry is first constructed.
 
 The correction includes its n=0,+/-1 fields even if these moments were not
 requested in ``spin_k``. Other terms still follow ``spin_k``: with the default

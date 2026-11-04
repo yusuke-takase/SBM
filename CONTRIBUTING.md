@@ -28,7 +28,7 @@ goes through it with an example. In short:
 ## Tests and style
 
 ```
-pip install -e ".[test,low-ell,plot]"
+pip install -e ".[test,plot]"
 pytest
 ruff check sbm tests
 ```

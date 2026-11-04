@@ -31,6 +31,5 @@ Every test compares SBM with an independent computation:
 * ``test_forecast.py`` checks the likelihood maximum (zero, linear and
   injected biases).
 
-The tests that need the optional sympy are skipped without it.
 A new systematic comes with a real-space TOD test (:doc:`adding_systematics`);
 changing a weight of a model makes these tests fail.

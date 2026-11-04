@@ -3,7 +3,6 @@
 import healpy as hp
 import numpy as np
 import pytest
-from scipy.linalg import expm
 
 from sbm import systematics as sy
 from sbm.basis import Basis
@@ -153,7 +152,9 @@ def wigner_small_d(ell, theta):
     for idx, m in enumerate(range(-ell, ell)):
         raising[idx + 1, idx] = np.sqrt((ell - m)*(ell + m + 1))
     jy = (raising - raising.T)/(2j)
-    return expm(-1j*theta*jy).real
+    # exp(-i theta J_y) from the eigenvectors of the Hermitian J_y
+    w, v = np.linalg.eigh(jy)
+    return ((v * np.exp(-1j * theta * w)) @ v.conj().T).real
 
 
 def direct_wigner_sum(sky, beam, matrix, theta, phi, psi, alpha):
