@@ -38,9 +38,8 @@ pip install -e .                 # or: uv pip install -e .
 pip install -e ".[test]"         # pytest and SciPy for the tests
 ```
 
-SBM needs NumPy (1.x or 2.x), healpy, h5py and ducc0. The extras `minuit`,
-`low-ell` and `plot` add iminuit (`forecast(method="minuit")`), sympy
-(`low_ell="beam_sum"`) and matplotlib (`get_cmap`).
+SBM needs NumPy (1.x or 2.x), healpy, h5py and ducc0. The extras `low-ell`
+and `plot` add sympy (`low_ell="beam_sum"`) and matplotlib (`get_cmap`).
 
 # Documentation
 

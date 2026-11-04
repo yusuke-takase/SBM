@@ -75,12 +75,9 @@ def forecast(
     n_el=None,
     fsky=1.0,
     lmax=191,
-    r0=0.0,
-    tol=1e-8,
     rmin=1e-10,
     rmax=100,
     rresol=1000,
-    method="exact",
 ):
     """Bias on r from the residual B-mode spectrum ``cl_syst`` (from ell = 0).
 
@@ -93,17 +90,15 @@ def forecast(
 
         lmax (`int`): maximum multipole considered in the maximization
 
-        rmin (`float`): minimum value of r considered in the maximization
+        rmin (`float`): scale of the displayed grid when the bias is zero
 
         rmax (`float`): maximum value of r considered in the maximization
 
-        rresol (`int`): resolution of the grid in the r range
+        rresol (`int`): resolution of the displayed grid in r
 
-        method (`str`): how the maximum of the likelihood in r is found.
-            ``"exact"`` (default) solves for the root of its derivative by bisection over 0 <= r <= rmax
-            to a relative precision of 1e-12, and returns 0 when the likelihood decreases from r = 0.
-            ``"minuit"`` is the previous MIGRAD minimisation (needs iminuit); its precision is
-            limited to about 1e-9 by `tol`, and it returns `rmin` when the maximum lies below it.
+    The maximum of the likelihood in r is the root of its derivative, found by
+    bisection over 0 <= r <= rmax to a relative precision of 1e-12; the bias is
+    0 when the likelihood decreases from r = 0.
 
     Returns:
         ``{"delta_r": bias, "grid_r": r grid, "likelihood": likelihood on the grid}``
@@ -131,19 +126,7 @@ def forecast(
     def wrapped_likelihood(r):
         return _get_likelihood(r, ell, cl_tens, cl_lens, cl_syst, n_el, fsky)
 
-    if method == "exact":
-        delta_r = _maximize_likelihood(ell, cl_tens, cl_lens, cl_syst, n_el, fsky, rmax)
-    elif method == "minuit":
-        from iminuit import Minuit  # optional dependency
-
-        m = Minuit(wrapped_likelihood, r0)
-        m.limits = (rmin, rmax)
-        m.errordef = Minuit.LIKELIHOOD
-        m.tol = tol
-        m.migrad()
-        delta_r = m.values[0]  # delta_r value
-    else:
-        raise ValueError(f"unknown method {method!r}; use 'exact' or 'minuit'")
+    delta_r = _maximize_likelihood(ell, cl_tens, cl_lens, cl_syst, n_el, fsky, rmax)
     # Calculate likelihood function one last time in the range delta_r*1e-2 < r < delta_r*3
     # Note that delta_r has already been estimated, this likelihood is just used for display
     scale = delta_r if delta_r > 0 else rmin
