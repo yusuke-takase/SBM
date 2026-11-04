@@ -249,7 +249,7 @@ class Convolver:
         if (self.lowell_hwp == "full_sum" and lowell_sky
                 and np.any(coherence[1:3, 0]) and other.lmax >= 2):
             from .hwp_lowell import prepare_lowell_beam
-            lowell_beam = prepare_lowell_beam(other)
+            lowell_beam = prepare_lowell_beam(other.alm)
         requested = {abs(int(k)) for k in self.spin_k}
         moments = requested | {0, 1} if lowell_beam is not None else requested
         all_maps = {}

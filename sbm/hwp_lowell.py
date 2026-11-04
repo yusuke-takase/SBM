@@ -11,7 +11,6 @@ from functools import lru_cache
 
 import healpy as hp
 import numpy as np
-from sympy.physics.wigner import wigner_3j
 
 
 @lru_cache(maxsize=128)
@@ -22,59 +21,63 @@ def _coupling_weights(ell, n, h, lmax):
     Triangle selection leaves L=ell1 at ell=0, or at most three L at ell=1.
     The sum therefore has O(lmax) terms for each output coefficient.
     """
+    from sympy.physics.wigner import wigner_3j  # exact 3j symbols, only for this option
+
     weights = np.zeros(lmax + 1)
     for ell1 in range(max(2, abs(n + h)), lmax + 1):
         for ell2 in range(max(2, abs(ell1 - ell)), ell1 + ell + 1):
             spin = float(wigner_3j(ell1, ell2, ell, h, -h, 0))
             order = float(wigner_3j(ell1, ell2, ell, n + h, -h, -n))
             weights[ell1] += (
-                (-1)**(n + ell2) * (2*ell1 + 1)
-                * 2*(2*ell2 + 1)/(ell2*(ell2 + 1)) * spin * order
+                (-1) ** (n + ell2)
+                * (2 * ell1 + 1)
+                * 2
+                * (2 * ell2 + 1)
+                / (ell2 * (ell2 + 1))
+                * spin
+                * order
             )
     weights.setflags(write=False)
     return weights
 
 
-def _beam_source(beam, n, h):
+def _beam_source(beam_alm, n, h):
     """Read only the required signed-m spin beam, without copying all TEB alm."""
+    lmax = hp.Alm.getlmax(beam_alm.shape[1])
     order = n + h
     q = abs(order)
-    source = np.zeros(beam.lmax + 1, dtype=complex)
+    source = np.zeros(lmax + 1, dtype=complex)
     start = max(2, q)
-    if start <= beam.lmax:
-        first = hp.Alm.getidx(beam.lmax, start, q)
-        last = hp.Alm.getidx(beam.lmax, beam.lmax, q) + 1
+    if start <= lmax:
+        first = hp.Alm.getidx(lmax, start, q)
+        last = hp.Alm.getidx(lmax, lmax, q) + 1
         # Positive h uses P*, negative h uses P. Negative m interchanges them.
         p_sign = -1 if h == 2 else 1
         if order < 0:
             p_sign = -p_sign
-        value = -(beam.alm[1, first:last] + p_sign*1j*beam.alm[2, first:last])
+        value = -(beam_alm[1, first:last] + p_sign * 1j * beam_alm[2, first:last])
         if order < 0:
-            value = (-1)**q * value.conj()
-        source[start:] = value*np.sqrt(4*np.pi/(2*np.arange(start, beam.lmax + 1)+1))
+            value = (-1) ** q * value.conj()
+        source[start:] = value * np.sqrt(
+            4 * np.pi / (2 * np.arange(start, lmax + 1) + 1)
+        )
     return source
 
 
-def prepare_lowell_beam(beam):
-    """Prepare and reuse the three independent scalar 2f beam filters.
+def prepare_lowell_beam(beam_alm):
+    """The three independent scalar 2f beam filters ``{(n, h): f_ell}``, ell = 0, 1.
 
-    Cache only the needed beam orders (1,2,3); detect changes through the
-    original mutable alm array before reusing a result. The n=0,h=-2 map
-    follows from reality and is not prepared separately.
+    The n=0, h=-2 filter follows from reality and is not prepared separately.
+    The geometric weights are cached across beams.
     """
-    pairs = ((0, 2), (1, 2), (1, -2))
-    sources = tuple(_beam_source(beam, n, h) for n, h in pairs)
-    cached = getattr(beam, "_hwp_lowell_cache", None)
-    if cached is not None and all(
-        np.array_equal(old, new) for old, new in zip(cached[0], sources)
-    ):
-        return cached[1]
+    beam_alm = np.asarray(beam_alm)
+    lmax = hp.Alm.getlmax(beam_alm.shape[1])
     filters = {}
-    for (n, h), source in zip(pairs, sources):
+    for n, h in ((0, 2), (1, 2), (1, -2)):
+        source = _beam_source(beam_alm, n, h)
         result = np.zeros(2, dtype=complex)
-        for ell in range(n, min(1, beam.lmax) + 1):
-            result[ell] = _coupling_weights(ell, n, h, beam.lmax) @ source
+        for ell in range(n, min(1, lmax) + 1):
+            result[ell] = _coupling_weights(ell, n, h, lmax) @ source
         result.setflags(write=False)
         filters[n, h] = result
-    beam._hwp_lowell_cache = sources, filters
     return filters

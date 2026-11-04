@@ -112,19 +112,17 @@ def test_full_sum_restores_odd_crossing_correction_without_adding_other_terms():
                                rtol=2e-11, atol=2e-12)
 
 
-def test_beam_preparation_reuses_cache_and_detects_alm_changes():
-    beam = Convolver(beam_fixture(), NSIDE, (0, 2, 4))
+def test_beam_source_is_the_spin_beam_transfer():
+    beam = beam_fixture()
+    conv = Convolver(beam, NSIDE, (0, 2, 4))
     for n, h in ((0, 2), (1, 2), (1, -2)):
         component = 2 if h == 2 else 1
-        expected = beam.get_blk(n, h)[component]
+        expected = conv.get_blk(n, h)[component]
         expected[:2] = 0
         np.testing.assert_array_equal(_beam_source(beam, n, h), expected)
     first = prepare_lowell_beam(beam)
-    assert prepare_lowell_beam(beam) is first
-    beam.alm[1, hp.Alm.getidx(LMAX, 2, 2)] += .1
-    updated = prepare_lowell_beam(beam)
-    assert updated is not first
-    assert not np.array_equal(first[0, 2], updated[0, 2])
+    beam[1, hp.Alm.getidx(LMAX, 2, 2)] += .1
+    assert not np.array_equal(first[0, 2], prepare_lowell_beam(beam)[0, 2])
 
 
 def test_lowell_mode_validation_and_unchanged_high_ell_and_identity():
