@@ -65,8 +65,11 @@ class Field:
 # along psi_0 + chi). The HWP modulates the polarization as P exp(i(2 psi_0 + 4a)),
 # the wedge, fixed to the HWP, deflects the beam along psi_0 + a + chi, and the 4f
 # HWP-IP depends on 4a = 2 (2 psi_0 + 4a) - 4 (psi_0 + a) alone. Offset directions
-# and ``chi`` are counted in this sense in every convention. Between spin vectors,
-# IP = 2 pol - 4 wedge_T up to conjugation of the IP, whatever the angle variables.
+# and ``chi`` are counted in this sense in every convention. The HWP-IP is
+# epsilon cos(4 phi_fp + phi_qi) as in Patanchon et al. (2024), with phi_fp = -a the
+# focal-plane HWP angle counted in the standard sense (that of litebird_sim's HWP
+# angle); its route exp(-i phi_qi) exp(4ia) is at spin IP = 2 pol - 4 wedge_T,
+# whatever the angle variables.
 #
 # "sky"        phi is the HWP angle with respect to the sky reference frame
 #              (Patanchon et al. 2024, rho = omega t) and the angles are counted in
@@ -79,8 +82,9 @@ class Field:
 #              counted in the opposite sense to psi: psi = psi_0, phi = -a. This is
 #              the convention of the h-maps of litebird_sim and Falcons.jl read by
 #              ScanFields.load_lbs_h_maps (phi is litebird_sim's HWP angle).
-#              The wedge offset points along psi - phi + chi (spin (1,-1)) and the
-#              HWP-IP sits at spin (0,+-4).
+#              The wedge offset points along psi - phi + chi (spin (1,-1)), the HWP
+#              angle in the focal plane is phi = -a, and the HWP-IP sits at spin
+#              (0,+-4), its route exp(-i phi_qi) at (0,-4).
 # "legacy"     previous SBM behaviour: HWP-IP as in "sky", wedge offset along
 #              psi + phi + chi. The two are not mutually consistent (the identity
 #              IP = 2 pol - 4 wedge_T between spin vectors fails); kept only to
@@ -110,12 +114,14 @@ def wedge_offset_direction_spin(hwp_angle_frame: str = "legacy") -> tuple:
 def hwp_ip_route_spins(hwp_angle_frame: str = "legacy") -> tuple:
     """Spins of the two HWP-IP routes (route a carries exp(-i phi_qi), route b its conjugate).
 
-    The 4f instrumental polarization depends only on the focal-plane HWP angle:
-    phi - psi (``"sky"``/``"legacy"``) or -phi (``"telescope"``).
+    The 4f instrumental polarization ``epsilon cos(4 phi_fp + phi_qi)`` depends only on
+    the focal-plane HWP angle ``phi_fp``, counted in the standard sense as in Patanchon
+    et al. (2024): phi - psi (``"sky"``/``"legacy"``) or phi (``"telescope"``). Route a,
+    ``exp(-i phi_qi) exp(-4i phi_fp)``, sits at (4,-4) or (0,-4).
     """
     _check_hwp_angle_frame(hwp_angle_frame)
     if hwp_angle_frame == "telescope":
-        return (0, 4), (0, -4)
+        return (0, -4), (0, 4)
     return (4, -4), (-4, 4)
 
 
@@ -488,8 +494,10 @@ class SignalFields:
     ):
         """Get the HWP instrumental polarization field of the detector
 
-        The 4f term ``epsilon cos(4 phi_fp + phi_qi)`` depends on the focal-plane HWP
-        angle ``phi_fp``; its spin follows ``hwp_angle_frame`` (see
+        The 4f term ``epsilon cos(4 phi_fp + phi_qi)`` of Patanchon et al. (2024)
+        depends on the focal-plane HWP angle ``phi_fp``, counted in the standard sense
+        (``phi - psi`` for ``"sky"``/``"legacy"``, ``phi`` for ``"telescope"``, i.e.
+        litebird_sim's HWP angle); its spin follows ``hwp_angle_frame`` (see
         :func:`hwp_ip_route_spins`): (4,-4) for ``"sky"``/``"legacy"``, (0,+-4) for
         ``"telescope"``.
 
@@ -500,7 +508,7 @@ class SignalFields:
 
             epsilon (`float`): amplitude of the HWP Meuller matrix element varying at 4f
 
-            phi_qi (`float`): phase shift in the HWP
+            phi_qi (`float`): phase shift in the HWP, the phase of the 4f term
 
             temp_map (`np.ndarray`): temperature map
 

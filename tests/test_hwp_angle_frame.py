@@ -3,8 +3,10 @@
 Physical model, with the crossing angle psi_0 and the focal-plane HWP angle a both
 counted like SBM's crossing angle without HWP: the polarization is modulated as
 P exp(i(2 psi_0 + 4a)), the HWP-fixed wedge deflects the beam along psi_0 + a + chi,
-and the 4f HWP-IP depends on 4a alone. The scan fields of the "telescope" frame store
-(psi, phi) = (psi_0, -a), those of the "sky" frame (-psi_0, -(psi_0 + a)).
+and the 4f HWP-IP is epsilon cos(4 phi_fp + phi_qi) (Patanchon et al. 2024) with
+phi_fp = -a the focal-plane HWP angle counted in the standard sense. The scan fields of
+the "telescope" frame store (psi, phi) = (psi_0, -a), those of the "sky" frame
+(-psi_0, -(psi_0 + a)).
 """
 
 import healpy as hp
@@ -23,15 +25,15 @@ POL = (2, -4)
 
 
 def _consistent(frame, wedge=None):
-    """IP = 2 pol - 4 wedge_T between spin vectors, up to conjugation of the IP.
+    """IP = 2 pol - 4 wedge_T between spin vectors, IP the route carrying exp(-i phi_qi).
 
     4a = 2 (2 psi_0 + 4a) - 4 (psi_0 + a): the relation holds for the physical angles,
-    hence for any linear choice of the angle variables of the scan fields. The signs
-    of pol and wedge_T are fixed; only the IP may be either of its two conjugate routes.
+    hence for any linear choice of the angle variables of the scan fields. The route
+    exp(-i phi_qi) exp(4ia) gives epsilon cos(4 phi_fp + phi_qi) with phi_fp = -a.
     """
     w = np.array(wedge_offset_direction_spin(frame) if wedge is None else wedge)
     expected = tuple(int(x) for x in 2 * np.array(POL) - 4 * w)
-    return expected in hwp_ip_route_spins(frame)
+    return expected == hwp_ip_route_spins(frame)[0]
 
 
 @pytest.mark.parametrize("frame", ["sky", "telescope"])
@@ -56,7 +58,7 @@ def test_spins_per_frame():
     assert wedge_offset_direction_spin("telescope") == (1, -1)
     assert hwp_ip_route_spins("legacy") == ((4, -4), (-4, 4))
     assert hwp_ip_route_spins("sky") == ((4, -4), (-4, 4))
-    assert hwp_ip_route_spins("telescope") == ((0, 4), (0, -4))
+    assert hwp_ip_route_spins("telescope") == ((0, -4), (0, 4))
 
 
 def test_routes_are_conjugate_pairs():
@@ -75,7 +77,7 @@ def test_invalid_frame_raises():
 # ---- wedge against a TOD simulated with the physical angles -------------------------
 
 NSIDE_TOD, NSAMPLES = 2, 400
-SPINS_N_TOD, SPINS_M_TOD = np.arange(0, 7), np.arange(-10, 11)
+SPINS_N_TOD, SPINS_M_TOD = np.arange(0, 9), np.arange(-10, 11)
 RHO, CHI = 1e-3, 0.7
 
 
@@ -146,6 +148,42 @@ def test_wedge_matches_tod(frame, mdim):
     else:
         assert residual > 1e-5
         assert np.max(np.abs(actual - expected)) < 1e-8 * residual
+
+
+@pytest.mark.parametrize("mdim", [3, 5])
+@pytest.mark.parametrize("frame", ["sky", "telescope", "legacy"])
+def test_hwp_ip_matches_tod(frame, mdim):
+    """epsilon T cos(4 phi_fp + phi_qi), with the same phi_qi in every frame."""
+    eps, phi_qi = 1e-2, 0.3
+    rng = np.random.default_rng(12)
+    npix = hp.nside2npix(NSIDE_TOD)
+    psi_0, a = rng.uniform(-np.pi, np.pi, (2, npix, NSAMPLES))
+    temp = rng.standard_normal(npix)
+    pol = rng.standard_normal(npix) + 1j * rng.standard_normal(npix)
+
+    theta = 2 * psi_0 + 4 * a
+    phi_fp = -a
+    leakage = eps * temp[:, None] * np.cos(4 * phi_fp + phi_qi)
+    tod = temp[:, None] + np.real(pol[:, None] * np.exp(1j * theta)) + leakage
+    ideal = np.array([temp, pol.real, pol.imag])
+    expected = np.zeros((3, npix))
+    for p in range(npix):
+        design = [np.ones(NSAMPLES), np.cos(theta[p]), -np.sin(theta[p])]
+        if mdim == 5:
+            design += [np.cos(4 * a[p]), np.sin(4 * a[p])]
+        expected[:, p] = np.linalg.lstsq(np.array(design).T, tod[p], rcond=None)[0][:3]
+
+    # the HWP-IP of "legacy" is that of "sky", with the same angles
+    scan = scan_of_samples(*frame_angles("telescope" if frame == "telescope" else "sky", psi_0, a))
+    # hwp_ip_field models the leakage alone
+    actual = np.array(scan.map_make(SignalFields.hwp_ip_field(scan, mdim, eps, phi_qi, temp, hwp_angle_frame=frame)))
+    residual = np.max(np.abs(expected - ideal))
+    if mdim == 5:
+        assert residual < 1e-12
+        np.testing.assert_allclose(actual, 0.0, rtol=0, atol=1e-12)
+    else:
+        assert residual > 1e-4
+        assert np.max(np.abs(actual - (expected - ideal))) < 1e-8 * residual
 
 
 def test_hwp_ip_field_telescope_frame_runs():
