@@ -5,6 +5,7 @@ import numpy as np
 import healpy as hp
 import os
 import copy
+import warnings
 from multiprocessing import Pool
 from pathlib import Path
 import sympy as sp
@@ -16,6 +17,11 @@ from .tools import get_instrument_table
 
 CONFIG_PATH = Path.home() / ".config" / "sbm_dataset"
 CONFIG_FILE_PATH = CONFIG_PATH / "sbm_dataset.toml"
+
+#: Pixels whose map-making system has a reciprocal condition number (2-norm) at or
+#: below this value are not solved by ScanFields.map_make and ScanFields.generate_noise:
+#: they are 0, like the unobserved pixels.
+RCOND_MIN = 1e-12
 
 
 def extract_location_from_toml(file_path):
@@ -97,6 +103,32 @@ def read_scanfiled(file_path: str) -> "ScanFields":
         instance (:class:`.ScanFields`): scan fields instance
     """
     return ScanFields.load_hdf5(file_path)
+
+
+def _solvable_pixels(covmat: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """Pixels of `mask` whose system `covmat[:, :, i]` is well conditioned.
+
+    A pixel is solved if the reciprocal condition number (2-norm) of its system is
+    above ``RCOND_MIN``; a pixel seen with fewer distinct angles than the basis needs
+    is not. The pixels of the mask that are dropped are reported with a warning.
+    """
+    mask = np.asarray(mask, dtype=bool)
+    ok = mask.copy()
+    idx = np.flatnonzero(mask)
+    if idx.size:
+        a = np.moveaxis(covmat[:, :, idx], -1, 0)
+        finite = np.all(np.isfinite(a), axis=(1, 2))
+        rcond = np.zeros(idx.size)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rcond[finite] = 1.0 / np.linalg.cond(a[finite])
+        ok[idx] = np.isfinite(rcond) & (rcond > RCOND_MIN)
+    dropped = int(np.count_nonzero(mask & ~ok))
+    if dropped:
+        warnings.warn(
+            f"{dropped} of the pixels to solve have an ill-conditioned system and "
+            "are not solved (set to 0)"
+        )
+    return ok
 
 
 def _attr_to_str(value) -> str:
@@ -635,6 +667,12 @@ class ScanFields:
         If `only_iqu` is `True`, the output map has [3, `npix`] shape.
         If `only_iqu` is `False`, the output map has [len(`signal_fields.spin_n_basis`), `npix`] shape.
 
+        The pixels to solve are the observed pixels with HWP, and the pixels whose
+        cross-link :math:`|{}_{2}\\tilde{h}|` is below `xlink_threshold` without HWP. Among
+        them, a pixel whose system is ill-conditioned (reciprocal condition number at or
+        below ``RCOND_MIN`` = 1e-12, e.g. a pixel seen with too few distinct angles) is not
+        solved, with a warning. The pixels that are not solved are 0.
+
         Returns:
             output (`np.ndarray` or :class:`.SignalFields`): numpy array of maps[3,`npix`] or signal fields
         """
@@ -655,9 +693,7 @@ class ScanFields:
                 spin_n_basis,
                 spin_m_basis,
             )
-            for i in range(self.npix):
-                if self.hitmap[i] != 0:
-                    x[:, i] = np.linalg.solve(A[:, :, i], b[:, i])
+            mask = self.hitmap != 0
         else:
             pol_idx = np.where((spin_n_basis == 2) & (spin_m_basis == 0))[0][0]
             A = self.create_covmat(
@@ -665,9 +701,18 @@ class ScanFields:
                 spin_m_basis,
             )
             xlink2 = np.abs(self.get_xlink(2, 0))
-            for i in range(self.npix):
-                if xlink2[i] < self.xlink_threshold:
-                    x[:, i] = np.linalg.solve(A[:, :, i], b[:, i])
+            mask = xlink2 < self.xlink_threshold
+        singular = 0
+        for i in np.flatnonzero(_solvable_pixels(A, mask)):
+            try:
+                x[:, i] = np.linalg.solve(A[:, :, i], b[:, i])
+            except np.linalg.LinAlgError:
+                singular += 1
+        if singular:
+            warnings.warn(
+                f"{singular} of the pixels to solve have a singular system and are "
+                "not solved (set to 0)"
+            )
         if only_iqu:
             temp_idx = next(
                 (
@@ -769,6 +814,8 @@ class ScanFields:
     ) -> np.ndarray:
         """Generate observed noise map with the noise PDF.
         Before using this method, you should generate the noise PDF by :meth:`.ScanFields.generate_noise_pdf` method.
+        The noise is 0 in the pixels that :meth:`.ScanFields.map_make` does not solve.
+
         Args:
             spin_n_basis (`list`): list of spin_n to create the covariance matrix
 
@@ -801,18 +848,17 @@ class ScanFields:
             temp_idx = None
         if self.use_hwp is True:
             pol_idx = np.where((spin_n_basis == -2) & (spin_m_basis == 4))[0][0]
-            for i in range(self.npix):
-                if self.hitmap[i] != 0:
-                    covmat_inv[:, :, i] = np.linalg.inv(cov[:, :, i])
-                else:
-                    covmat_inv[:, :, i] = np.zeros_like(cov[:, :, i])
+            mask = self.hitmap != 0
         else:
             pol_idx = np.where((spin_n_basis == 2) & (spin_m_basis == 0))[0][0]
-            for i in range(self.npix):
-                if xlink2[i] < self.xlink_threshold:
-                    covmat_inv[:, :, i] = np.linalg.inv(cov[:, :, i])
-                else:
-                    covmat_inv[:, :, i] = np.zeros_like(cov[:, :, i])
+            mask = xlink2 < self.xlink_threshold
+        # the pixels that map_make solves; the noise is 0 in the others
+        solved = _solvable_pixels(cov, mask)
+        for i in range(self.npix):
+            if solved[i]:
+                covmat_inv[:, :, i] = np.linalg.inv(cov[:, :, i])
+            else:
+                covmat_inv[:, :, i] = np.zeros_like(cov[:, :, i])
         self.covmat_inv = np.sqrt(covmat_inv)
 
         if seed is not None:
