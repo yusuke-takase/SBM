@@ -200,7 +200,8 @@ def convolve(
             :meth:`.SphericalHarmonics.from_maps`). The beam need not be axially
             symmetric.
         nside: resolution of the maps.
-        spin_k: crossing-angle moments ``|n|`` to retain (0 is always retained).
+        spin_k: crossing-angle moments ``|n|`` to retain (0 is always retained);
+            the moments above ``lmax`` are zero maps.
         hwp: rotating HWP (narrow-beam approximation).
         mueller: real 4x4 Mueller matrix of the HWP; an ideal HWP by default.
         low_ell: how the ``ell = 0, 1`` 2f terms of the temperature are
@@ -229,11 +230,13 @@ def convolve(
     out = {}
     if not hwp:
         for k in spins:
-            clm = _clm(sky_spin, beam_transfer(beam_alm, k))
-            f = (
-                _spin_map(clm[0], k, nside, lmax)
-                + _spin_map(clm[1], k, nside, lmax) / 2.0
-            )
+            f = np.zeros(npix, dtype=complex)
+            if k <= lmax:  # a spin-k map has no multipole below k
+                clm = _clm(sky_spin, beam_transfer(beam_alm, k))
+                f = (
+                    _spin_map(clm[0], k, nside, lmax)
+                    + _spin_map(clm[1], k, nside, lmax) / 2.0
+                )
             if k == 0:
                 out[0, 0] = f.real.astype(complex)
             else:

@@ -1,5 +1,9 @@
 """SphericalHarmonics and the beams of sbm.beam."""
 
+import os
+import subprocess
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import healpy as hp
@@ -101,3 +105,41 @@ def test_rejects_an_invalid_mmax_and_compares_by_identity():
     sh = SphericalHarmonics(values, 8)
     assert sh == sh and sh != SphericalHarmonics(values, 8)
     assert isinstance(hash(sh), int)
+
+
+@pytest.mark.parametrize("hwp", [False, True])
+def test_convolve_spins_above_lmax_vanish(hwp):
+    """A spin-k map has no multipole below k: the moments k > lmax are zero maps.
+
+    healpy aborts the process ("bad spin") for a spin above lmax, so the convolution
+    runs in a subprocess.
+    """
+    code = f"""
+import healpy as hp
+import numpy as np
+from sbm import beam
+lmax, nside = 3, 4
+alm = np.random.default_rng(0).standard_normal((3, hp.Alm.getsize(lmax))) + 0j
+alm[1:, :2] = 0
+gaussian = beam.gaussian(0.1, lmax)
+full = beam.convolve(alm, gaussian, nside, (0, 2, 4), hwp={hwp})
+low = beam.convolve(alm, gaussian, nside, (0, 2), hwp={hwp})
+assert {{k for k in full if abs(k[0]) <= lmax}} == set(low)
+for key, value in full.items():
+    if abs(key[0]) > lmax:
+        assert not np.any(value), key
+    else:
+        np.testing.assert_array_equal(value, low[key])
+print("ok")
+"""
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        cwd=root,
+        env={**os.environ, "PYTHONPATH": str(root)},
+        timeout=300,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
