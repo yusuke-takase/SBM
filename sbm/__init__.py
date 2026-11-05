@@ -40,6 +40,7 @@ from .tools import (
     generate_cmb,
     get_instrument_table,
     forecast,
+    spin_derivatives,
 )
 
 
@@ -81,6 +82,7 @@ __all__ = [
     "generate_cmb",
     "get_instrument_table",
     "forecast",
+    "spin_derivatives",
     # convolver.py
     "Convolver",
     "elliptical_beam",
