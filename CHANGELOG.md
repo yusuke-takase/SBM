@@ -1,4 +1,4 @@
-# Head
+# Version 0.4.2
 - **Breaking**: the API is rebuilt around the parts of the map-maker, without aliases of the former names (`docs/source/migration.rst` maps every former name to the new one):
   `HMaps` holds the orientation functions and the hits of a detector; it reads and writes the h-map files of litebird_sim and Falcons.jl (`HMaps.load`, `HMaps.save`, which writes the coordinate system with the names of litebird_sim and always writes `duration_s` and `sampling_rate_Hz`), reads the cross-link files of SBM 0.4 (`HMaps.load_legacy`), is computed from samples (`HMaps.from_samples`), and combines detectors with the same polarization angle (`HMaps.combine`).
   `SignalModel` holds the spin components of the data; models add up, and the product of two models is the model of the product of their signals. `Basis` gives the components solved for, formerly `mdim` (`Basis.qu`, `Basis.iqu`, `.extend([...])` for the templates).
