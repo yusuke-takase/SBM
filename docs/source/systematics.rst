@@ -59,7 +59,8 @@ The modules follow the path of the signal through the instrument:
      - single detector, HWP
      - non-ideal Mueller matrix of the HWP, with its harmonics in the HWP angle
        (perturbation with respect to the ideal HWP)
-     - depend on the harmonics: :math:`(0, k\pm2)` for the intensity
+     - depend on the harmonics: for the intensity, :math:`(0,k)` through
+       :math:`M_{II}` and :math:`(0, k\pm2)` through :math:`M_{QI}`, :math:`M_{UI}`
    * - :func:`~sbm.systematics.polarization_angle`
      - any
      - :math:`(2,0)\colon (e^{-2i\delta}-1) P/2` without HWP,
@@ -75,8 +76,10 @@ In the pair difference the offsets of T and B are
 :math:`u_t = \rho_t e^{i\chi_t}` and :math:`u_b = i\rho_b e^{i\chi_b}` (B is
 rotated by 90 degrees), :math:`\zeta = u_t - u_b` and
 :math:`\bar\zeta = u_t + u_b`. The second-order terms of the pointing need
-:attr:`.Sky.second_order`, computed with ducc0 from the harmonic coefficients
-of the sky.
+:attr:`.Sky.second_order`, the covariant second derivatives computed exactly
+with healpy's spin transforms of the harmonic coefficients of the sky
+(:func:`sbm.sky.second_order_maps`; only its ``transport=False`` maps, the
+former finite differences, use ducc0).
 
 The h-maps must hold every couple between the basis and the components of the
 model; :func:`.map_make` names the missing ones. For instance the second-order

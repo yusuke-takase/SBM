@@ -66,8 +66,9 @@ def hwp_mueller(sky: Sky, harmonics: dict, rtol: float = 1e-12) -> SignalModel:
         rtol: components smaller than ``rtol`` times the largest are dropped.
 
     :func:`hwp_ip` is the case of the harmonics ``k = 2`` of ``M_QI`` and ``M_UI``.
-    The templates depend on the harmonics: the intensity leaks at ``(0, k + 2)``
-    and ``(0, k - 2)``.
+    The templates depend on the harmonics: the intensity leaks at ``(0, k)``
+    through ``M_II`` and at ``(0, k + 2)`` and ``(0, k - 2)`` through ``M_QI`` and
+    ``M_UI``.
     """
     delta = {}
     for k, matrix in harmonics.items():

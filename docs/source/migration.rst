@@ -40,9 +40,15 @@ The former classes and functions are removed, without aliases.
    * - ``abs_pointing_field(scan, mdim, rho, chi, ...)``
      - ``sky_signal(sky, hwp=True) + abs_pointing(sky, rho, chi)``
    * - ``circular_pointing_field(...)``, ``hwp_ip_field(...)``
-     - ``hwp_wedge(sky, rho, chi)``, ``hwp_ip(sky, epsilon, phase)``, in the
+     - ``hwp_wedge(sky, rho, chi)``, ``hwp_ip(sky, epsilon, phase_rad)``, in the
        ``"telescope"`` convention only; the ``"legacy"`` and ``"sky"`` HWP
-       angles are removed. ``hwp_ip`` returns the leakage only, as before
+       angles are removed. ``hwp_ip`` returns the leakage only, as before. Its
+       phase is that of Patanchon et al. (2024), :math:`\epsilon I
+       \cos(4\phi + \varphi_{QI})`, at :math:`(0,4)\colon \frac{\epsilon}{2}
+       e^{+i\varphi_{QI}} I`: a ``"telescope"`` HWP-IP with
+       :math:`\frac{\epsilon}{2} e^{-i\varphi_{QI}} I` at :math:`(0,4)`, i.e.
+       :math:`\epsilon I \cos(4\phi - \varphi_{QI})` (before the sign of its
+       phase was fixed), is reproduced with ``phase_rad=-phi_qi``
    * - ``bandpass_mismatch_field(scan, mdim, P, gamma_T, gamma_B, comps)``
      - ``sky_signal(sky, pair_difference=True) + bandpass_mismatch(comps, gamma_t, gamma_b)``
    * - ``beam_field(scan, mdim, alm, blm, use_hwp, spin_k, mueller, lowell_hwp)``
@@ -60,10 +66,11 @@ The former classes and functions are removed, without aliases.
        (``Sky(i, p, eth_i=..., eth_p=..., eth_bar_p=...)``). The former maps
        were healpy's derivatives of Q and U as scalar maps; to reproduce former
        results pass them to :class:`.Sky`
-   * - ``pointing_second_order_maps(...)`` and ``second_order=dict``
+   * - second-order pointing (not in 0.4.1)
      - ``second_order=True``; the maps are :attr:`.Sky.second_order`, or
        :func:`sbm.sky.second_order_maps`, whose ``transport=False`` gives the
-       former maps (Q and U in the local basis of the displaced points)
+       former finite-difference maps (Q and U in the local basis of the
+       displaced points)
    * - ``generate_noise_pdf`` and ``generate_noise(spin_n, spin_m, seed)``
      - ``noise_maps(hmaps, basis, net_ukrts, sampling_rate_hz, rng)``, with the
        correlations between the components; the former maps had independent

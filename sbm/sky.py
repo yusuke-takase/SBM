@@ -278,9 +278,10 @@ def second_order_maps(
         transport: the covariant maps, with Q and U in the frame transported
             from the point, consistent with the first derivatives of
             :class:`Sky`; they are computed exactly with spin transforms.
-            ``False`` gives the maps of SBM 0.4, with Q and U in the local basis
-            of the displaced points, consistent with derivatives of Q and U as
-            scalar maps: geodesic second differences evaluated with ducc0.
+            ``False`` gives the former finite-difference maps, with Q and U in
+            the local basis of the displaced points, consistent with derivatives
+            of Q and U as scalar maps: geodesic second differences evaluated
+            with ducc0.
         step_rad: finite-difference step for ``transport=False`` (default: one
             arcminute).
         nthreads, epsilon: passed to ``ducc0.sht.experimental.synthesis_general``
