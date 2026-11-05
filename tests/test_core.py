@@ -11,10 +11,12 @@ from sbm.basis import Basis
 from sbm.hmaps import HMaps
 from sbm.map_making import (
     MapMaker,
+    _rhs,
     map_make,
     noise_covariance,
     noise_maps,
     orientation_matrix,
+    solvable,
 )
 from sbm.signal_model import SignalModel
 from sbm.sky import Sky
@@ -125,6 +127,60 @@ def test_signal_model_merges_conjugate_couples():
     with pytest.raises(ValueError, match="real"):
         SignalModel({(0, 0): s})
     assert sum([model, model]).couples == [(2, 0)]
+
+
+def test_signal_models_are_scaled_by_numbers_only():
+    rng = np.random.default_rng(5)
+    model = SignalModel({(0, 0): random_map(rng, False), (2, 0): random_map(rng)})
+    np.testing.assert_array_equal(
+        (np.float64(2.0) * model).component(2, 0), 2 * model.component(2, 0)
+    )
+    with pytest.raises(TypeError, match="factor that depends on the pixel"):
+        np.ones(NPIX) * model
+    with pytest.raises(TypeError, match="factor that depends on the pixel"):
+        model * np.ones(NPIX)
+    with pytest.raises(TypeError):
+        np.ones(NPIX) + model
+
+
+def test_results_compare_by_identity_and_bases_are_hashable():
+    hm = HMaps(
+        {(2, 0): np.zeros(NPIX, complex), (4, 0): np.zeros(NPIX, complex)},
+        np.ones(NPIX),
+    )
+    model = SignalModel({(0, 0): np.ones(NPIX), (2, 0): np.ones(NPIX, complex)})
+    basis = Basis.iqu(hwp=False)
+    a, b = map_make((hm, model), basis), map_make((hm, model), basis)
+    assert a == a and a != b
+    assert model.components()[0] != model.components()[0]  # no comparison of maps
+    assert {basis: 1}[Basis.iqu(hwp=False)] == 1
+
+
+def test_right_hand_side_is_the_projection_on_every_couple():
+    rng = np.random.default_rng(6)
+    hm = HMaps({c: random_map(rng) for c in COUPLES if c != (0, 0)}, np.ones(NPIX))
+    model = SignalModel(
+        {
+            (0, 0): random_map(rng, False),
+            (2, -4): random_map(rng),
+            (1, 4): random_map(rng),
+        }
+    )
+    basis = Basis.iqu(hwp=True).extend([(1, 0), (3, -4)])
+    expected = np.stack(
+        [w * model.project(hm, n, m) for w, (n, m) in zip(basis.weights, basis.full)],
+        axis=1,
+    )
+    np.testing.assert_array_equal(_rhs(hm, model, basis), expected)
+
+
+def test_solvable_does_not_depend_on_the_chunk():
+    rng = np.random.default_rng(7)
+    hm = HMaps(
+        {c: 0.3 * random_map(rng) for c in COUPLES if c != (0, 0)}, np.ones(NPIX)
+    )
+    a = orientation_matrix(hm, Basis.iqu(hwp=True).extend([(1, 0), (3, -4)]))
+    np.testing.assert_array_equal(solvable(a, hm.hits, chunk=5), solvable(a, hm.hits))
 
 
 def test_basis_layout():
@@ -255,6 +311,25 @@ def test_hmaps_copy_the_hits_and_write_files_that_litebird_sim_reads(tmp_path):
         assert np.isnan(f.attrs["duration_s"]) and np.isnan(f.attrs["sampling_rate_Hz"])
     back = HMaps.load(path)
     assert back.duration_s is None and back.sampling_rate_hz is None
+
+
+def test_saving_needs_a_known_coordinate_system(tmp_path):
+    pixels, psi, phi = random_samples(NSIDE, 16, seed=4)
+    hm = HMaps.from_samples(NSIDE, pixels, psi, phi, couples=[(2, -4)])
+    with pytest.raises(ValueError, match="coordinate system"):
+        hm.save(tmp_path / "h.h5")
+    hm.coordinate_system = "E"
+    back = HMaps.load(hm.save(tmp_path / "h.h5"))
+    assert (back.coordinate_system, back.name) == ("Ecliptic", None)
+
+
+def test_load_ignores_other_groups(tmp_path):
+    hm = HMaps({(2, 0): np.full(NPIX, 0.5j)}, np.ones(NPIX), coordinate_system="G")
+    path = hm.save(tmp_path / "h.h5")
+    with h5py.File(path, "a") as f:
+        f["provenance/version"] = 1
+        f["mask"] = np.ones(NPIX)
+    np.testing.assert_array_equal(HMaps.load(path).h(2, 0), hm.h(2, 0))
 
 
 # --------------------------------------------------------------------- #

@@ -25,7 +25,7 @@ import numpy as np
 from .hmaps import Couple, HMaps, canonical
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class SpinComponent:
     """One spin component ``S_{n,m}`` of a signal model."""
 
@@ -46,6 +46,10 @@ class SignalModel:
             components given at the same couple, or at opposite couples, are
             summed. ``S_{0,0}`` must be real.
     """
+
+    # NumPy defers to the methods below: an array times a model is an error
+    # (a factor per pixel) instead of an array of models
+    __array_ufunc__ = None
 
     def __init__(self, components: Mapping[Couple, np.ndarray]):
         self._s: dict[Couple, np.ndarray] = {}
@@ -110,10 +114,11 @@ class SignalModel:
 
     def required_couples(self, basis_couples) -> set[Couple]:
         """Canonical h-map couples needed to project the model on ``basis_couples``."""
+        couples = list(self._s) + [(-n, -m) for n, m in self._s if (n, m) != (0, 0)]
         needed = set()
         for n, m in basis_couples:
-            for comp in self.components():
-                key, _ = canonical(n - comp.n, m - comp.m)
+            for cn, cm in couples:
+                key, _ = canonical(n - cn, m - cm)
                 if key != (0, 0):
                     needed.add(key)
         return needed
@@ -127,7 +132,7 @@ class SignalModel:
         return SignalModel(merged)
 
     def __radd__(self, other):
-        if other == 0:  # sum([...])
+        if np.ndim(other) == 0 and other == 0:  # sum([...])
             return self
         return NotImplemented
 
@@ -153,11 +158,17 @@ class SignalModel:
             if (0, 0) in out:
                 out[(0, 0)] = out[(0, 0)].real  # real up to rounding errors
             return SignalModel(out)
+        if np.ndim(other) != 0:
+            raise TypeError(
+                "a signal model is multiplied by a real number or by another signal "
+                "model; for a factor that depends on the pixel, multiply the maps "
+                "of the components"
+            )
         factor = float(other)
         return SignalModel({key: factor * value for key, value in self._s.items()})
 
     def __rmul__(self, factor) -> "SignalModel":
-        return self * float(factor)
+        return self * factor
 
     def __neg__(self) -> "SignalModel":
         return -1.0 * self

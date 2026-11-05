@@ -90,5 +90,8 @@ class Basis:
             and self.polarization == other.polarization
         )
 
+    def __hash__(self) -> int:
+        return hash((self.couples, self.polarization))
+
     def __repr__(self) -> str:
         return f"Basis({list(self.couples)}, polarization={self.polarization})"

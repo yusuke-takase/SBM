@@ -27,6 +27,9 @@ from .signal_model import SignalModel
 #: not solved by default.
 RCOND_MIN = 1e-12
 
+#: Number of pixels whose condition number and inverse are computed at once.
+CHUNK = 262144
+
 
 def orientation_matrix(hmaps: HMaps, basis: Basis) -> np.ndarray:
     """Matrix ``A`` of the map-making system in every pixel, shape ``(npix, k, k)``."""
@@ -56,14 +59,16 @@ def _rhs(hmaps: HMaps, model: SignalModel, basis: Basis) -> np.ndarray:
         raise KeyError(
             f"the h-maps lack the couples {missing} needed to project {model} on {basis}"
         )
-    w = basis.weights
-    b = np.empty((hmaps.npix, len(w)), dtype=complex)
-    for i, (n, m) in enumerate(basis.full):
-        b[:, i] = w[i] * model.project(hmaps, n, m)
-    return b
+    # model.project for every couple of the basis, with each component and its
+    # conjugate computed once
+    bt = np.zeros((len(basis.full), hmaps.npix), dtype=complex)
+    for comp in model.components():
+        for i, (n, m) in enumerate(basis.full):
+            bt[i] += hmaps.h(n - comp.n, m - comp.m) * comp.map
+    return np.ascontiguousarray((basis.weights[:, None] * bt).T)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class MapMakingResult:
     """Solution of the map-maker.
 
@@ -126,27 +131,33 @@ def _solve(a: np.ndarray, b: np.ndarray, mask: np.ndarray) -> np.ndarray:
 
 
 def solvable(
-    a: np.ndarray, hits: np.ndarray, rcond_min: float = RCOND_MIN, among=None
+    a: np.ndarray,
+    hits: np.ndarray,
+    rcond_min: float = RCOND_MIN,
+    among=None,
+    chunk: int = CHUNK,
 ) -> np.ndarray:
     """Observed pixels whose system has a reciprocal condition number above
-    ``rcond_min`` (among the pixels ``among``, all by default)."""
+    ``rcond_min`` (among the pixels ``among``, all by default), computed for
+    ``chunk`` pixels at a time."""
     ok = hits > 0
     if among is not None:
         ok &= np.asarray(among, dtype=bool)
     idx = np.flatnonzero(ok)
-    if idx.size:
+    for start in range(0, idx.size, chunk):
+        sel = idx[start : start + chunk]
         with np.errstate(divide="ignore", invalid="ignore"):
-            rcond = 1.0 / np.linalg.cond(a[idx])
-        ok[idx] = np.isfinite(rcond) & (rcond > rcond_min)
+            rcond = 1.0 / np.linalg.cond(a[sel])
+        ok[sel] = np.isfinite(rcond) & (rcond > rcond_min)
     return ok
 
 
-def _selection(a: np.ndarray, hits: np.ndarray, mask) -> np.ndarray:
+def _selection(a: np.ndarray, hits: np.ndarray, mask, chunk: int = CHUNK) -> np.ndarray:
     """Pixels to solve: ``mask`` (by default all) restricted to :func:`solvable`."""
     if mask is None:
-        return solvable(a, hits)
+        return solvable(a, hits, chunk=chunk)
     mask = np.asarray(mask, dtype=bool) & (hits > 0)
-    ok = solvable(a, hits, among=mask)
+    ok = solvable(a, hits, among=mask, chunk=chunk)
     dropped = int((mask & ~ok).sum())
     if dropped:
         warnings.warn(
@@ -209,14 +220,17 @@ class MapMaker:
         hmaps: the h-maps of the detector.
         basis: the components to solve for.
         mask: pixels to solve, as in :func:`map_make`.
-        chunk: number of pixels inverted at once (bounds the memory).
+        chunk: number of pixels whose condition number and inverse are computed
+            at once; this bounds the working memory of these steps, while the
+            matrices of every pixel, ``(npix, k, k)``, and the inverses of the
+            solved pixels are held in memory.
     """
 
-    def __init__(self, hmaps: HMaps, basis: Basis, mask=None, chunk: int = 262144):
+    def __init__(self, hmaps: HMaps, basis: Basis, mask=None, chunk: int = CHUNK):
         self.hmaps = hmaps
         self.basis = basis
         a = orientation_matrix(hmaps, basis)
-        mask = _selection(a, hmaps.hits, mask)
+        mask = _selection(a, hmaps.hits, mask, chunk)
         idx = np.flatnonzero(mask)
         inverse = np.empty((idx.size, basis.dimension, basis.dimension), dtype=complex)
         ok = np.ones(idx.size, dtype=bool)

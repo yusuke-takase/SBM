@@ -93,5 +93,8 @@ documentation of the former API (0.4.1) remain in the tag ``v0.4.1``:
        ``sbm.likelihood`` (``forecast``), ``sbm.plotting`` (``get_cmap``); the
        top-level names are unchanged
 
-``generate_cmb(nside, r, cmb_seed)`` and ``forecast`` give the same numbers as
-before; the fiducial spectra are shipped with SBM.
+``generate_cmb(nside, r, cmb_seed)`` gives the same maps as before, and the
+fiducial spectra are shipped with SBM. ``forecast`` returns the exact maximum of
+the likelihood: the MIGRAD minimisation, the default of 0.4.1, resolved the bias
+only to about 1e-9 and returned ``rmin = 1e-10`` below it, so that small biases
+differ (e.g. 4.2e-9 instead of 1.35e-9).

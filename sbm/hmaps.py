@@ -208,7 +208,11 @@ class HMaps:
         (``h̃_{n,m} = h_{n,-m}``, see the module documentation).
         """
         with h5py.File(path, "r") as f:
-            groups = {tuple(map(int, key.split(","))): f[key] for key in f.keys()}
+            groups = {}
+            for key in f.keys():
+                couple = _parse_couple(key)
+                if couple is not None:  # other groups or datasets are ignored
+                    groups[couple] = f[key]
             if (0, 0) not in groups:
                 raise ValueError(f"{path} has no (0, 0) group with the hit counts")
             hits = np.asarray(groups[(0, 0)]["Re"][()], dtype=float)
@@ -225,8 +229,8 @@ class HMaps:
             hits,
             duration_s=_float_or_none(attrs.get("duration_s")),
             sampling_rate_hz=_float_or_none(attrs.get("sampling_rate_Hz")),
-            coordinate_system=_str_or_none(attrs.get("coordinate_system")),
-            name=_str_or_none(attrs.get("det")),
+            coordinate_system=_str_or_none(attrs.get("coordinate_system")) or None,
+            name=_str_or_none(attrs.get("det")) or None,
         )
 
     @classmethod
@@ -267,13 +271,21 @@ class HMaps:
         """Write the maps as an h-map file of litebird_sim and Falcons.jl.
 
         Every couple is written in their convention, ``h_{n,m} = h̃_{n,-m}``,
-        with ``n >= 0``; the ``(0, 0)`` group holds the hit counts.
+        with ``n >= 0``; the ``(0, 0)`` group holds the hit counts. The coordinate
+        system must be known, ``"Galactic"`` or ``"Ecliptic"`` (or ``"G"``,
+        ``"E"``): set :attr:`coordinate_system` first for maps computed with
+        :meth:`from_samples`.
         """
+        frame = _LBS_COORDINATES.get(self.coordinate_system, self.coordinate_system)
+        if frame not in _LBS_COORDINATES.values():
+            raise ValueError(
+                f"the coordinate system of the h-maps is {self.coordinate_system!r}: "
+                "set hmaps.coordinate_system to 'Galactic' or 'Ecliptic' before "
+                "saving (the files of litebird_sim and Falcons.jl need one of them)"
+            )
         path = Path(path)
         with h5py.File(path, "w") as f:
-            f.attrs["coordinate_system"] = _LBS_COORDINATES.get(
-                self.coordinate_system, self.coordinate_system or "Galactic"
-            )
+            f.attrs["coordinate_system"] = frame
             f.attrs["det"] = self.name or ""
             f.attrs["detector_split"] = "full"
             f.attrs["time_split"] = "full"
@@ -291,6 +303,17 @@ class HMaps:
 
 # names of litebird_sim's CoordinateSystem for the codes of the legacy files
 _LBS_COORDINATES = {"G": "Galactic", "E": "Ecliptic"}
+
+
+def _parse_couple(key: str):
+    """``(n, m)`` of a group name ``"n,m"``, ``None`` for any other name."""
+    parts = key.split(",")
+    if len(parts) != 2:
+        return None
+    try:
+        return int(parts[0]), int(parts[1])
+    except ValueError:
+        return None
 
 
 def _float_or_none(value):
