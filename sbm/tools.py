@@ -131,6 +131,81 @@ def generate_cmb(nside, r=0.0, cmb_seed=None):
     return cmb
 
 
+def _spin_transform(g, c, spin, nside, lmax):
+    """Complex map of the coefficients ``g + i c``: ``Q + iU`` of healpy's ``alm2map_spin``
+    for ``spin > 0`` (``-sum (g + i c)_lm sY_lm``), the maps of ``g`` and ``c`` for
+    ``spin = 0``. Zero if ``spin > lmax`` (there is no harmonic of that spin), where
+    healpy would stop the process."""
+    npix = hp.nside2npix(nside)
+    if spin > lmax:
+        return np.zeros(npix, dtype=complex)
+    if spin == 0:
+        return hp.alm2map(g, nside, lmax=lmax, mmax=lmax) + 1j * hp.alm2map(
+            c, nside, lmax=lmax, mmax=lmax
+        )
+    q, u = hp.alm2map_spin([g, c], nside, spin, lmax, mmax=lmax)
+    return q + 1j * u
+
+
+def spin_derivatives(alm, nside):
+    """Spin derivatives of the sky for the pointing systematics, from its T, E, B coefficients.
+
+    The derivatives follow the convention of SBM: on the local tangent plane with ``x``
+    along theta and ``y`` along phi, ``eth = d_y - i d_x`` and ``eth_bar = d_y + i d_x``,
+    i.e. ``eth I = dI/dphi / sin(theta) - i dI/dtheta``.
+
+    The polarization ``P = Q + iU`` is a spin-2 field: its components refer to the local
+    basis ``(e_theta, e_phi)``, which turns from one point to the next. A pointing offset
+    displaces the beam rigidly, so the polarization direction of the detector is carried
+    along the displacement (parallel transport), and the derivatives of ``P`` are the
+    covariant (spin-weighted) ones, computed from the E and B coefficients with spin
+    transforms:
+
+    .. math::
+        \\eth P = -i \\sum (E + iB)_{\\ell m} \\sqrt{(\\ell - 2)(\\ell + 3)}\\, {}_3Y_{\\ell m},
+        \\qquad
+        \\bar\\eth P = -i \\sum (E + iB)_{\\ell m} \\sqrt{(\\ell + 2)(\\ell - 1)}\\, {}_1Y_{\\ell m},
+
+    with the spin harmonics of healpy. The derivatives of Q and U taken as scalar maps
+    (e.g. with ``healpy.alm2map_der1``) differ from them by the rotation of the local basis,
+    a term of order ``cot(theta) P`` that is largest near the poles, and give a wrong
+    first-order term of the pointing offsets. A spin-``s`` map with ``s > lmax`` is zero.
+
+    Args:
+        alm (`np.ndarray`, [3, nalm]): T, E and B coefficients in the m-major layout of
+            healpy with ``mmax = lmax``, e.g. ``healpy.map2alm([I, Q, U])``
+
+        nside (`int`): resolution of the maps
+
+    Returns:
+        eth_i, eth_p, eth_bar_p (`np.ndarray`, complex): :math:`\\eth I`, :math:`\\eth P`
+        and :math:`\\bar\\eth P`, the maps given as `eth_temp_map`, `eth_pol_map` and
+        `o_eth_pol_map` to the pointing fields of :class:`.SignalFields`
+    """
+    alm = np.asarray(alm)
+    if alm.ndim != 2 or alm.shape[0] < 3:
+        raise ValueError("alm must hold the T, E and B coefficients, shape (3, nalm)")
+    lmax = hp.Alm.getlmax(alm.shape[1])
+    if lmax < 0:
+        raise ValueError("alm must use the m-major layout of healpy with mmax = lmax")
+    t, e, b = (np.ascontiguousarray(alm[i], dtype=complex) for i in range(3))
+    ell = np.arange(lmax + 1.0)
+    zero = np.zeros_like(t)
+
+    def root(*factors):
+        return np.sqrt(np.clip(np.prod(factors, axis=0), 0.0, None))
+
+    def transform(g, c, weight, spin):
+        return _spin_transform(
+            hp.almxfl(g, weight), hp.almxfl(c, weight), spin, nside, lmax
+        )
+
+    eth_i = -1j * transform(t, zero, root(ell, ell + 1), 1)
+    eth_p = 1j * transform(e, b, root(ell - 2, ell + 3), 3)
+    eth_bar_p = 1j * transform(e, b, root(ell + 2, ell - 1), 1)
+    return eth_i, eth_p, eth_bar_p
+
+
 def get_instrument_table(imo: Imo, imo_version="v2"):
     """
     This function generates DataFrame which is used for FGBuster as `instrument` from IMo.

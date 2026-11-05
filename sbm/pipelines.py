@@ -12,6 +12,7 @@ import random
 from astropy import constants as const
 from .scan_fields import ScanFields, DB_ROOT_PATH, channel_list
 from .signal_fields import SignalFields
+from .tools import spin_derivatives
 import pysm3
 import pysm3.units as u
 
@@ -373,12 +374,9 @@ def sim_diff_pointing_per_ch(
         chi_T = np.random.normal(loc=0.0, scale=syst.sigma_chi_T, size=len(filenames))
         chi_B = np.random.normal(loc=0.0, scale=syst.sigma_chi_B, size=len(filenames))
 
-    dI = hp.alm2map_der1(hp.map2alm(fiducial_map[0]), nside=config.nside)
-    dQ = hp.alm2map_der1(hp.map2alm(fiducial_map[1]), nside=config.nside)
-    dU = hp.alm2map_der1(hp.map2alm(fiducial_map[2]), nside=config.nside)
-    eth_I = dI[2] - 1j * dI[1]
-    eth_P = dQ[2] + dU[1] - 1j * (dQ[1] - dU[2])
-    o_eth_P = dQ[2] - dU[1] + 1j * (dQ[1] + dU[2])
+    # covariant derivatives of P: those of Q and U as scalar maps (alm2map_der1) miss the
+    # rotation of the local basis, a first-order error of order cot(theta) P
+    eth_I, eth_P, o_eth_P = spin_derivatives(hp.map2alm(fiducial_map), config.nside)
 
     observed_maps = np.zeros([3, npix])
     sky_weight = np.zeros(npix)

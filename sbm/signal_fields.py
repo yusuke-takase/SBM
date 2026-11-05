@@ -374,9 +374,11 @@ class SignalFields:
 
             eth_temp_map (`np.ndarray`): spin up gradient of the temperature map
 
-            eth_pol_map (`np.ndarray`): spin up gradient of the polarization map
+            eth_pol_map (`np.ndarray`): spin up gradient of the polarization map, the covariant
+            derivative of :func:`.spin_derivatives`
 
-            o_eth_pol_map (`np.ndarray`): spin down gradient of the polarization map
+            o_eth_pol_map (`np.ndarray`): spin down gradient of the polarization map, the covariant
+            derivative of :func:`.spin_derivatives`
         """
         zeta = rho_T * np.exp(1j * chi_T) - 1j * rho_B * np.exp(1j * chi_B)
         o_zeta = rho_T * np.exp(1j * chi_T) + 1j * rho_B * np.exp(
@@ -569,9 +571,11 @@ class SignalFields:
 
             eth_temp_map (`np.ndarray`): spin up gradient of the temperature map
 
-            eth_pol_map (`np.ndarray`): spin up gradient of the polarization map
+            eth_pol_map (`np.ndarray`): spin up gradient of the polarization map, the covariant
+            derivative of :func:`.spin_derivatives`
 
-            o_eth_pol_map (`np.ndarray`): spin down gradient of the polarization map
+            o_eth_pol_map (`np.ndarray`): spin down gradient of the polarization map, the covariant
+            derivative of :func:`.spin_derivatives`
         """
         spin_00_field = Field(temp_map, spin_n=0, spin_m=0)
         spin_p2m4_field = Field(pol_map / 2.0, spin_n=2, spin_m=-4)
@@ -679,9 +683,11 @@ class SignalFields:
 
             eth_temp_map (`np.ndarray`): spin up gradient of the temperature map
 
-            eth_pol_map (`np.ndarray`): spin up gradient of the polarization map
+            eth_pol_map (`np.ndarray`): spin up gradient of the polarization map, the covariant
+            derivative of :func:`.spin_derivatives`
 
-            o_eth_pol_map (`np.ndarray`): spin down gradient of the polarization map
+            o_eth_pol_map (`np.ndarray`): spin down gradient of the polarization map, the covariant
+            derivative of :func:`.spin_derivatives`
 
             hwp_angle_frame (`str`): meaning of the HWP angle ``phi`` of the scan
                 fields, ``"legacy"`` (default), ``"sky"`` or ``"telescope"`` (that of
