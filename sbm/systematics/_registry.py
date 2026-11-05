@@ -10,11 +10,7 @@ is reloaded); the function is called as usual.
 
 from __future__ import annotations
 
-#: Kinds of data a systematic describes:
-#: ``"pair"`` the pair difference ``(d_T - d_B) / 2`` of two orthogonal detectors without HWP,
-#: ``"single"`` a single detector without HWP,
-#: ``"single_hwp"`` a single detector behind a HWP,
-#: ``"any"`` several of these (chosen by the arguments of the function).
+#: Kinds of data a signal model describes (the argument ``data`` of :func:`systematic`).
 DATA = ("pair", "single", "single_hwp", "any")
 
 #: Every function declared with :func:`systematic`, in the order of definition: the signal
@@ -27,7 +23,15 @@ def systematic(data: str, templates=()):
     """Declare a signal model: a systematic, or the sky signal of an ideal detector.
 
     Args:
-        data: the kind of data the model describes (see :data:`DATA`).
+        data: the data the model describes, one of ``DATA``:
+
+            * ``"pair"``: the pair difference ``(d_T - d_B) / 2`` of two orthogonal
+              detectors in the same position, without HWP;
+            * ``"single"``: the data of one detector, not differenced, without HWP;
+            * ``"single_hwp"``: the data of one detector behind a HWP;
+            * ``"any"``: several of these, chosen by the arguments of the function
+              (e.g. ``hwp`` and ``pair_difference`` of :func:`sky_signal`).
+
         templates: couples ``(n, m)`` to add to the basis (:meth:`sbm.Basis.extend`)
             to absorb the first-order perturbation, e.g. ``[(0, 4)]``; empty if
             there is none or if they depend on the arguments.

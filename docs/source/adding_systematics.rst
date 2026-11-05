@@ -72,8 +72,11 @@ Add it to the module of the stage where the systematic acts, declared with
 
 and import it in ``sbm/systematics/__init__.py``.
 
-* ``data`` is the kind of data the model describes: ``"pair"`` (pair
-  difference without HWP), ``"single"``, ``"single_hwp"`` or ``"any"``.
+* ``data`` is the data the model describes: ``"pair"``, the pair difference
+  ``(d_T - d_B) / 2`` of two orthogonal detectors without HWP; ``"single"``, the
+  data of one detector, not differenced, without HWP; ``"single_hwp"``, one
+  detector behind a HWP; ``"any"``, several of these, chosen by the arguments
+  (as ``hwp`` and ``pair_difference`` of :func:`~sbm.systematics.sky_signal`).
 * ``templates`` are the couples whose amplitudes the map-maker can fit to
   absorb the first-order perturbation (``Basis.extend(f.templates)``); leave it
   empty if there is none.
