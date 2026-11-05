@@ -580,7 +580,13 @@ class ScanFields:
             self.use_hwp = False
         else:
             self.use_hwp = True
-        waits = np.array([0.5 if x != 0 else 1.0 for x in base_spin_n])
+        # weight 1 only for the real (0,0) component; every other component comes in a
+        # complex-conjugate pair and is halved in SignalFields.build_linear_system.
+        # (Checking spin_n alone mis-weighted n=0, m!=0 components such as an HWP-IP
+        # template at (0,+-4).)
+        waits = np.array(
+            [1.0 if (n == 0 and m == 0) else 0.5 for n, m in zip(base_spin_n, base_spin_m)]
+        )
         spin_n_mat = base_spin_n[:, np.newaxis] - base_spin_n[np.newaxis, :]
         spin_m_mat = base_spin_m[:, np.newaxis] - base_spin_m[np.newaxis, :]
         if self.use_hwp is True:

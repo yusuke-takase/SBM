@@ -210,7 +210,7 @@ class SignalFields:
                 else:
                     stokes_element = sp.Symbol(rf"{{}}_{{{n},{m}}}\hat{{Z}}")
             else:
-                if n == 0:
+                if n == 0 and m == 0:
                     stokes_element = sp.Symbol(r"\hat{I}")
                 elif n == 2:
                     stokes_element = sp.Symbol(r"\hat{P}")
