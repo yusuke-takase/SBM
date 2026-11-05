@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 import sbm
 from sbm.tools import (
@@ -78,3 +79,22 @@ def test_forecast_recovers_injected_tensor_bias():
         assert abs(sbm.forecast(_full(r_in * cl_tens))["delta_r"] / r_in - 1.0) < 1e-9
         got = sbm.forecast(_full(r_in * cl_tens), n_el=_full(noise))["delta_r"]
         assert abs(got / r_in - 1.0) < 1e-9
+
+
+@pytest.mark.parametrize("method", ["exact", "minuit"])
+def test_forecast_rejects_non_finite_spectra(method):
+    # a NaN pixel of the maps makes the spectrum NaN; the bisection then returned ~0
+    cl = np.zeros(300)
+    cl[2:] = 1e-6 / np.arange(2, 300) ** 2
+    bad = cl.copy()
+    bad[10] = np.nan
+    with pytest.raises(ValueError, match="cl_syst has non-finite"):
+        sbm.forecast(bad, method=method)
+    noise = np.zeros(300)
+    noise[50] = np.inf
+    with pytest.raises(ValueError, match="n_el has non-finite"):
+        sbm.forecast(cl, n_el=noise, method=method)
+    # values above lmax are not used
+    bad = cl.copy()
+    bad[250] = np.nan
+    assert np.isfinite(sbm.forecast(bad, lmax=191, method=method)["delta_r"])

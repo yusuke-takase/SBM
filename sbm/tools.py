@@ -277,6 +277,8 @@ def forecast(
     Args:
         cl_syst (`np.ndarray`, 1d array): residual B-modes power spectrum
 
+        n_el (`np.ndarray`, 1d array): noise spectrum (from ell = 0), zero by default
+
         fsky (`float`): sky fraction
 
         lmax (`int`): maximum multipole considered in the maximization
@@ -293,6 +295,9 @@ def forecast(
             to a relative precision of 1e-12, and returns 0 when the likelihood decreases from r = 0.
             ``"minuit"`` is the previous MIGRAD minimisation; its precision is limited to about 1e-9 by
             `tol`, and it returns `rmin` when the maximum lies below it.
+
+    Raises:
+        ValueError: if `cl_syst` or `n_el` has non-finite values between ell = 2 and `lmax`.
     """
     assert (
         cl_syst[0] == cl_syst[1] == 0.0
@@ -306,6 +311,10 @@ def forecast(
     cl_tens = load_fiducial_cl_tens(r=1.0, lmax=lmax)[2][2:]
     cl_lens = load_fiducial_cl_lens(lmax=lmax)[2][2:]
     cl_syst = cl_syst[2 : lmax + 1]
+    # a NaN makes every comparison of the bisection false and the bias would come out
+    # as ~0 (NaN pixels of the maps propagate to the whole spectrum)
+    if not np.all(np.isfinite(cl_syst)):
+        raise ValueError("cl_syst has non-finite values (NaN pixels in the maps?)")
     if n_el is None:
         n_el = np.zeros_like(cl_lens)
     else:
@@ -313,6 +322,8 @@ def forecast(
             n_el[0] == n_el[1] == 0.0
         ), "First and second elements must be 0 because it is recognized as monopole and dipole"
         n_el = n_el[2 : lmax + 1]
+        if not np.all(np.isfinite(n_el)):
+            raise ValueError("n_el has non-finite values")
 
     def wrapped_likelihood(r):
         return _get_likelihood(r, ell, cl_tens, cl_lens, cl_syst, n_el, fsky)
