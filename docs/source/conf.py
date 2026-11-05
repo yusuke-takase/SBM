@@ -8,7 +8,7 @@
 import os
 import sys
 
-module_path = os.path.abspath(os.path.join("..", "..", "sbm"))
+module_path = os.path.abspath(os.path.join("..", ".."))
 sys.path.insert(0, module_path)
 
 project = "sbm"
