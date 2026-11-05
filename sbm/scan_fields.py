@@ -178,9 +178,12 @@ class ScanFields:
 
         net_channel_ukrts (`float`): net channel noise level [uKrts] of the detectors
 
-        noise_pdf (`np.ndarray`): probability density function of the noise per sky pixel
+        noise_pdf (`np.ndarray`): standard deviations [sigma_I, sigma_P] of the white noise per
+        sky pixel, set by :meth:`.ScanFields.generate_noise_pdf`
 
-        covmat_inv (`np.ndarray`): inverse of the covariance matrix of the stokes parameters
+        covmat_inv (`np.ndarray`): element-wise square root of the inverse of the map-making
+        matrix of :meth:`.ScanFields.create_covmat` in every pixel, set by
+        :meth:`.ScanFields.generate_noise` (0 in the pixels that are not solved)
 
         xlink_threshold (`float`): threshold value to decide whether stokes parameter estimation is
         performed or not in the map-making. The sky pixel with the cross-link value larger than this
@@ -758,8 +761,18 @@ class ScanFields:
         return_pdf=False,
         scale=1.0,
     ):
-        """Generate probability density function (PDF) of the noise.
-        The function store the noise PDF in the `self.noise_pdf` attribute.
+        """Generate the standard deviations of the white noise per sky pixel.
+        The function stores them in the `self.noise_pdf` attribute as [sigma_I, sigma_P]:
+
+        .. math::
+            \\sigma_I = {\\rm NET} \\sqrt{\\frac{f_s}{s N_{\\rm hits}}}, \\qquad
+            \\sigma_P = \\sqrt{2} \\sigma_I,
+
+        with :math:`f_s` the sampling rate and :math:`s` = `scale`. :math:`\\sigma_I` is the
+        standard deviation of the mean of the samples in a pixel, and :math:`\\sigma_P` that
+        of Q and U for an ideal scan (uniformly distributed crossing angles).
+        :meth:`.ScanFields.generate_noise` multiplies :math:`\\sigma_I` by the map-making
+        covariance of each component.
 
         Args:
             imo (`Imo`): IMo object which contains the instrument information given by the `litebird_sim`
@@ -768,8 +781,12 @@ class ScanFields:
 
             return_pdf (`bool`): if True, return the noise PDF
 
-            scale (`float`): scale factor to adjust the noise PDF.
-            When the defferential detection is performed, it should be scale = 2.0.
+            scale (`float`): the noise variance per sample is :math:`{\\rm NET}^2 f_s / s`.
+            For the pair difference :math:`d = (d_T - d_B)/2` of two detectors with the
+            NET above, whose samples are counted once in `hitmap` (the scan fields of one
+            detector of the pair, as in the pipelines), the variance per sample is
+            :math:`{\\rm NET}^2 f_s / 2`: use scale = 2.0, i.e. the NET of the pair
+            difference is :math:`{\\rm NET}/\\sqrt{2}`. Default is 1.0 (a single detector).
         """
         channel = self.channel
         hitmap_tmp = self.hitmap.copy()
@@ -816,6 +833,20 @@ class ScanFields:
         Before using this method, you should generate the noise PDF by :meth:`.ScanFields.generate_noise_pdf` method.
         The noise is 0 in the pixels that :meth:`.ScanFields.map_make` does not solve.
 
+        The solution :math:`x = A^{-1} b` of the map-maker, with :math:`A` the matrix of
+        :meth:`.ScanFields.create_covmat`, has the covariance :math:`\\sigma_I^2 A^{-1}`
+        (:math:`\\sigma_I` = `noise_pdf[0]`). I, Q and U are drawn independently with the
+        standard deviations of this covariance, their correlations are not included:
+
+        .. math::
+            \\langle \\Delta I^2 \\rangle = \\sigma_I^2 (A^{-1})_{II}, \\qquad
+            \\langle \\Delta Q^2 \\rangle, \\langle \\Delta U^2 \\rangle =
+            \\frac{\\sigma_I^2}{2} \\left[ (A^{-1})_{PP} \\pm \\Re (A^{-1})_{PP^*} \\right],
+
+        where :math:`P` and :math:`P^*` are the components of the polarization and its
+        conjugate. For an ideal scan the standard deviation of Q and U is
+        :math:`\\sqrt{2} \\sigma_I` (= `noise_pdf[1]`).
+
         Args:
             spin_n_basis (`list`): list of spin_n to create the covariance matrix
 
@@ -860,14 +891,24 @@ class ScanFields:
             else:
                 covmat_inv[:, :, i] = np.zeros_like(cov[:, :, i])
         self.covmat_inv = np.sqrt(covmat_inv)
+        # Var(Q), Var(U) = sigma_I^2 ((A^-1)_PP +- Re (A^-1)_PP*) / 2: P and P* are two
+        # components of the solution, and (A^-1)_PP alone is Var(Q) + Var(U)
+        conj_idx = np.where(
+            (spin_n_basis == -spin_n_basis[pol_idx])
+            & (spin_m_basis == -spin_m_basis[pol_idx])
+        )[0][0]
+        c_pp = covmat_inv[pol_idx, pol_idx, :].real
+        c_pc = covmat_inv[pol_idx, conj_idx, :].real
+        std_q = np.sqrt(np.clip(0.5 * (c_pp + c_pc), 0.0, None))
+        std_u = np.sqrt(np.clip(0.5 * (c_pp - c_pc), 0.0, None))
 
         if seed is not None:
             np.random.seed(seed)
         else:
             np.random.seed()
         n_i = np.random.normal(loc=0.0, scale=self.noise_pdf[0], size=[self.npix])
-        n_q = np.random.normal(loc=0.0, scale=self.noise_pdf[1], size=[self.npix])
-        n_u = np.random.normal(loc=0.0, scale=self.noise_pdf[1], size=[self.npix])
+        n_q = np.random.normal(loc=0.0, scale=self.noise_pdf[0], size=[self.npix])
+        n_u = np.random.normal(loc=0.0, scale=self.noise_pdf[0], size=[self.npix])
 
         if self.use_hwp is True:
             n_i[self.hitmap == 0] = 0.0
@@ -879,19 +920,13 @@ class ScanFields:
             n_u[xlink2 > self.xlink_threshold] = 0.0
 
         if temp_idx is None:
-            noise = np.array(
-                [
-                    np.zeros_like(n_i),
-                    n_q * self.covmat_inv[pol_idx, pol_idx, :].real,
-                    n_u * self.covmat_inv[pol_idx, pol_idx, :].real,
-                ]
-            )
+            noise = np.array([np.zeros_like(n_i), n_q * std_q, n_u * std_u])
         else:
             noise = np.array(
                 [
                     n_i * self.covmat_inv[temp_idx, temp_idx, :].real,
-                    n_q * self.covmat_inv[pol_idx, pol_idx, :].real,
-                    n_u * self.covmat_inv[pol_idx, pol_idx, :].real,
+                    n_q * std_q,
+                    n_u * std_u,
                 ]
             )
         return noise
