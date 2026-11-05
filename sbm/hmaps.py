@@ -167,7 +167,9 @@ class HMaps:
         """Hit-weighted combination of the h-maps of several detectors.
 
         Map-making with the combination is the same as map-making with each
-        detector when they share the same signal model.
+        detector when they share the same signal model. The h-maps do not hold
+        the polarization angle of the detectors, which changes their signal
+        model: combine only detectors with the same polarization angle.
         """
         hmaps = list(hmaps)
         if not hmaps:

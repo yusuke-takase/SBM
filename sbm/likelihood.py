@@ -90,7 +90,8 @@ def forecast(
 
         lmax (`int`): maximum multipole considered in the maximization
 
-        rmin (`float`): scale of the displayed grid when the bias is zero
+        rmin (`float`): scale of the displayed grid when the bias is zero (1e-10,
+            the default, if it is not positive)
 
         rmax (`float`): maximum value of r considered in the maximization
 
@@ -133,7 +134,7 @@ def forecast(
     delta_r = _maximize_likelihood(ell, cl_tens, cl_lens, cl_syst, n_el, fsky, rmax)
     # Calculate likelihood function one last time in the range delta_r*1e-2 < r < delta_r*3
     # Note that delta_r has already been estimated, this likelihood is just used for display
-    scale = delta_r if delta_r > 0 else rmin
+    scale = delta_r if delta_r > 0 else (rmin if rmin > 0 else 1e-10)
     r_grid_display = np.linspace(scale * 1e-2, scale * 3.0, rresol)
     likelihood = np.zeros(rresol)
     for i, r in enumerate(r_grid_display):

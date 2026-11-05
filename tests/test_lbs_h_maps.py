@@ -50,17 +50,24 @@ def lbs_tod(stokes, detector, mueller, psi, chi):
     )
 
 
-def write_lbs_h_maps(path, psi, chi, hits=None, couples=None, name="det"):
-    """Write h-maps of the samples (npix, nsamples) in litebird_sim's layout."""
+def write_lbs_h_maps(
+    path, psi, chi, hits=None, couples=None, name="det", fixed_length_strings=False
+):
+    """Write h-maps of the samples (npix, nsamples) in litebird_sim's layout.
+
+    litebird_sim writes variable-length string attributes (read back as ``str``),
+    Falcons.jl fixed-length ones (read back by h5py as ``bytes``).
+    """
     npix = psi.shape[0]
     hits = np.full(npix, psi.shape[1]) if hits is None else hits
     if couples is None:
         couples = [(n, m) for n in SPINS_N for m in SPINS_M]
+    text = np.bytes_ if fixed_length_strings else str
     with h5py.File(path, "w") as f:
-        f.attrs["coordinate_system"] = "Galactic"
-        f.attrs["det"] = name
-        f.attrs["detector_split"] = "full"
-        f.attrs["time_split"] = "full"
+        f.attrs["coordinate_system"] = text("Galactic")
+        f.attrs["det"] = text(name)
+        f.attrs["detector_split"] = text("full")
+        f.attrs["time_split"] = text("full")
         f.attrs["duration_s"] = 600.0
         f.attrs["sampling_rate_Hz"] = 19.0
         seen = hits > 0
@@ -108,6 +115,17 @@ def test_load_uses_minus_psi(tmp_path):
                 assert np.all(hm.h(n, m)[~seen] == 0)
     assert (hm.nside, hm.duration_s, hm.sampling_rate_hz) == (NSIDE, 600.0, 19.0)
     assert (hm.coordinate_system, hm.name) == ("Galactic", "det")
+
+
+def test_fixed_length_string_attributes_are_decoded(tmp_path):
+    psi, chi = samples(56)
+    path = write_lbs_h_maps(
+        tmp_path / "h.h5", psi, chi, name="000_001_A", fixed_length_strings=True
+    )
+    with h5py.File(path, "r") as f:
+        assert isinstance(f.attrs["det"], bytes)
+    hm = HMaps.load(path)
+    assert (hm.coordinate_system, hm.name) == ("Galactic", "000_001_A")
 
 
 @pytest.mark.parametrize(

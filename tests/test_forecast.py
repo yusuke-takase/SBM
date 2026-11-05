@@ -27,6 +27,15 @@ def test_forecast_exact_zero_residual():
     assert sbm.forecast(np.zeros(LMAX + 1))["delta_r"] == 0.0
 
 
+def test_forecast_display_grid_of_a_zero_bias():
+    # the grid is scaled by rmin when the bias is zero, and must not collapse for rmin = 0
+    for rmin in (1e-10, 0.0):
+        out = sbm.forecast(np.zeros(LMAX + 1), rmin=rmin, rresol=50)
+        assert out["delta_r"] == 0.0
+        assert out["grid_r"][0] > 0.0 and np.all(np.diff(out["grid_r"]) > 0.0)
+        assert np.all(np.isfinite(out["likelihood"]))
+
+
 def test_forecast_exact_matches_linearised_bias():
     # residual much smaller than lensing: delta_r = sum w C^t dC / C_lens^2 / sum w (C^t)^2 / C_lens^2
     # (the linearisation error is of order r C^t / C_lens at low ell, ~1e-5 here)
