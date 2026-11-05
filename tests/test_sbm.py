@@ -4,6 +4,7 @@ import sbm
 from sbm import ScanFields, SignalFields
 import healpy as hp
 import os
+from pathlib import Path
 
 save = False
 
@@ -140,6 +141,49 @@ class TestSBM(unittest.TestCase):
                     field=(0, 1, 2),
                 )
                 self.assertTrue(np.allclose(output_map, reference))
+
+    def test_random_pointing(self):
+        # The standard scan fixture stops at |n|=6 and |m|=8. Random pointing
+        # also needs the sums of its moment spins, up to |n|=10 and |m|=16.
+        reference_path = Path(__file__).parent / "reference" / "random_pointing.npz"
+        with np.load(reference_path, allow_pickle=False) as reference:
+            scan_field = ScanFields()
+            scan_field.hitmap = reference["hitmap"].copy()
+            scan_field.npix = len(scan_field.hitmap)
+            scan_field.nside = hp.npix2nside(scan_field.npix)
+            scan_field.spins_n = np.arange(11)
+            scan_field.spins_m = np.arange(-16, 17)
+            scan_field.h = np.zeros((scan_field.npix, 33, 11), dtype=complex)
+            for (n, m), values in zip(
+                reference["spins"], reference["harmonics"]
+            ):
+                scan_field.h[:, m + 16, n] = values
+                if n == 0:
+                    scan_field.h[:, -m + 16, n] = values.conj()
+
+            signal_field = SignalFields.random_pointing_field(
+                scan_field,
+                mdim=3,
+                sigma_rad=float(reference["sigma_rad"]),
+                pol_map=reference["P"],
+                eth_pol_map=reference["eth_P"],
+                o_eth_pol_map=reference["o_eth_P"],
+                seed=int(reference["seed"]),
+            )
+            self.assertIsInstance(signal_field, SignalFields)
+            self.assertEqual(signal_field.field_name, "random_pointing_field")
+            np.testing.assert_array_equal(signal_field.spin_n_basis, [0, -2, 2])
+            np.testing.assert_array_equal(signal_field.spin_m_basis, [0, 4, -4])
+            np.testing.assert_allclose(
+                scan_field.map_make(signal_field),
+                reference["output_iqu"],
+                rtol=1e-12,
+                atol=1e-12,
+            )
+            reconstructed = scan_field.map_make(signal_field, only_iqu=False)
+            np.testing.assert_allclose(
+                reconstructed.extract_iqu(), reference["output_iqu"], atol=1e-12
+            )
 
     def test_hwpip(self, save_output_map=save):
         epsilon = 1e-5

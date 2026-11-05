@@ -542,6 +542,152 @@ class SignalFields:
         return signal_fields
 
     @staticmethod
+    def random_pointing_field(
+        scan_field,
+        mdim: int,
+        sigma_rad: float,
+        pol_map: np.ndarray,
+        eth_pol_map: np.ndarray,
+        o_eth_pol_map: np.ndarray,
+        seed=None,
+        moments=None,
+    ):
+        """Get the time-dependent random pointing field of a co-pointed HWP pair.
+
+        The orthogonal detectors share independent Cartesian displacements
+        ``Delta x, Delta y ~ Normal(0, sigma_rad**2)`` at each hit. Thus
+        ``zeta=0`` and ``bar_zeta=2*(Delta y+i*Delta x)``: the ideal intensity
+        is zero and there is no temperature-gradient leakage. Both covariance
+        and pseudo-covariance of the five real-displacement weighted moments
+        are retained. Pass the result to ``scan_field.map_make`` as usual.
+
+        Args:
+            scan_field (:class:`.ScanFields`): hit counts and normalized cross-links.
+                Required harmonics are all pairwise sums and differences of
+                ``(3,-4), (-1,4), (1,0), (5,-8), (-3,8)``.
+            mdim (`int`): map-making dimension; only 3 is supported.
+            sigma_rad (`float`): per-hit standard deviation of each Cartesian
+                displacement in radians, finite and non-negative.
+            pol_map (`np.ndarray`): polarization map Q+iU.
+            eth_pol_map (`np.ndarray`): spin up polarization gradient.
+            o_eth_pol_map (`np.ndarray`): spin down polarization gradient.
+            seed (`int`, optional): local random seed; global RNG is unchanged.
+            moments (`tuple`, optional): precomputed unnormalized ``(O_x, O_y)``
+                arrays, each of shape ``(npix,5)``, in the spin order above.
+                Useful for replaying a realization or comparing with exact TOD.
+                These already contain the pointing amplitude; sigma_rad is
+                not applied again. Cannot be combined with a seed.
+
+        Returns:
+            signal_fields (:class:`.SignalFields`): HWP 3x3 coupled fields.
+                Pixels with zero hits have zero coupled fields and output.
+        """
+        if mdim != 3:
+            raise ValueError("mdim is 3 only supported for random pointing")
+        if not np.isfinite(sigma_rad) or sigma_rad < 0:
+            raise ValueError("sigma_rad must be finite and non-negative")
+        hitmap = np.asarray(scan_field.hitmap, dtype=float)
+        npix = scan_field.npix
+        if (
+            hitmap.shape != (npix,)
+            or np.any(~np.isfinite(hitmap))
+            or np.any(hitmap < 0)
+        ):
+            raise ValueError("hitmap must be finite, non-negative and match npix")
+        sky = [
+            np.asarray(values, dtype=complex)
+            for values in (pol_map, eth_pol_map, o_eth_pol_map)
+        ]
+        if any(
+            values.shape != (npix,) or np.any(~np.isfinite(values))
+            for values in sky
+        ):
+            raise ValueError("sky fields must be finite and match the hitmap")
+        pol_map, eth_pol_map, o_eth_pol_map = sky
+        observed = hitmap > 0
+        spins = np.array([(3, -4), (-1, 4), (1, 0), (5, -8), (-3, 8)])
+        if moments is None:
+            o_x = np.zeros((npix, 5), dtype=complex)
+            o_y = np.zeros_like(o_x)
+            if sigma_rad > 0 and np.any(observed):
+                count = int(observed.sum())
+                covariance = np.empty((count, 5, 5), dtype=complex)
+                pseudo_covariance = np.empty_like(covariance)
+                for row, left in enumerate(spins):
+                    for column, right in enumerate(spins):
+                        for target, spin in (
+                            (covariance, left - right),
+                            (pseudo_covariance, left + right),
+                        ):
+                            values = np.asarray(
+                                scan_field.get_xlink(*spin), dtype=complex
+                            )
+                            if (values.shape != (npix,)
+                                    or np.any(~np.isfinite(values[observed]))):
+                                raise ValueError(f"invalid cross-link for spin {tuple(spin)}")
+                            target[:, row, column] = values[observed]
+                real_covariance = np.empty((count, 10, 10))
+                real_covariance[:, :5, :5] = 0.5 * (covariance + pseudo_covariance).real
+                real_covariance[:, 5:, 5:] = 0.5 * (covariance - pseudo_covariance).real
+                real_covariance[:, :5, 5:] = 0.5 * (pseudo_covariance - covariance).imag
+                real_covariance[:, 5:, :5] = 0.5 * (pseudo_covariance + covariance).imag
+                real_covariance = 0.5 * (real_covariance + real_covariance.swapaxes(1, 2))
+                minimum = float(np.linalg.eigvalsh(real_covariance).min())
+                if minimum < -1e-10:
+                    raise ValueError("cross-links produce a non-positive pointing covariance")
+                jitter = max(1e-12, -minimum + 1e-12)
+                factor = np.linalg.cholesky(real_covariance + jitter * np.eye(10))
+                factor *= (sigma_rad * np.sqrt(hitmap[observed]))[:, None, None]
+                rng = np.random.default_rng(seed)
+                real_x = np.einsum(
+                    "pij,pj->pi", factor, rng.standard_normal((count, 10)),
+                    optimize=True,
+                )
+                real_y = np.einsum(
+                    "pij,pj->pi", factor, rng.standard_normal((count, 10)),
+                    optimize=True,
+                )
+                o_x[observed] = real_x[:, :5] + 1j * real_x[:, 5:]
+                o_y[observed] = real_y[:, :5] + 1j * real_y[:, 5:]
+        else:
+            if seed is not None:
+                raise ValueError("moments and seed cannot be supplied together")
+            if len(moments) != 2:
+                raise ValueError("moments must contain O_x and O_y")
+            o_x, o_y = [np.asarray(values, dtype=complex) for values in moments]
+            if any(values.shape != (npix, 5) or np.any(~np.isfinite(values))
+                   for values in (o_x, o_y)):
+                raise ValueError("O_x and O_y must be finite and have shape (npix,5)")
+
+        # The SBM operator takes moments of conj(bar_zeta).
+        b3m4, bm1p4, b10, b5m8, bm3p8 = (2 * (o_y - 1j * o_x)).T
+        inverse_hit = np.zeros(npix)
+        inverse_hit[observed] = 1 / hitmap[observed]
+        h2m4 = np.asarray(scan_field.get_xlink(2, -4), dtype=complex)
+        h4m8 = np.asarray(scan_field.get_xlink(4, -8), dtype=complex)
+        if any(values.shape != (npix,) or np.any(~np.isfinite(values[observed]))
+               for values in (h2m4, h4m8)):
+            raise ValueError("map-making cross-links must be finite and match the hitmap")
+        s00 = 0.5 * (h2m4 * pol_map.conj() + h2m4.conj() * pol_map)
+        s2m4 = 0.5 * (h4m8 * pol_map.conj() + pol_map)
+        s00 -= 0.125 * inverse_hit * (
+            eth_pol_map.conj() * b3m4 + o_eth_pol_map.conj() * bm1p4.conj()
+            + o_eth_pol_map * bm1p4 + eth_pol_map * b3m4.conj()
+        )
+        s2m4 -= 0.125 * inverse_hit * (
+            eth_pol_map.conj() * b5m8 + o_eth_pol_map.conj() * bm3p8.conj()
+            + o_eth_pol_map * b10 + eth_pol_map * b10.conj()
+        )
+        s00[~observed] = 0
+        s2m4[~observed] = 0
+        intensity = Field(s00, spin_n=0, spin_m=0)
+        polarization = Field(s2m4, spin_n=2, spin_m=-4)
+        signal_fields = SignalFields(intensity, polarization, polarization.conj())
+        signal_fields.field_name = "random_pointing_field"
+        signal_fields.build_linear_system([intensity, polarization, polarization.conj()])
+        return signal_fields
+
+    @staticmethod
     def circular_pointing_field(
         scan_field,
         mdim: int,
