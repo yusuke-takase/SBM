@@ -12,7 +12,8 @@ class Convolver:
 
         nside (`int`): Nside of the input and output map.
 
-        spin_k (`float`): List of spin moments of the crossing angle.
+        spin_k (`float`): List of spin moments of the crossing angle. The moments above the
+        maximum degree ``lmax`` of `alm` are zero maps (a spin-k map has no multipole below k).
 
         use_hwp (`bool`): Whether the observation uses HWP or not.
 
@@ -297,6 +298,10 @@ class Convolver:
                 self.alm[0, :].size == other.alm[0, :].size
             ), "The array sizes of alm and blm are different."
             for k_idx, k in enumerate(self.spin_k):
+                if abs(k) > self.lmax:
+                    # a spin-k map has no multipole below k: zero maps, as with HWP
+                    # (healpy aborts the process for a spin above lmax)
+                    continue
                 blk = other.get_blk(abs(k))
                 clm = self.get_clm(blk, abs(k))
                 all_maps[k_idx, 0, :] = self.get_map(clm[0], k)
