@@ -1,7 +1,12 @@
 Migration from the former API
 =============================
 
-The former classes and functions are removed, without aliases.
+The former classes and functions are removed, without aliases. The code and the
+documentation of the former API (0.4.1) remain in the tag ``v0.4.1``:
+
+.. code-block:: bash
+
+   pip install "git+https://github.com/yusuke-takase/SBM.git@v0.4.1"
 
 .. list-table::
    :header-rows: 1
