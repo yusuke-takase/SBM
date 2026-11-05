@@ -12,6 +12,9 @@ from .scan_fields import (
 from .signal_fields import (
     Field,
     SignalFields,
+    HWP_ANGLE_FRAMES,
+    wedge_offset_direction_spin,
+    hwp_ip_route_spins,
 )
 
 from .convolver import (
@@ -59,6 +62,9 @@ __all__ = [
     # signal_fields.py
     "Field",
     "SignalFields",
+    "HWP_ANGLE_FRAMES",
+    "wedge_offset_direction_spin",
+    "hwp_ip_route_spins",
     # pipelines.py
     "Configlation",
     "Systematics",
