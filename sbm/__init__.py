@@ -8,7 +8,7 @@ map-maker solves for the components of a :class:`Basis` in every pixel
 (:func:`map_make`).
 """
 
-from . import beam, systematics
+from . import beam, spin, systematics
 from .basis import Basis
 from .harmonics import SphericalHarmonics
 from .hmaps import HMaps
@@ -58,5 +58,6 @@ __all__ = [
     "noise_covariance",
     "noise_maps",
     "orientation_matrix",
+    "spin",
     "systematics",
 ]

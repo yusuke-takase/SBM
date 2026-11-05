@@ -78,6 +78,15 @@ and import it in ``sbm/systematics/__init__.py``.
 * A component given at ``(n, m)`` stands for itself and its conjugate at
   ``(-n, -m)``; components at the same or opposite couples are summed, and
   ``(0, 0)`` must be real.
+* The component at ``(n, m)`` has spin weight ``n``: the spin weights of its
+  factors (``I`` 0, ``P`` 2, ``eth I`` 1, ``eth P`` 3, ``eth_bar P`` 1, numbers 0,
+  see :doc:`conventions`) add up to ``n``. The maps of the :class:`.Sky` carry
+  their spin weight, so that a term at the wrong couple, a missing conjugate or
+  a derivative of the wrong kind raises :class:`~sbm.spin.SpinWeightError` as
+  soon as the model is built. Build the components from the maps of the
+  :class:`.Sky`; plain arrays are not checked, and
+  ``tests/test_spin.py`` fails for a systematic whose components are not
+  checked (unless it is listed in ``UNCHECKED`` there, with the reason).
 * Angles end in ``_rad``; the docstring states the TOD model, the convention of
   the parameters and the templates.
 

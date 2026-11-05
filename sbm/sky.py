@@ -21,6 +21,12 @@ The derivatives of Q and U taken as scalar maps differ from them by the
 rotation of the basis, a term of order ``cot(theta) P`` that is largest near
 the poles. On scales much smaller than the distance to the poles both agree.
 
+The maps of a :class:`Sky` are :class:`~sbm.spin.SpinMap` arrays that carry
+their spin weight (``I`` 0, ``P`` 2, ``eth I`` 1, ``eth_bar I`` -1, ``eth P`` 3,
+``eth_bar P`` 1, and :data:`SECOND_ORDER_SPINS`), so that a signal model checks
+that the spin weights of the factors of each component add up to its ``n``
+(:mod:`sbm.spin`).
+
 The second-order maps used by the pointing systematics (``eth^2 I``, ``lap I``,
 ``eth^2 P``, ``eth_bar^2 P``, ``lap P``) are the covariant second derivatives,
 computed exactly with spin transforms (:func:`second_order_maps`): a pointing
@@ -40,9 +46,22 @@ import healpy as hp
 import numpy as np
 
 from .harmonics import SphericalHarmonics
+from .spin import SpinMap, SpinWeightError
 
 
 SECOND_ORDER_KEYS = ("eth2_i", "lap_i", "eth2_p", "eth_bar2_p", "lap_p")
+
+#: Spin weights of the second-order maps.
+SECOND_ORDER_SPINS = {"eth2_i": 2, "lap_i": 0, "eth2_p": 4, "eth_bar2_p": 0, "lap_p": 2}
+
+
+def _with_spin(value, spin: int, name: str, dtype=None) -> SpinMap:
+    """``value`` as a :class:`SpinMap` of spin weight ``spin``; a map that already
+    carries another spin weight is an error."""
+    given = getattr(value, "spin", None) if isinstance(value, SpinMap) else None
+    if given is not None and given != spin:
+        raise SpinWeightError(f"{name} has spin weight {spin}, got a map of {given}")
+    return SpinMap(np.asarray(value, dtype=dtype), spin)
 
 
 class Sky:
@@ -79,19 +98,19 @@ class Sky:
         lmax: int | None = None,
         iter: int = 3,
     ):
-        self.i = np.asarray(i, dtype=float)
-        self.p = np.asarray(p, dtype=complex)
+        self.i = _with_spin(i, 0, "i", float)
+        self.p = _with_spin(p, 2, "p", complex)
         if self.i.shape != self.p.shape:
             raise ValueError("i and p must have the same shape")
         self.nside = hp.npix2nside(self.i.size)
         self._lmax = lmax
         self._iter = iter
         if eth_i is not None:
-            self.__dict__["eth_i"] = np.asarray(eth_i, dtype=complex)
+            self.__dict__["eth_i"] = _with_spin(eth_i, 1, "eth_i", complex)
         if eth_p is not None and eth_bar_p is not None:
             self.__dict__["_eth_pol"] = (
-                np.asarray(eth_p, dtype=complex),
-                np.asarray(eth_bar_p, dtype=complex),
+                _with_spin(eth_p, 3, "eth_p", complex),
+                _with_spin(eth_bar_p, 1, "eth_bar_p", complex),
             )
         elif (eth_p is None) != (eth_bar_p is None):
             raise ValueError("give both eth_p and eth_bar_p, or neither")
@@ -100,9 +119,7 @@ class Sky:
             missing = set(SECOND_ORDER_KEYS) - set(second_order)
             if missing:
                 raise ValueError(f"second_order lacks {sorted(missing)}")
-            self.__dict__["second_order"] = {
-                key: np.asarray(second_order[key]) for key in SECOND_ORDER_KEYS
-            }
+            self.__dict__["second_order"] = _second_order_with_spins(second_order)
 
     @classmethod
     def from_maps(cls, i, q, u, **kwargs) -> "Sky":
@@ -145,7 +162,7 @@ class Sky:
 
     @cached_property
     def eth_i(self) -> np.ndarray:
-        return self._derivatives[0]
+        return SpinMap(self._derivatives[0], 1)
 
     @property
     def eth_bar_i(self) -> np.ndarray:
@@ -153,7 +170,7 @@ class Sky:
 
     @cached_property
     def _eth_pol(self) -> tuple[np.ndarray, np.ndarray]:
-        return self._derivatives[1], self._derivatives[2]
+        return SpinMap(self._derivatives[1], 3), SpinMap(self._derivatives[2], 1)
 
     @property
     def eth_p(self) -> np.ndarray:
@@ -167,7 +184,14 @@ class Sky:
     def second_order(self) -> dict:
         """Second-order maps (see the module documentation), computed from the
         harmonic coefficients of the sky with :func:`second_order_maps`."""
-        return second_order_maps(self._harmonics, self.nside)
+        return _second_order_with_spins(second_order_maps(self._harmonics, self.nside))
+
+
+def _second_order_with_spins(maps: dict) -> dict:
+    return {
+        key: _with_spin(maps[key], SECOND_ORDER_SPINS[key], key)
+        for key in SECOND_ORDER_KEYS
+    }
 
 
 def _spin_transform(g, c, spin, nside, lmax):

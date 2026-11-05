@@ -31,6 +31,46 @@ Every :class:`.SignalModel` and :class:`.HMaps` stores one couple per conjugate
 pair (:math:`n > 0`, or :math:`n = 0` and :math:`m > 0`); ``h(n, m)`` and
 ``component(n, m)`` return the conjugate for the others.
 
+Spin weights
+------------
+
+When the local basis turns by an angle :math:`\alpha`, in the sense in which the
+polarization angle is counted, a field of spin weight :math:`s` is multiplied by
+:math:`e^{-is\alpha}` and :math:`\psi` becomes :math:`\psi + \alpha`; the
+HWP angle does not change. The data are the same in every basis, so
+**the component** :math:`{}_{n,m}\tilde S` **has spin weight** :math:`n`: the
+spin weights of the factors on its right-hand side add up to :math:`n`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 20
+
+   * - map of :class:`.Sky`
+     - spin weight
+   * - :math:`I` (``i``), :math:`\nabla^2 I` (``lap_i``), :math:`\bar\eth^2 P` (``eth_bar2_p``)
+     - 0
+   * - :math:`P = Q + iU` (``p``), :math:`\eth^2 I` (``eth2_i``), :math:`\nabla^2 P` (``lap_p``)
+     - 2
+   * - :math:`\eth I` (``eth_i``), :math:`\bar\eth P` (``eth_bar_p``)
+     - 1
+   * - :math:`\bar\eth I` (``eth_bar_i``)
+     - -1
+   * - :math:`\eth P` (``eth_p``)
+     - 3
+   * - :math:`\eth^2 P` (``eth2_p``)
+     - 4
+
+Numbers (:math:`\rho`, :math:`e^{i\chi}`, gains) have spin weight 0, the
+complex conjugate negates the spin weight, and the HWP angle enters only
+:math:`m`. For example the first-order pointing offset behind a HWP gives
+:math:`\eth I` at :math:`(1,0)`, :math:`\bar\eth P` at :math:`(1,-4)` and
+:math:`\eth P` at :math:`(3,-4)`. The maps of a :class:`.Sky` carry their spin
+weight (:class:`~sbm.spin.SpinMap`), and :class:`.SignalModel` raises
+:class:`~sbm.spin.SpinWeightError` for a component whose spin weight is not its
+:math:`n`, or for a sum of terms of different spin weights
+(:mod:`sbm.spin`). Arrays without spin weight, such as ``sky.q`` and
+``sky.u`` taken separately, are not checked.
+
 Derivatives and pointing offsets
 --------------------------------
 

@@ -9,6 +9,7 @@ import numpy as np
 from ..basis import POLARIZATION, POLARIZATION_HWP
 from ..signal_model import SignalModel
 from ..sky import Sky
+from ..spin import SpinMap
 from ._registry import systematic
 
 
@@ -41,9 +42,9 @@ def bandpass_mismatch(
         raise ValueError("components, gamma_t and gamma_b must have the same length")
     if not components:
         raise ValueError("no components")
-    leak = np.zeros(np.shape(components[0]))
+    leak = SpinMap(np.zeros(np.shape(components[0])), 0)
     for comp, gt, gb in zip(components, gamma_t, gamma_b):
-        leak = leak + 0.5 * (gt - gb) * np.asarray(comp)
+        leak = leak + 0.5 * (gt - gb) * SpinMap(comp, 0)  # temperature maps
     return SignalModel({(0, 0): leak})
 
 

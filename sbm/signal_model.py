@@ -23,6 +23,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .hmaps import Couple, HMaps, canonical
+from .spin import SpinWeightError, spin_weight
 
 
 @dataclass(frozen=True, eq=False)
@@ -45,6 +46,10 @@ class SignalModel:
             at ``(n, m)`` stands for itself and its conjugate at ``(-n, -m)``;
             components given at the same couple, or at opposite couples, are
             summed. ``S_{0,0}`` must be real.
+
+    A component made of the maps of a :class:`~sbm.Sky` carries its spin weight
+    (:mod:`sbm.spin`), which must equal its ``n``: otherwise
+    :class:`~sbm.spin.SpinWeightError` is raised. Plain arrays are not checked.
     """
 
     # NumPy defers to the methods below: an array times a model is an error
@@ -55,6 +60,14 @@ class SignalModel:
         self._s: dict[Couple, np.ndarray] = {}
         npix = None
         for (n, m), value in components.items():
+            spin = spin_weight(value) if np.ndim(value) else None
+            if spin is not None and spin != n:
+                raise SpinWeightError(
+                    f"S_{{{n},{m}}} has spin weight {spin}, but a component at "
+                    f"({n}, {m}) must have spin weight {n}: the spin weights of the "
+                    "factors on its right-hand side (I 0, P 2, eth I 1, eth P 3, "
+                    "eth_bar P 1, ...) must add up to n (see sbm.spin)"
+                )
             value = np.asarray(value)
             if npix is None:
                 npix = value.shape[-1]

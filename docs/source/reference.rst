@@ -38,6 +38,16 @@ Systematics
    sbm.systematics.beam
    sbm.systematics.systematic
 
+Spin weights
+------------
+
+.. autosummary::
+   :toctree: generated/
+
+   sbm.spin.SpinMap
+   sbm.spin.spin_weight
+   sbm.spin.SpinWeightError
+
 Beam convolution
 ----------------
 
