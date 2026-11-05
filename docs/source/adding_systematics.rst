@@ -5,7 +5,9 @@ A systematic is a function that writes the perturbation of the data of a
 detector as spin components. It does not know the scan nor the map-maker, so
 adding one touches three places: the function, its test, and the table of
 :doc:`systematics`. The tutorial ``notebooks/adding_a_systematic.ipynb`` goes
-through the same steps with the example below.
+through the same steps with the example below, and :doc:`thesis_systematics`
+takes the systematics of the thesis of Y. Takase from their equations to the
+code.
 
 Where things are
 ----------------

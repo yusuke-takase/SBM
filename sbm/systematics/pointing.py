@@ -59,8 +59,13 @@ def diff_pointing(
 
 
 def _offset_components(sky, rho, chi, dn, dm, second_order):
-    """Offset of a single detector behind a HWP, in direction ``alpha + chi``
-    with ``alpha = dn psi + dm phi``."""
+    """Offset ``rho`` of a single detector behind a HWP, in the direction
+    ``alpha = dn psi + dm phi + chi`` on the sky: ``(dn, dm)`` are the
+    coefficients of ``psi`` and ``phi`` in the direction, ``(1, 0)`` for an
+    offset fixed in the frame of the detector and ``(1, -1)`` for the wedge.
+    ``eth I`` sits at ``(dn, dm)``, and the gradients of ``P``, which sits at
+    ``(pn, pm) = (2, -4)``, at ``(pn - dn, pm - dm)`` (``eth_bar P``) and
+    ``(pn + dn, pm + dm)`` (``eth P``)."""
     pn, pm = POLARIZATION_HWP
     components = {
         (dn, dm): -rho / 2.0 * np.exp(1j * chi) * sky.eth_i,

@@ -28,6 +28,7 @@ systematics are computed without time-ordered data.
    conventions.rst
    systematics.rst
    adding_systematics.rst
+   thesis_systematics.rst
    testing.rst
    hwp_beam_convolution.rst
    migration.rst
