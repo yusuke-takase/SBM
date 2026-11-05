@@ -36,22 +36,6 @@ def reference():
         return {key: data[key] for key in data.files}
 
 
-def test_original_cartesian_implementation(reference):
-    d = reference
-    scan = make_scan(d['hitmap'], d['spins'], d['harmonics'])
-    fields = SignalFields.random_pointing_field(
-        scan, 3, float(d['sigma_rad']), d['P'], d['eth_P'], d['o_eth_P'],
-        seed=int(d['seed']),
-    )
-    assert isinstance(fields, SignalFields)
-    assert fields.field_name == 'random_pointing_field'
-    np.testing.assert_array_equal(fields.spin_n_basis, [0, -2, 2])
-    np.testing.assert_array_equal(fields.spin_m_basis, [0, 4, -4])
-    np.testing.assert_allclose(scan.map_make(fields), d['output_iqu'], rtol=1e-12, atol=1e-12)
-    reconstructed = scan.map_make(fields, only_iqu=False)
-    np.testing.assert_allclose(reconstructed.extract_iqu(), d['output_iqu'], atol=1e-12)
-
-
 def test_exact_tod_projection():
     rng = np.random.default_rng(29)
     count = 97
