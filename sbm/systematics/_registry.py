@@ -1,4 +1,4 @@
-"""The ``@systematic`` decorator and the list of all the systematics.
+"""The ``@systematic`` decorator and the list of the signal models of :mod:`sbm.systematics`.
 
 A decorator is a function applied to another one where it is defined: writing
 ``@systematic(data="pair", templates=[(0, 0)])`` above ``def diff_gain(...)``
@@ -17,18 +17,20 @@ from __future__ import annotations
 #: ``"any"`` several of these (chosen by the arguments of the function).
 DATA = ("pair", "single", "single_hwp", "any")
 
-#: Every function declared with :func:`systematic`, in the order of definition.
+#: Every function declared with :func:`systematic`, in the order of definition: the signal
+#: models of the package, i.e. the sky signal of an ideal detector (``sky_signal``) and the
+#: systematics.
 ALL: list = []
 
 
 def systematic(data: str, templates=()):
-    """Declare a systematic.
+    """Declare a signal model: a systematic, or the sky signal of an ideal detector.
 
     Args:
         data: the kind of data the model describes (see :data:`DATA`).
-        templates: couples to add to the basis (:meth:`sbm.Basis.extend`) to
-            absorb the first-order perturbation; empty if there is none or if
-            they depend on the arguments.
+        templates: couples ``(n, m)`` to add to the basis (:meth:`sbm.Basis.extend`)
+            to absorb the first-order perturbation, e.g. ``[(0, 4)]``; empty if
+            there is none or if they depend on the arguments.
 
     The decorated function gets the attributes ``data`` and ``templates``, so
     that ``Basis.iqu(hwp=True).extend(abs_pointing.templates)`` works, and is
@@ -36,7 +38,12 @@ def systematic(data: str, templates=()):
     """
     if data not in DATA:
         raise ValueError(f"data must be one of {DATA}, got {data!r}")
-    templates = tuple((int(n), int(m)) for n, m in templates)
+    try:
+        templates = tuple((int(n), int(m)) for n, m in templates)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"templates must be a list of (n, m) couples, e.g. [(0, 4)], got {templates!r}"
+        ) from None
 
     def register(function):
         function.data = data

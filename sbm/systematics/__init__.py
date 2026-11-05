@@ -27,7 +27,8 @@ To add a systematic, write its perturbation as spin components in the module of
 the stage where it acts, declare it with :func:`systematic` (the kind of data
 and the template couples), and register its real-space TOD in
 ``tests/test_systematics.py``; see the documentation page "Adding a systematic"
-and ``notebooks/adding_a_systematic.ipynb``. :data:`ALL` lists every systematic.
+and ``notebooks/adding_a_systematic.ipynb``. :data:`ALL` lists the signal models of
+the package: :func:`sky_signal` and every systematic.
 """
 
 from ._registry import ALL, DATA, systematic

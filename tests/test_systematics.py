@@ -1,12 +1,13 @@
-"""Every systematic of sbm.systematics against TOD simulated in real space.
+"""Every signal model of sbm.systematics against TOD simulated in real space.
 
-Each systematic of ``sbm.systematics.ALL`` has one or more cases in ``CASES``:
+Each function of ``sbm.systematics.ALL`` (the sky signal and every systematic) has
+one or more cases in ``CASES``:
 the full signal model and the TOD of the same signal written without the spin
 decomposition (a Taylor expansion of the sky at the offset pointing, the gains,
 litebird_sim's Mueller chain, ...). The tests check, for every case, that the
 map-maker of the model is the least-squares fit of the TOD in several bases,
 that the templates of the systematic absorb its first-order perturbation, that
-no systematic lacks a case, and that the documentation lists every systematic.
+no function of ``ALL`` lacks a case, and that the documentation lists all of them.
 
 To add a systematic, add its cases here (see "Adding a systematic" in the docs).
 """
@@ -364,6 +365,8 @@ def test_declarations():
     assert sy.abs_pointing.templates == ((1, 0), (3, -4), (1, -4))
     with pytest.raises(ValueError, match="data"):
         sy.systematic(data="unknown")
+    with pytest.raises(ValueError, match="couples"):
+        sy.systematic(data="any", templates=(0, 4))  # one couple, not a list of couples
 
 
 # --------------------------------------------------------------------- #

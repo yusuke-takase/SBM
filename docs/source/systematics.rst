@@ -9,7 +9,8 @@ and replaces :func:`~sbm.systematics.sky_signal`. The templates are the
 couples to add to the basis (:meth:`.Basis.extend`) to absorb the systematic;
 each function carries them as ``.templates`` (and the kind of data as
 ``.data``), so that ``Basis.iqu(hwp=True).extend(sy.abs_pointing.templates)``
-works. :data:`sbm.systematics.ALL` lists every systematic.
+works. :data:`sbm.systematics.ALL` lists the signal models of the package:
+:func:`~sbm.systematics.sky_signal` and every systematic.
 
 The modules follow the path of the signal through the instrument:
 ``sky`` (the ideal detector), ``pointing``, ``optics`` (the beam), ``hwp`` and
