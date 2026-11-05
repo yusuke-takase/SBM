@@ -10,6 +10,7 @@
   </h1>
 </p>
 
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://yusuke-takase.github.io/SBM/)
 ![build status](https://github.com/yusuke-takase/SBM/actions/workflows/test.yml/badge.svg?branch=master)
 
 SBM assesses the impact of systematic effects on CMB polarization
@@ -45,7 +46,8 @@ matplotlib for `get_cmap`.
 
 The manual (formalism, conventions and their relation to litebird_sim, the
 systematics, how to add one, the tests and the migration from the former API)
-is in `docs/`; build it with
+is at https://yusuke-takase.github.io/SBM/. Its source is in `docs/`; build it
+with
 
 ```
 pip install -e ".[docs]"
