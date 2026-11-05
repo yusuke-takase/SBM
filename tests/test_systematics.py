@@ -198,7 +198,7 @@ def cases():
         True,
         ip,
         lambda px, ps, ph: real.detector(px, ps, ph)
-        + 2e-3 * real.x["I"][px] * np.cos(4 * ph - 0.8),
+        + 2e-3 * real.x["I"][px] * np.cos(4 * ph + 0.8),
         lambda: (single_hwp, ip),
     )
 
@@ -365,12 +365,23 @@ def test_declarations():
 
 
 def test_hwp_ip_is_a_case_of_hwp_mueller():
+    # The 4f IP in the focal plane, M_QI = eps cos(4 a + phase) and
+    # M_UI = eps sin(4 a + phase) (Patanchon et al. 2024), taken to the frame of
+    # the HWP, M_hwp(a) = R(a) M_fp(a) R(a)^T, and expanded in harmonics of a.
     sky = RealSky(NSIDE, seed=9).sky()
     eps, phase = 3e-3, 0.7
-    m2 = np.zeros((4, 4), complex)
-    m2[1, 0] = eps / 2 * np.exp(-1j * phase)
-    m2[2, 0] = -1j * eps / 2 * np.exp(-1j * phase)
-    general, ip = sy.hwp_mueller(sky, {2: m2}), sy.hwp_ip(sky, eps, phase)
+    alpha = 2 * np.pi * np.arange(64) / 64
+    m_fp = np.zeros((alpha.size, 4, 4))
+    m_fp[:, 1, 0] = eps * np.cos(4 * alpha + phase)
+    m_fp[:, 2, 0] = eps * np.sin(4 * alpha + phase)
+    c, s = np.cos(2 * alpha), np.sin(2 * alpha)
+    rot = np.zeros((alpha.size, 4, 4))
+    rot[:, 0, 0] = rot[:, 3, 3] = 1.0
+    rot[:, 1, 1], rot[:, 1, 2], rot[:, 2, 1], rot[:, 2, 2] = c, s, -s, c
+    m_hwp = rot @ m_fp @ np.swapaxes(rot, 1, 2)
+    harmonics = np.einsum("a,aij->ij", np.exp(-2j * alpha), m_hwp) / alpha.size
+    assert np.allclose(np.einsum("a,aij->ij", np.exp(-6j * alpha), m_hwp), 0)
+    general, ip = sy.hwp_mueller(sky, {2: harmonics}), sy.hwp_ip(sky, eps, phase)
     assert general.couples == ip.couples == [(0, 4)]
     np.testing.assert_allclose(general.component(0, 4), ip.component(0, 4), atol=1e-17)
     assert sy.hwp_mueller(sky, {0: sy.IDEAL_HWP}).couples == [(0, 0)]

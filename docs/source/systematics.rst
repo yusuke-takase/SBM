@@ -53,7 +53,7 @@ The modules follow the path of the signal through the instrument:
      - :math:`(1,-1), (3,-5), (1,-3)`
    * - :func:`~sbm.systematics.hwp_ip`
      - single detector, HWP
-     - :math:`(0,4)\colon \frac{\epsilon}{2} e^{-i\varphi} I`
+     - :math:`(0,4)\colon \frac{\epsilon}{2} e^{i\varphi_{QI}} I`
      - :math:`(0,4)`
    * - :func:`~sbm.systematics.hwp_mueller`
      - single detector, HWP

@@ -14,10 +14,16 @@ from ._registry import systematic
 def hwp_ip(sky: Sky, epsilon: float, phase_rad: float) -> SignalModel:
     """Instrumental polarization of the HWP at 4f, for a single detector.
 
-    ``d = epsilon I cos(4 phi - phase)``: the leakage depends only on the HWP
-    angle and sits at spin ``(0, 4)``. Template: ``(0, 4)``.
+    ``d = epsilon I cos(4 phi + phase)``: the 4f elements
+    ``M_QI = epsilon cos(4 alpha + phase)`` and ``M_UI = epsilon sin(4 alpha + phase)``
+    of the HWP Mueller matrix in the focal plane, as functions of the HWP angle
+    ``alpha`` in the focal plane (Patanchon et al. 2024, with ``phase = phi_QI``,
+    ``phi_UI = phi_QI - pi/2`` and equal amplitudes), seen by a detector at
+    polarization angle 0. Their chain is that of :func:`hwp_mueller`, with
+    ``alpha = phi``. The leakage depends only on the HWP angle and sits at spin
+    ``(0, 4)``. Template: ``(0, 4)``.
     """
-    return SignalModel({(0, 4): epsilon / 2.0 * np.exp(-1j * phase_rad) * sky.i})
+    return SignalModel({(0, 4): epsilon / 2.0 * np.exp(1j * phase_rad) * sky.i})
 
 
 #: Mueller matrix of an ideal HWP in its own frame (Stokes I, Q, U, V).
