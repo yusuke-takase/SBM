@@ -279,10 +279,16 @@ CASES = cases()
 @pytest.mark.parametrize("case", CASES, ids=str)
 def test_model_matches_tod(case):
     model, tod = case.build()
-    samples = random_samples(NSIDE, 60 if case.hwp else 40, seed=7, hwp=case.hwp)
+    samples = random_samples(NSIDE, 60 if case.hwp else 40, seed=7)
     data = tod(*samples)
     for basis in HWP_BASES if case.hwp else NO_HWP_BASES:
         assert_matches_tod(model, data, samples, basis)
+
+
+@pytest.mark.parametrize("case", [c for c in CASES if not c.hwp], ids=str)
+def test_models_without_hwp_have_no_hwp_harmonic(case):
+    model, _ = case.build()
+    assert all(m == 0 for _, m in model.couples), model.couples
 
 
 @pytest.mark.parametrize("case", [c for c in CASES if c.absorbed is not None], ids=str)
@@ -290,7 +296,7 @@ def test_templates_absorb_the_first_order_perturbation(case):
     base, full = case.absorbed()
     templates = case.systematic.templates
     assert templates, f"{case.systematic.__name__} declares no templates"
-    samples = random_samples(NSIDE, 60 if case.hwp else 40, seed=8, hwp=case.hwp)
+    samples = random_samples(NSIDE, 60 if case.hwp else 40, seed=8)
     basis = (Basis.iqu(hwp=True) if case.hwp else Basis.qu(hwp=False)).extend(templates)
     couples = (
         full.required_couples(basis.full)
@@ -405,7 +411,7 @@ def test_product_of_models_is_the_product_of_signals():
     sky = real.sky()
     a = sy.sky_signal(sky, hwp=True) + sy.hwp_ip(sky, 0.1, 0.3)
     b = sy.sky_signal(sky) + sy.diff_pointing(sky, 0.1, 0.2, 0.0, 0.0)
-    pixels, psi, phi = random_samples(NSIDE, 5, seed=12, hwp=True)
+    pixels, psi, phi = random_samples(NSIDE, 5, seed=12)
 
     def tod(model):
         comps = {

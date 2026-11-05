@@ -23,14 +23,19 @@ import healpy as hp
 import numpy as np
 
 
-def random_samples(nside: int, n_per_pixel: int, seed: int, hwp: bool = False):
+def random_samples(nside: int, n_per_pixel: int, seed: int):
     """Pixels, crossing angles ``psi`` and HWP angles ``phi`` of ``n_per_pixel``
-    random samples in every pixel (``phi = 0`` without HWP)."""
+    random samples in every pixel.
+
+    ``phi`` is random also for the data without HWP, whose TOD do not depend on
+    it: a model that puts a component at a wrong HWP harmonic ``m != 0`` then
+    fails the comparison with the TOD instead of being evaluated at ``phi = 0``.
+    """
     rng = np.random.default_rng(seed)
     npix = hp.nside2npix(nside)
     pixels = np.repeat(np.arange(npix), n_per_pixel)
     psi = rng.uniform(-np.pi, np.pi, pixels.size)
-    phi = rng.uniform(-np.pi, np.pi, pixels.size) if hwp else np.zeros(pixels.size)
+    phi = rng.uniform(-np.pi, np.pi, pixels.size)
     return pixels, psi, phi
 
 

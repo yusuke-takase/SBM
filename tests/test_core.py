@@ -36,7 +36,7 @@ def random_map(rng, complex_=True):
 
 
 def test_from_samples_is_the_mean_of_the_phases():
-    pixels, psi, phi = random_samples(NSIDE, 16, seed=1, hwp=True)
+    pixels, psi, phi = random_samples(NSIDE, 16, seed=1)
     hm = HMaps.from_samples(NSIDE, pixels, psi, phi, couples=[(2, -4), (0, 4)])
     for n, m in [(2, -4), (-2, 4), (0, 4), (0, -4)]:
         expected = [
@@ -51,7 +51,7 @@ def test_from_samples_is_the_mean_of_the_phases():
 
 def test_save_and_load_follow_the_litebird_sim_convention(tmp_path):
     # litebird_sim: h_{n,m} = <exp(+i(n psi' + m chi))> with psi' = -psi, chi = phi
-    pixels, psi, phi = random_samples(NSIDE, 16, seed=2, hwp=True)
+    pixels, psi, phi = random_samples(NSIDE, 16, seed=2)
     psi_lbs = -psi
     path = tmp_path / "h_maps_det_a.h5"
     with h5py.File(path, "w") as f:
@@ -162,7 +162,7 @@ CASES = [
 @pytest.mark.parametrize("hwp,couples,basis", CASES)
 def test_map_make_is_the_least_squares_fit_of_the_tod(hwp, couples, basis):
     rng = np.random.default_rng(4)
-    pixels, psi, phi = random_samples(NSIDE, 40, seed=5, hwp=hwp)
+    pixels, psi, phi = random_samples(NSIDE, 40, seed=5)
     comps, model = _random_model(rng, couples)
     d = tod_from_components(comps, pixels, psi, phi)
     expected = least_squares(d, pixels, psi, phi, basis.couples, NPIX)
@@ -262,7 +262,7 @@ def test_hmaps_copy_the_hits_and_write_files_that_litebird_sim_reads(tmp_path):
 
 
 def test_noise_covariance_is_the_covariance_of_the_least_squares_fit():
-    pixels, psi, phi = random_samples(NSIDE, 30, seed=11, hwp=True)
+    pixels, psi, phi = random_samples(NSIDE, 30, seed=11)
     hm = HMaps.from_samples(NSIDE, pixels, psi, phi, couples=COUPLES)
     basis = Basis.iqu(hwp=True).extend([(0, 4)])
     net, fs = 30.0, 19.0
@@ -365,7 +365,7 @@ def test_sky_accepts_known_derivatives():
 
 def test_map_maker_reuses_the_inverse_for_many_models():
     rng = np.random.default_rng(15)
-    pixels, psi, phi = random_samples(NSIDE, 30, seed=16, hwp=True)
+    pixels, psi, phi = random_samples(NSIDE, 30, seed=16)
     keep = pixels != 4
     hm = HMaps.from_samples(NSIDE, pixels[keep], psi[keep], phi[keep], couples=COUPLES)
     basis = Basis.iqu(hwp=True).extend([(1, 0)])
