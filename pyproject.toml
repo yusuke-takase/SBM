@@ -1,50 +1,42 @@
-[tool.poetry]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
 name = "sbm"
-version = "0.4.1"
-license = "GPL3"
+version = "0.4.2"
 description = "Spin-based map-making (SBM) for CMB experiments"
-authors = ["yusuke-takase <takase_y@s.okayama-u.ac.jp>"]
 readme = "README.md"
-repository = "https://github.com/yusuke-takase/SBM"
-
-keywords = [
-    "CMB",
-    "Map-making",
-    "Cross-linking"
-]
-
+license = { file = "LICENSE" }
+authors = [{ name = "Yusuke Takase", email = "takase_y@s.okayama-u.ac.jp" }]
+requires-python = ">=3.10"
+keywords = ["CMB", "Map-making", "Cross-linking"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.11",
-    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
     "Operating System :: POSIX :: Linux",
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
+dependencies = [
+    "numpy>=1.23",
+    "healpy>=1.15",
+    "h5py>=3.11",
+    "ducc0>=0.40",
+]
 
+[project.optional-dependencies]
+plot = ["matplotlib>=3.1"]
+test = ["pytest>=7"]
+docs = ["sphinx>=7", "pydata-sphinx-theme>=0.16"]
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-numpy = "^1.23"
-healpy = "^1.15.0"
-matplotlib = "^3.1"
-h5py = "^3.11.0"
-pytest = "<8.0"
-litebird_sim = { git = "https://github.com/litebird/litebird_sim.git", branch = "master" }
-pandas = "<=2.2.2"
-tqdm = "^4.66.5"
-iminuit = "^2.30.1"
-toml = "^0.10.2"
-pydata-sphinx-theme = "^0.16.0"
-sympy = "^1.13.3"
-ipython = "^8.30.0"
+[project.urls]
+Repository = "https://github.com/yusuke-takase/SBM"
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.hatch.build.targets.wheel]
+packages = ["sbm"]
 
-[tool.ruff]
+[tool.ruff.lint]
 extend-select = []

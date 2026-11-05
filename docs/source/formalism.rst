@@ -4,10 +4,10 @@ Formalism
 The case of single detector
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-SBM addresses the map-making problem in spin space. By this approach, binnning of time-ordered data (TOD)
-will be replaced to a convolution of the map in spin space.
+SBM addresses the map-making problem in spin space. By this approach, binning of time-ordered data (TOD)
+is replaced by a convolution of the map in spin space.
 
-The signal field :math:`S` (:class:`.SignalFields`) is defined as a function of the detector's crossing angle :math:`\psi`
+The signal field :math:`S` (:class:`.SignalModel`) is defined as a function of the detector's crossing angle :math:`\psi`
 and the HWP angle :math:`\phi`. The real space scan field :math:`h` is also a function of
 :math:`\Omega`, :math:`\psi`, and :math:`\phi`. The signal detected by a detector within a sky pixel
 of spherical coordinates :math:`\Omega=(\theta, \varphi)` is given by
@@ -34,7 +34,7 @@ and :math:`\phi`, the transformation :math:`(\psi,\phi)\to(n,m)` is given by
     S^{d}(\Omega,\psi,\phi) = \sum_{n,m}{}_{n,m}\tilde{S}^{d}(\Omega)e^{i n\psi}e^{i m\phi}, \\
     {}_{n,m}\tilde{S}^{d}(\Omega) = \sum_{n'=-\infty}^{\infty}\sum_{m'=-\infty}^{\infty}{}_{\Delta n,\Delta m}\tilde{h}(\Omega){}_{n',m'}\tilde{S}(\Omega),
 
-where we introduce :math:`\Delta n = n-n'` and :math:`\Delta m = m-m'`. :math:`{}_{n,m}\tilde{S}^{d}` can be obtained :meth:`.SignalFields.get_coupled_field()`.
+where we introduce :math:`\Delta n = n-n'` and :math:`\Delta m = m-m'`. :math:`{}_{n,m}\tilde{S}^{d}` is :meth:`.SignalModel.project`.
 And define the two dimensional orientation function, :math:`{}_{\Delta n,\Delta m}\tilde{h}` by Fourier transform of the real
 space scan field as
 
@@ -43,8 +43,32 @@ space scan field as
     {}_{n,m}\tilde{h}(\Omega) &= \frac{1}{4\pi^{2}}\int d\psi \int d\phi h(\Omega,\psi,\phi)e^{-i n\psi}e^{-i m\phi} \\
     &= \frac{1}{N_{\rm hits}}\sum_{j}e^{-i(n\psi_j + m \phi_j)}.
 
-This is waht we refer to as the cross-link which can be obtained by :meth:`.ScanFields.get_xlink()`.
+These are the orientation functions returned by :meth:`.HMaps.h`; :math:`{}_{-n,-m}\tilde h` is the complex conjugate of :math:`{}_{n,m}\tilde h` and :math:`{}_{0,0}\tilde h = 1`.
 
+
+
+The map-making system
+~~~~~~~~~~~~~~~~~~~~~
+
+The binned map-maker fits, in every pixel, the components of a basis
+(:class:`.Basis`) to the data: the intensity :math:`I` at :math:`(0,0)` and,
+at every other couple :math:`(n,m)` of the basis, a complex amplitude
+:math:`Z_{n,m}` whose spin component is :math:`Z_{n,m}/2` (the polarization
+:math:`P = Q + iU` at :math:`(2,0)` without HWP, :math:`(2,-4)` with HWP), with
+the conjugate couple :math:`(-n,-m)` carrying :math:`Z^*_{n,m}/2`. The least
+squares give
+
+.. math::
+
+    \sum_j A_{ij} y_j = b_i, \qquad
+    A_{ij} = w_i w_j\,{}_{n_i-n_j,m_i-m_j}\tilde h, \qquad
+    b_i = w_i\,{}_{n_i,m_i}\tilde S^{d},
+
+with :math:`w = 1` for :math:`(0,0)` and :math:`1/2` otherwise, and
+:math:`y = (I, Z, Z^*, \dots)`. :func:`.orientation_matrix` returns :math:`A`
+and :func:`.map_make` solves the system. For white noise of variance
+:math:`\sigma^2` per sample and :math:`N_{\rm hits}` hits the covariance of
+:math:`y` is :math:`\sigma^2 A^{-1}/N_{\rm hits}` (:func:`.noise_covariance`).
 
 
 The case of multiple detectors
@@ -62,11 +86,17 @@ where :math:`N_{\rm hits}^{(\mu)}` is the number of hits of the :math:`\mu^{\rm 
 
     {}_{n,m}h_{\rm tot}(\Omega) = \frac{1}{N_{\rm tot}(\Omega)}\sum_{\mu}{}_{n,m}\tilde{h}^{(\mu)}(\Omega)N_{\rm hits}^{(\mu)}(\Omega).
 
-Here, we define orthogonal pair detector which is named as :math:`\texttt{T}` and :math:`\texttt{B}` that stands for *Top* and *Bottom* detectors. These detectors observe the same direction though different crossing angle :math:`\psi`, let us denote the crossing angle of the :math:`\texttt{T}` and :math:`\texttt{B}` detectors as :math:`\psi^{\texttt{T}}` and :math:`\psi^{\texttt{B}}`, respectively. Then, the orientation function of the :math:`\texttt{T}` can be exchanged to that of the :math:`\texttt{B}` by the following relation
+This is :meth:`.HMaps.combine`. It is enough when all the detectors share the
+same signal model; otherwise :func:`.map_make` takes one ``(HMaps,
+SignalModel)`` per detector and sums the systems
+:math:`\sum_\mu N^{(\mu)}_{\rm hits} A^{(\mu)}` and
+:math:`\sum_\mu N^{(\mu)}_{\rm hits} b^{(\mu)}` before solving.
+
+Here, we define orthogonal pair detector which is named as :math:`\texttt{T}` and :math:`\texttt{B}` that stands for *Top* and *Bottom* detectors. These detectors observe the same direction though different crossing angle :math:`\psi`, let us denote the crossing angle of the :math:`\texttt{T}` and :math:`\texttt{B}` detectors as :math:`\psi^{\texttt{T}}` and :math:`\psi^{\texttt{B}}`, respectively, with :math:`\psi^{\texttt{B}} = \psi^{\texttt{T}} + \pi/2`. Then, the orientation function of the :math:`\texttt{T}` can be exchanged to that of the :math:`\texttt{B}` by the following relation
 
 .. math::
 
-    {}_{n,m}\tilde{h}^{(\texttt{B})} = {}_{n,m}\tilde{h}^{(\texttt{T})}e^{i n \frac{\pi}{2}}.
+    {}_{n,m}\tilde{h}^{(\texttt{B})} = {}_{n,m}\tilde{h}^{(\texttt{T})}e^{-i n \frac{\pi}{2}}.
 
 The detected signal in spin space per detector is given by
 

@@ -6,75 +6,79 @@
 
 <p align="center">
   <h1>
-  <img src="./maps/scan_fields.png" alt="Logo">
+  <img src="./maps/scan_fields.png" alt="Orientation functions">
   </h1>
 </p>
 
-[![docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://yusuke-takase.github.io/SBM/index.html)
 ![build status](https://github.com/yusuke-takase/SBM/actions/workflows/test.yml/badge.svg?branch=master)
 
-This code assesses the impact of differential systematics on CMB polarisation observations.
+SBM assesses the impact of systematic effects on CMB polarization
+observations in spin space. The scan of a detector is reduced to its
+orientation functions (h-maps, from [litebird_sim](https://github.com/litebird/litebird_sim)
+or [Falcons.jl](https://github.com/yusuke-takase/Falcons.jl)), the data to the
+spin components of a signal model, and the binned map-maker to a small linear
+system in every pixel.
 
-`ScanFields` such as hit-map and cross-link map, pre-simulated by [Falcons.jl](https://github.com/yusuke-takase/Falcons.jl), are coupled with sky temperature and polarization fields, including systematics effects, at a given $spin$.
+```python
+import sbm
+from sbm import systematics as sy
 
-# Instllation
+hmaps = sbm.HMaps.load("h_maps_det_A.h5")      # an h-map file of litebird_sim / Falcons.jl
+sky = sbm.Sky.from_maps(*sbm.generate_cmb(nside=hmaps.nside, cmb_seed=1))
+model = sy.sky_signal(sky, hwp=True) + sy.abs_pointing(sky, rho_rad=1e-4, chi_rad=0.3)
+iqu = sbm.map_make((hmaps, model), sbm.Basis.iqu(hwp=True)).iqu
+```
+
+# Installation
 
 ```
 git clone https://github.com/yusuke-takase/SBM.git
 cd SBM
-pip install -e .
+pip install -e .                 # or: uv pip install -e .
+pip install -e ".[test]"         # pytest for the tests
 ```
 
-# How to load cross-link HDF5 file 
-SBM assumes the HDF5 file includes cross-link is generated `Falcons.jl`'s [pipelines.jl](https://github.com/yusuke-takase/Falcons.jl/blob/master/src/function/pipelines.jl)
-In order to load the HDF5 file, SBM surpports two methods:
+SBM needs NumPy (1.x or 2.x), healpy, h5py and ducc0. The extra `plot` adds
+matplotlib for `get_cmap`.
 
-1. Specify directpath
-  - `sbm.read_scanfiled(file_path)`
-  - This way is usefull if you don't need to do multiple detector's simulation
-2. Specify channel and detector name of LiteBIRD
-  - `sbm.ScanFields.load_det(filename=f"{channel}/{detector_name}", base_path="<root path of your dataset>")`
-  - In this way, if you don't specify the `base_path`, the code will read `~/.config/sbm_dataset/sbm_dataset.toml`.
-  The `base_path` is written in this toml file. 
-  This toml file is generated after you installed the cross-link dataset's `base_path` by:
-  ```
-  python -m sbm.install_db
-  ```
-  This way makes you free to put long file path to specify a detector. 
+# Documentation
 
-# Database instllation
-
-The SBM can access to a database which includes cross-link data in HDF5 format.
-This way is useful people who wants to do full-scale detector simulation.
-Not in that case, it may be better to use just `sbm.read_scanfiled(file_path)`.
-
-By following command, you can install the path of database in local storage.
+The manual (formalism, conventions and their relation to litebird_sim, the
+systematics, how to add one, the tests and the migration from the former API)
+is in `docs/`; build it with
 
 ```
-python -m sbm.install_db
+pip install -e ".[docs]"
+python -m sphinx -b html docs/source docs/build/html
 ```
 
-# Tutorials
+# Systematics
 
-There are several tutorials in the [notebooks](https://github.com/yusuke-takase/SBM/tree/master/notebooks).
-Although you need to download the required ScanFields datased given by Falcons, you can simulate any time-independent systematics if you have a signal model.
-Now, following systematics are implemented:
+`sbm.systematics` returns the signal model of each systematic; models add up.
 
-- Differential gain
-- Differential pointing
+- Differential gain, differential pointing and bandpass mismatch of a pair difference
 - Absolute pointing offset with HWP [Y. Takase et al.](https://arxiv.org/abs/2408.03040)
-- HWP non-ideality [G. Patanchon et al.](https://iopscience.iop.org/article/10.1088/1475-7516/2024/04/074)
-- Diff. beam
-- Diff. beam ellip.
-- Bandpass mismatch (related with diff. gain)
-- Pointing disturbance due to HWP
-  - wedge effect (THWP)
-  - tilted effect (RHWP)
-- Non-uniform white noise
+- HWP wedge (pointing disturbance rotating with the HWP)
+- HWP instrumental polarization [G. Patanchon et al.](https://iopscience.iop.org/article/10.1088/1475-7516/2024/04/074)
+- Second-order pointing terms
+- Arbitrary beams, with a general HWP Mueller matrix
+- Non-ideal HWP Mueller matrices, with harmonics in the HWP angle
+- Polarization angle errors
+- White noise with the correlations of the map-maker
+
+To add a systematic, see [CONTRIBUTING.md](CONTRIBUTING.md) and [`notebooks/adding_a_systematic.ipynb`](notebooks/adding_a_systematic.ipynb).
+
+# Tests
+
+`pytest` (from any directory). Every test compares SBM with an independent
+computation: TOD simulated in real space and fitted by least squares, the sky
+sampled at the offset pointing, direct Wigner sums, and the TOD model of
+litebird_sim.
 
 # How to cite the code
+
 The basic formalism is published in [Y. Takase et al., 2024](https://arxiv.org/abs/2408.03040) and [Thesis of Y. Takase, 2025](https://arxiv.org/abs/2503.03176).
-Please cite the paper when you use the SBM for your publications. 
+Please cite the paper when you use the SBM for your publications.
 
 Citation information of the thesis:
 ```

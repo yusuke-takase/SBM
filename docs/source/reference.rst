@@ -1,80 +1,90 @@
-API Reference
+API reference
 =============
 
-Main functions
---------------
+Scan, signal and map-making
+---------------------------
 
-.. toctree::
 .. autosummary::
    :toctree: generated/
 
+   sbm.HMaps
+   sbm.SignalModel
+   sbm.SpinComponent
+   sbm.Basis
+   sbm.Sky
+   sbm.SphericalHarmonics
+   sbm.MapMakingResult
+   sbm.map_make
+   sbm.MapMaker
+   sbm.orientation_matrix
+   sbm.noise_covariance
+   sbm.noise_maps
+
+Systematics
+-----------
+
+.. autosummary::
+   :toctree: generated/
+
+   sbm.systematics.sky_signal
+   sbm.systematics.diff_gain
+   sbm.systematics.diff_pointing
+   sbm.systematics.bandpass_mismatch
+   sbm.systematics.abs_pointing
+   sbm.systematics.hwp_wedge
+   sbm.systematics.hwp_ip
+   sbm.systematics.hwp_mueller
+   sbm.systematics.polarization_angle
+   sbm.systematics.beam
+   sbm.systematics.systematic
+
+Spin weights
+------------
+
+.. autosummary::
+   :toctree: generated/
+
+   sbm.spin.SpinMap
+   sbm.spin.spin_weight
+   sbm.spin.SpinWeightError
+
+Beam convolution
+----------------
+
+.. autosummary::
+   :toctree: generated/
+
+   sbm.beam.convolve
+   sbm.beam.beam_transfer
+   sbm.beam.pencil
+   sbm.beam.gaussian
+   sbm.beam.elliptical
+   sbm.sky.second_order_maps
+   sbm.sky.spin_derivatives
+
+Spectra and forecasts
+---------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   sbm.generate_cmb
+   sbm.load_fiducial_cl
+   sbm.load_fiducial_cl_lens
+   sbm.load_fiducial_cl_tens
    sbm.c2d
    sbm.d2c
-   sbm.elliptical_beam
    sbm.forecast
-   sbm.generate_cmb
-   sbm.generate_maps
    sbm.get_cmap
-   sbm.get_instrument_table
-   sbm.load_fiducial_cl
-   sbm.read_scanfiled
-   sbm.sim_bandpass_mismatch
-   sbm.sim_diff_gain_per_ch
-   sbm.sim_diff_pointing_per_ch
-   sbm.sim_noise_per_ch
 
-Classes
--------
-
-.. toctree::
-   :maxdepth: 2
+Testing a model
+---------------
 
 .. autosummary::
    :toctree: generated/
 
-   sbm.Configlation
-   sbm.Convolver
-   sbm.Field
-   sbm.ScanFields
-   sbm.SignalFields
-   sbm.Systematics
-
-Methods
--------
-
-.. toctree::
-   :maxdepth: 2
-
-.. autosummary::
-   :toctree: generated/
-   :recursive:
-
-   sbm.Convolver.get_blk
-   sbm.Convolver.get_clm
-   sbm.Convolver.to_spin
-   sbm.Field.conj
-   sbm.ScanFields.create_covmat
-   sbm.ScanFields.generate_noise
-   sbm.ScanFields.generate_noise_pdf
-   sbm.ScanFields.get_xlink
-   sbm.ScanFields.initialize
-   sbm.ScanFields.load_channel
-   sbm.ScanFields.load_det
-   sbm.ScanFields.load_full_FPU
-   sbm.ScanFields.load_hdf5
-   sbm.ScanFields.map_make
-   sbm.ScanFields.t2b
-   sbm.SignalFields.abs_pointing_field
-   sbm.SignalFields.bandpass_mismatch_field
-   sbm.SignalFields.beam_field
-   sbm.SignalFields.build_linear_system
-   sbm.SignalFields.circular_pointing_field
-   sbm.SignalFields.diff_gain_field
-   sbm.SignalFields.diff_pointing_field
-   sbm.SignalFields.elliptical_beam_field
-   sbm.SignalFields.extract_iqu
-   sbm.SignalFields.get_coupled_field
-   sbm.SignalFields.get_field
-   sbm.SignalFields.hwp_ip_field
-   sbm.Systematics.set_bandpass_mismatch
-
+   sbm.testing.random_samples
+   sbm.testing.tod_from_components
+   sbm.testing.least_squares
+   sbm.testing.assert_matches_tod
+   sbm.testing.RealSky

@@ -1,0 +1,35 @@
+Testing
+=======
+
+Run the tests with ``pytest`` (from any directory). They use no reference
+file but ``tests/nside_32_boresight_hwp.h5``, a scan in the cross-link format
+of SBM 0.4, and take about ten seconds.
+
+Every test compares SBM with an independent computation:
+
+* :mod:`sbm.testing` draws random crossing and HWP angles in every pixel of a
+  small map, writes the TOD of spin components, fits them per pixel by least
+  squares (``assert_matches_tod``) and provides a random sky with its
+  derivatives (``RealSky``). ``test_core.py`` checks the map-maker, several
+  detectors and the white-noise covariance against it.
+* ``test_systematics.py`` holds one or more cases per function of
+  :data:`sbm.systematics.ALL` (the sky signal and every systematic): the model and the TOD of the same signal written
+  in real space (a Taylor expansion of the sky at the offset pointing, the gains,
+  litebird_sim's Mueller chain and polarization angles), with no spin
+  decomposition. Every case is checked in several bases; the templates of every
+  systematic must absorb its first-order perturbation; a function of ``ALL``
+  without a case, or missing from :doc:`systematics`, fails.
+* ``test_pointing_geometry.py`` samples a band-limited sky with ducc0 at the
+  offset pointing and checks that the residual of the pointing models falls as
+  :math:`\rho`, :math:`\rho^2` and :math:`\rho^3` at zeroth, first and second
+  order.
+* ``test_hwp_convolution.py`` and ``test_beam_low_ell.py`` compare the beam
+  convolution with Stokes measurements, direct Wigner sums and real-space beam
+  integrals, and the map-maker with sampled TOD.
+* ``test_lbs_h_maps.py`` writes h-map files in the layout of litebird_sim and
+  checks the binning of litebird_sim's TOD model.
+* ``test_forecast.py`` checks the likelihood maximum (zero, linear and
+  injected biases).
+
+A new systematic comes with a real-space TOD test (:doc:`adding_systematics`);
+changing a weight of a model makes these tests fail.
