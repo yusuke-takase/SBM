@@ -24,19 +24,13 @@ import h5py
 import healpy as hp
 import numpy as np
 
-Couple = tuple[int, int]
-
-
-def canonical(n: int, m: int) -> tuple[Couple, bool]:
-    """Return the canonical couple of ``(n, m)`` and whether it is its conjugate.
-
-    Every couple but ``(0, 0)`` is stored once: ``n > 0``, or ``n == 0`` and
-    ``m > 0``. The others are the complex conjugates of their opposite.
-    """
-    n, m = int(n), int(m)
-    if n > 0 or (n == 0 and m >= 0):
-        return (n, m), False
-    return (-n, -m), True
+from .conventions import (
+    Couple,
+    canonical,
+    from_0_4,
+    litebird_sim_couple,
+    projection_parts,
+)
 
 
 class HMaps:
@@ -154,10 +148,10 @@ class HMaps:
             key, _ = canonical(n, m)
             if key == (0, 0) or key in h:
                 continue
-            phase = key[0] * psi + key[1] * phi
+            re, im = projection_parts(key[0], key[1], psi, phi)
             value = np.zeros(npix, dtype=complex)
-            value.real = np.bincount(pixels, weights=np.cos(phase), minlength=npix)
-            value.imag = -np.bincount(pixels, weights=np.sin(phase), minlength=npix)
+            value.real = np.bincount(pixels, weights=re, minlength=npix)
+            value.imag = np.bincount(pixels, weights=im, minlength=npix)
             value[seen] /= hits[seen]
             h[key] = value
         return cls(h, hits, **metadata)
@@ -221,7 +215,7 @@ class HMaps:
                 if (n, m) == (0, 0):
                     continue
                 value = group["Re"][()] + 1j * group["Im"][()]
-                key, conj = canonical(n, -m)
+                key, conj = canonical(*litebird_sim_couple(n, m))
                 h.setdefault(key, np.conj(value) if conj else value)
             attrs = dict(f.attrs)
         return cls(
@@ -251,10 +245,11 @@ class HMaps:
         h = {}
         for i_n, n in enumerate(spins_n):
             for i_m, m in enumerate(spins_m):
-                if n > 0:
-                    h[(n, m)] = stored[:, i_m, i_n]
-                elif n == 0 and -m in spins_m and m > 0:
-                    h[(0, m)] = np.conj(stored[:, spins_m.index(-m), i_n])
+                # the stored (0, m > 0) are not used, as in ScanFields.get_xlink
+                if n > 0 or (n == 0 and m < 0):
+                    key, conj = canonical(*from_0_4(n, m))
+                    value = stored[:, i_m, i_n]
+                    h[key] = np.conj(value) if conj else value
         name = ss.get("name")
         if isinstance(name, np.ndarray):
             name = name[0] if name.size else None
@@ -296,8 +291,9 @@ class HMaps:
             f["0,0/Im"] = np.zeros_like(self.hits)
             for n, m in self.couples:
                 value = self.h(n, m)
-                f[f"{n},{-m}/Re"] = value.real
-                f[f"{n},{-m}/Im"] = value.imag
+                n_file, m_file = litebird_sim_couple(n, m)
+                f[f"{n_file},{m_file}/Re"] = value.real
+                f[f"{n_file},{m_file}/Im"] = value.imag
         return path
 
 

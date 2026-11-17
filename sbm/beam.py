@@ -1,11 +1,11 @@
 """Beam convolution in spin space.
 
 :func:`convolve` returns the spin components ``F_{n,m}`` of the signal of a
-detector with an arbitrary beam, ``d = sum_{n,m} F_{n,m} exp(i (n psi + m phi))``
-in the convention of :mod:`sbm.signal_model`. Without HWP only ``m = 0``
-appears. With a rotating HWP of real Mueller matrix ``M`` the narrow-beam
-(shifted-beam) approximation is used: the HWP harmonic is ``m`` and the input
-beam order ``n + m``.
+detector with an arbitrary beam, in the convention of :mod:`sbm.conventions`.
+Without HWP only ``m = 0`` appears. With a rotating HWP of real Mueller matrix
+``M`` the narrow-beam (shifted-beam) approximation is used. Internally the HWP
+harmonic is ``h``, the factor ``e^{i h phi}`` of the signal, at the component
+``m = SYNTHESIS_SIGN h``, and the input beam order is ``n + h``.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from functools import lru_cache
 import healpy as hp
 import numpy as np
 
+from .conventions import SYNTHESIS_SIGN
 from .harmonics import SphericalHarmonics
 
 IDEAL_HWP = np.diag([1.0, 1.0, -1.0, -1.0])
@@ -71,7 +72,8 @@ def beam_transfer(beam_alm, k: int, spin_m: int = 0) -> np.ndarray:
             or an array with ``mmax = lmax``).
         k: non-negative spin moment of the crossing angle; the spin ``-k`` maps
             are the complex conjugates of the spin ``k`` maps.
-        spin_m: HWP harmonic; the beam order is ``k + spin_m``.
+        spin_m: HWP harmonic ``h`` of the signal (the factor ``e^{i h phi}``, see
+            the module documentation); the beam order is ``k + spin_m``.
     """
     beam_alm, lmax = _check_alm(beam_alm, "beam_alm")
     if k < 0:
@@ -286,9 +288,10 @@ def convolve(
                     )
             if k == 0 and spin_m == 0:
                 f = f.real.astype(complex)
-            out[k, spin_m] = f
-            if k != 0 or spin_m != 0:
-                out[-k, -spin_m] = f.conj()
+            m = SYNTHESIS_SIGN * spin_m  # the HWP harmonic e^{i spin_m phi}
+            out[k, m] = f
+            if k != 0 or m != 0:
+                out[-k, -m] = f.conj()
     return out
 
 

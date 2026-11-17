@@ -45,8 +45,13 @@ from functools import cached_property
 import healpy as hp
 import numpy as np
 
+from .conventions import ETH_PHASE
 from .harmonics import SphericalHarmonics
 from .spin import SpinMap, SpinWeightError
+
+#: ``eth`` of SBM 0.4 with respect to the standard one, the frame of the finite
+#: differences of ``second_order_maps(transport=False)``.
+_ETH_0_4 = 1j
 
 SECOND_ORDER_KEYS = ("eth2_i", "lap_i", "eth2_p", "eth_bar2_p", "lap_p")
 
@@ -232,9 +237,10 @@ def spin_derivatives(alm, nside: int) -> tuple[np.ndarray, np.ndarray, np.ndarra
             hp.almxfl(g, weight), hp.almxfl(c, weight), spin, nside, lmax
         )
 
-    eth_i = -1j * transform(t, zero, _root(ell, ell + 1), 1)
-    eth_p = 1j * transform(e, b, _root(ell - 2, ell + 3), 3)
-    eth_bar_p = 1j * transform(e, b, _root(ell + 2, ell - 1), 1)
+    # the standard eth and eth_bar of I and P, times the phase of the convention
+    eth_i = ETH_PHASE * -transform(t, zero, _root(ell, ell + 1), 1)
+    eth_p = ETH_PHASE * transform(e, b, _root(ell - 2, ell + 3), 3)
+    eth_bar_p = np.conj(ETH_PHASE) * -transform(e, b, _root(ell + 2, ell - 1), 1)
     return eth_i, eth_p, eth_bar_p
 
 
@@ -250,11 +256,13 @@ def _second_order_exact(alm, nside: int) -> dict:
         )
 
     lap_weight = -(ell * (ell + 1.0))
+    eth2, eth_bar2 = ETH_PHASE**2, np.conj(ETH_PHASE) ** 2
+    # the standard second derivatives, times the phases of the convention
     return {
-        "eth2_i": transform(t, zero, _root(ell - 1, ell, ell + 1, ell + 2), 2),
+        "eth2_i": eth2 * -transform(t, zero, _root(ell - 1, ell, ell + 1, ell + 2), 2),
         "lap_i": transform(t, zero, lap_weight, 0).real,
-        "eth2_p": -transform(e, b, _root(ell - 2, ell + 3, ell - 3, ell + 4), 4),
-        "eth_bar2_p": transform(e, b, _root(ell + 2, ell - 1, ell, ell + 1), 0),
+        "eth2_p": eth2 * transform(e, b, _root(ell - 2, ell + 3, ell - 3, ell + 4), 4),
+        "eth_bar2_p": eth_bar2 * -transform(e, b, _root(ell + 2, ell - 1, ell, ell + 1), 0),
         "lap_p": transform(e, b, lap_weight + 4.0, 2),
     }
 
@@ -350,11 +358,14 @@ def second_order_maps(
     lap = 2.0 * (d0 + d90) / h**2
     re_a = 2.0 * (d0 - d90) / h**2
     im_a = lap - 4.0 * d45 / h**2
-    a = re_a + 1j * im_a  # eth^2 of each component
+    a = re_a + 1j * im_a  # eth^2 of SBM 0.4 of each component
+    # to the eth of the convention (the directions alpha above are those of 0.4)
+    eth2 = (ETH_PHASE / _ETH_0_4) ** 2
+    eth_bar2 = np.conj(eth2)
     return {
-        "eth2_i": a[0],
+        "eth2_i": eth2 * a[0],
         "lap_i": lap[0],
-        "eth2_p": a[1] + 1j * a[2],
-        "eth_bar2_p": np.conj(a[1]) + 1j * np.conj(a[2]),
+        "eth2_p": eth2 * (a[1] + 1j * a[2]),
+        "eth_bar2_p": eth_bar2 * (np.conj(a[1]) + 1j * np.conj(a[2])),
         "lap_p": lap[1] + 1j * lap[2],
     }

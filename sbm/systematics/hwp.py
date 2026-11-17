@@ -5,6 +5,12 @@ from __future__ import annotations
 import numpy as np
 
 from ..beam import IDEAL_HWP
+from ..conventions import (
+    fourier_coefficients,
+    litebird_sim_angle,
+    phase_factor,
+    stokes_rotation,
+)
 from ..signal_model import SignalModel
 from ..sky import Sky
 from ._registry import systematic
@@ -21,26 +27,9 @@ def hwp_ip(sky: Sky, epsilon: float, phase_rad: float) -> SignalModel:
     ``phi_UI = phi_QI - pi/2`` and equal amplitudes), seen by a detector at
     polarization angle 0. Their chain is that of :func:`hwp_mueller`, with
     ``alpha = phi``. The leakage depends only on the HWP angle and sits at spin
-    ``(0, 4)``. Template: ``(0, 4)``.
+    ``(0, 4)``.
     """
-    return SignalModel({(0, 4): epsilon / 2.0 * np.exp(1j * phase_rad) * sky.i})
-
-
-#: Mueller matrix of an ideal HWP in its own frame (Stokes I, Q, U, V).
-
-
-def _stokes_rotation(angle):
-    """Rotation of the Stokes parameters by ``2 angle`` (Q' = cos Q + sin U), as in litebird_sim."""
-    c, s = np.cos(2 * angle), np.sin(2 * angle)
-    zero, one = np.zeros_like(c), np.ones_like(c)
-    return np.array(
-        [
-            [one, zero, zero, zero],
-            [zero, c, s, zero],
-            [zero, -s, c, zero],
-            [zero, zero, zero, one],
-        ]
-    )
+    return SignalModel({(0, 4): epsilon / 2.0 * phase_factor(phase_rad) * sky.i})
 
 
 @systematic(data="single_hwp")
@@ -53,8 +42,9 @@ def hwp_mueller(sky: Sky, harmonics: dict, rtol: float = 1e-12) -> SignalModel:
         M(phi) = M_0 + sum_{k > 0} (M_k e^{i k phi} + conj(M_k) e^{-i k phi}) ,
 
     and the data are those of litebird_sim's chain
-    ``d = (1, 1, 0, 0) . R(phi)^T M(phi) R(phi) R(-psi) (I, Q, U, 0)``, with the
-    angles of SBM (:mod:`sbm.systematics`). The function returns the perturbation
+    ``d = (1, 1, 0, 0) . R(phi)^T M(phi) R(phi) R(psi') (I, Q, U, 0)``, with its
+    crossing angle ``psi'`` and the rotations of
+    :func:`~sbm.conventions.stokes_rotation`. The function returns the perturbation
     with respect to the ideal HWP (:data:`IDEAL_HWP`), to be added to
     ``sky_signal(sky, hwp=True)``; the spins are computed exactly from the chain
     sampled on a grid of ``psi`` and ``phi``.
@@ -91,15 +81,13 @@ def hwp_mueller(sky: Sky, harmonics: dict, rtol: float = 1e-12) -> SignalModel:
             m_phi += matrix.real
         else:
             m_phi += 2 * np.real(matrix[None] * np.exp(1j * k * phi)[:, None, None])
-    r_phi = np.moveaxis(_stokes_rotation(phi), -1, 0)  # (n_phi, 4, 4)
-    r_psi = np.moveaxis(_stokes_rotation(-psi), -1, 0)  # (n_psi, 4, 4)
+    r_phi = np.moveaxis(stokes_rotation(phi), -1, 0)  # (n_phi, 4, 4)
+    r_psi = np.moveaxis(stokes_rotation(litebird_sim_angle(psi)), -1, 0)  # (n_psi, 4, 4)
     detector = np.array([1.0, 1.0, 0.0, 0.0])
     # row vector of the chain for every (psi, phi): w[j, l, s]
     chain = np.einsum("i,lji,ljk,lkm->lm", detector, r_phi, m_phi, r_phi)  # (n_phi, 4)
     w = np.einsum("lm,jms->jls", chain, r_psi)  # (n_psi, n_phi, 4)
-    coeff = np.fft.fft2(w, axes=(0, 1)) / (
-        n_psi * n_phi
-    )  # coefficient of e^{i(n psi + m phi)}
+    coeff = fourier_coefficients(w, axes=(0, 1))
     stokes = (sky.i, sky.q, sky.u)
     scale = np.max(np.abs(coeff[..., :3])) if coeff.size else 0.0
     components = {}

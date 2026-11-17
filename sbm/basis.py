@@ -6,11 +6,7 @@ from collections.abc import Iterable
 
 import numpy as np
 
-from .hmaps import Couple, canonical
-
-#: Spin of the polarization ``P = Q + iU`` without and with HWP.
-POLARIZATION = (2, 0)
-POLARIZATION_HWP = (2, -4)
+from .conventions import POLARIZATION, POLARIZATION_HWP, Couple, canonical
 
 
 class Basis:
@@ -21,12 +17,13 @@ class Basis:
             conjugate ``(-n, -m)``, so the dimension of the system is
             ``2 len(couples) - 1`` with ``(0, 0)``, ``2 len(couples)`` without.
         polarization: couple of the polarization ``P = Q + iU``, used for the
-            I, Q, U maps of the result. By default ``(2, 0)`` or ``(2, -4)``,
-            whichever is in ``couples``.
+            I, Q, U maps of the result. By default
+            :data:`~sbm.conventions.POLARIZATION` or
+            :data:`~sbm.conventions.POLARIZATION_HWP`, whichever is in ``couples``.
 
     The unknowns are ``I`` at ``(0, 0)`` and, at every other couple, the
     complex amplitude ``Z_{n,m}`` whose spin component is ``Z_{n,m} / 2``
-    (``Z_{2,0} = P`` without HWP).
+    (``Z = P`` at the couple of the polarization).
     """
 
     def __init__(self, couples: Iterable[Couple], polarization: Couple | None = None):

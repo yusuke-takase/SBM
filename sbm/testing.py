@@ -22,6 +22,8 @@ from __future__ import annotations
 import healpy as hp
 import numpy as np
 
+from .conventions import projection_parts, synthesis_phase
+
 
 def random_samples(nside: int, n_per_pixel: int, seed: int):
     """Pixels, crossing angles ``psi`` and HWP angles ``phi`` of ``n_per_pixel``
@@ -41,10 +43,11 @@ def random_samples(nside: int, n_per_pixel: int, seed: int):
 
 def tod_from_components(components, pixels, psi, phi) -> np.ndarray:
     """Real TOD of the spin components ``{(n, m): S}``, each with its conjugate:
-    ``d = S_00 + sum 2 Re[S_nm exp(i (n psi + m phi))]``."""
+    ``d = S_00 + sum 2 Re[S_nm synthesis_phase(n, m, psi, phi)]``
+    (:func:`sbm.conventions.synthesis_phase`)."""
     d = np.zeros(pixels.size)
     for (n, m), s in components.items():
-        term = s[pixels] * np.exp(1j * (n * psi + m * phi))
+        term = s[pixels] * synthesis_phase(n, m, psi, phi)
         d += term.real if (n, m) == (0, 0) else 2.0 * term.real
     return d
 
@@ -64,11 +67,10 @@ def least_squares(d, pixels, psi, phi, couples, npix: int) -> dict:
             continue
         columns = []
         for n, m in couples:
-            theta = n * psi[sel] + m * phi[sel]
             if (n, m) == (0, 0):
-                columns.append(np.ones(theta.size))
-            else:  # Z/2 e^{i theta} + c.c. = Re Z cos(theta) - Im Z sin(theta)
-                columns.extend([np.cos(theta), -np.sin(theta)])
+                columns.append(np.ones(sel.size))
+            else:  # Z/2 and its conjugate: Re(Z) re + Im(Z) im
+                columns.extend(projection_parts(n, m, psi[sel], phi[sel]))
         x = np.linalg.lstsq(np.array(columns).T, d[sel], rcond=None)[0]
         i = 0
         for c in couples:
