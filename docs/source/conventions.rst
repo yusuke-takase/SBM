@@ -27,8 +27,9 @@ Couples in other conventions
 :meth:`.HMaps.load` and :meth:`.HMaps.save` convert the couples of the h-map
 files of litebird_sim and Falcons.jl, and :meth:`.HMaps.load_legacy` those of
 the cross-link files of SBM 0.4. The h-maps of litebird_sim do not include the
-polarization angle of the detector; SBM models detectors with a zero
-polarization angle.
+polarization angle of the detector; SBM puts it in the signal
+(``pol_angle_rad`` of :func:`~sbm.systematics.sky_signal` and
+:func:`~sbm.systematics.hwp_mueller`).
 
 Spin weights
 ------------

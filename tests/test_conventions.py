@@ -129,6 +129,36 @@ def test_ideal_detector_behind_a_hwp_is_the_chain_of_litebird_sim():
     )
 
 
+def test_polarization_angle_of_the_detector():
+    # litebird_sim's det = (1, cos 2 xi, sin 2 xi, 0), xi from the reference axis
+    sky = Sky.from_alm(random_alm(11), NSIDE)
+    pixels, psi, phi = random_angles(12)
+    i, q, u = stokes(sky, pixels)
+    xi = 0.45
+    angle = 2 * (lbs_psi(psi) + xi)
+    np.testing.assert_allclose(
+        synthesize(sy.sky_signal(sky, pol_angle_rad=xi), pixels, psi, phi),
+        i + q * np.cos(angle) + u * np.sin(angle),
+        atol=1e-12,
+    )
+    hwp = np.diag([1.0, 1.0, -1.0, -1.0])
+    detector = np.array([1.0, np.cos(2 * xi), np.sin(2 * xi), 0.0])
+    tod = [
+        detector
+        @ lbs_rotation(chi).T
+        @ hwp
+        @ lbs_rotation(chi)
+        @ lbs_rotation(lbs_psi(p))
+        @ np.array([ii, qq, uu, 0.0])
+        for ii, qq, uu, p, chi in zip(i, q, u, psi, phi, strict=True)
+    ]
+    np.testing.assert_allclose(
+        synthesize(sy.sky_signal(sky, hwp=True, pol_angle_rad=xi), pixels, psi, phi),
+        tod,
+        atol=1e-12,
+    )
+
+
 def test_hwp_ip_is_epsilon_i_cos_4_phi_plus_phi_qi():
     sky = Sky.from_alm(random_alm(5), NSIDE)
     pixels, psi, phi = random_angles(6)

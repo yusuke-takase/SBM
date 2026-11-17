@@ -33,7 +33,9 @@ def hwp_ip(sky: Sky, epsilon: float, phase_rad: float) -> SignalModel:
 
 
 @systematic(data="single_hwp")
-def hwp_mueller(sky: Sky, harmonics: dict, rtol: float = 1e-12) -> SignalModel:
+def hwp_mueller(
+    sky: Sky, harmonics: dict, rtol: float = 1e-12, pol_angle_rad: float = 0.0
+) -> SignalModel:
     """Non-ideal HWP Mueller matrix, for a single detector.
 
     The Mueller matrix in the frame of the HWP depends on the HWP angle ``phi``
@@ -42,18 +44,30 @@ def hwp_mueller(sky: Sky, harmonics: dict, rtol: float = 1e-12) -> SignalModel:
         M(phi) = M_0 + sum_{k > 0} (M_k e^{i k phi} + conj(M_k) e^{-i k phi}) ,
 
     and the data are those of litebird_sim's chain
-    ``d = (1, 1, 0, 0) . R(phi)^T M(phi) R(phi) R(psi') (I, Q, U, 0)``, with its
-    crossing angle ``psi'`` and the rotations of
-    :func:`~sbm.conventions.stokes_rotation`. The function returns the perturbation
-    with respect to the ideal HWP (:data:`IDEAL_HWP`), to be added to
-    ``sky_signal(sky, hwp=True)``; the spins are computed exactly from the chain
-    sampled on a grid of ``psi`` and ``phi``.
+    ``d = (1, cos 2xi, sin 2xi, 0) . R(phi)^T M(phi) R(phi) R(psi') (I, Q, U, 0)``,
+    with its crossing angle ``psi'``, the polarization angle ``xi`` of the detector
+    and the rotations of :func:`~sbm.conventions.stokes_rotation`. The function
+    returns the perturbation with respect to the ideal HWP (:data:`IDEAL_HWP`), to
+    be added to ``sky_signal(sky, hwp=True, pol_angle_rad=xi)``; the spins are
+    computed exactly from the chain sampled on a grid of ``psi`` and ``phi``.
+
+    For a Mueller matrix that does not depend on the HWP angle (``{0: M}``),
+    with ``a = (m_QQ + m_UU)/2 + i (m_UQ - m_QU)/2``,
+    ``b = (m_QQ - m_UU)/2 + i (m_UQ + m_QU)/2``, ``c = m_QI + i m_UI`` and
+    ``d = m_IQ + i m_IU``, the full model is ``m_II I`` at ``(0, 0)``,
+    ``conj(b)/2 e^{2i xi} P`` at :data:`~sbm.conventions.POLARIZATION_HWP`,
+    ``a/2 e^{-2i xi} P`` at :data:`~sbm.conventions.POLARIZATION` and
+    ``conj(c)/2 e^{2i xi} I`` and ``conj(d)/2 P`` at the couples ``(0, 2)`` and
+    ``(2, 2)`` of the convention: the ideal HWP is ``b = 1``, ``a = c = d = 0``,
+    and the identity matrix (no HWP) ``a = 1``, ``b = c = d = 0``.
 
     Args:
         sky: the sky (only I, Q and U are used).
         harmonics: ``{k: M_k}`` for ``k >= 0``; ``M_0`` is the real 4x4 Mueller
             matrix of the HWP, ``M_k`` complex 4x4 matrices.
         rtol: components smaller than ``rtol`` times the largest are dropped.
+        pol_angle_rad: the polarization angle ``xi`` of the detector, as in
+            :func:`sky_signal`.
 
     :func:`hwp_ip` is the case of the harmonics ``k = 2`` of ``M_QI`` and ``M_UI``.
     The templates depend on the harmonics: the intensity leaks at ``(0, k)``
@@ -83,7 +97,7 @@ def hwp_mueller(sky: Sky, harmonics: dict, rtol: float = 1e-12) -> SignalModel:
             m_phi += 2 * np.real(matrix[None] * np.exp(1j * k * phi)[:, None, None])
     r_phi = np.moveaxis(stokes_rotation(phi), -1, 0)  # (n_phi, 4, 4)
     r_psi = np.moveaxis(stokes_rotation(litebird_sim_angle(psi)), -1, 0)  # (n_psi, 4, 4)
-    detector = np.array([1.0, 1.0, 0.0, 0.0])
+    detector = np.array([1.0, np.cos(2 * pol_angle_rad), np.sin(2 * pol_angle_rad), 0.0])
     # row vector of the chain for every (psi, phi): w[j, l, s]
     chain = np.einsum("i,lji,ljk,lkm->lm", detector, r_phi, m_phi, r_phi)  # (n_phi, 4)
     w = np.einsum("lm,jms->jls", chain, r_psi)  # (n_psi, n_phi, 4)
