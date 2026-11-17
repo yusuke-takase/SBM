@@ -49,11 +49,11 @@ Step 1: the model
 -----------------
 
 Write the TOD with the systematic in the conventions of :doc:`conventions`
-(``d = sum S_{n,m} exp(i (n psi + m phi))``, ``I`` at ``(0,0)``, ``P/2`` at
-``(2,0)`` or ``(2,-4)``) and keep the difference with the ideal detector. For
-an error ``delta`` on the polarization angle of a detector without HWP,
-``d = I + Re[P e^{2i psi} e^{-2i delta}]``, so the perturbation is
-``(e^{-2i delta} - 1) P / 2`` at ``(2, 0)``.
+(``I`` at ``(0,0)``, ``P/2`` at |pol| without HWP or |pol_hwp| behind a HWP)
+and keep the difference with the ideal detector. An error ``delta`` on the
+polarization angle of a detector without HWP rotates the polarization by
+``e^{-2i delta}``, so the perturbation is ``(e^{-2i delta} - 1) P / 2`` at
+|pol|.
 
 Step 2: the function
 --------------------
@@ -61,16 +61,12 @@ Step 2: the function
 Add it to the module of the stage where the systematic acts, declared with
 ``@systematic``:
 
-.. code-block:: python
+.. literalinclude:: ../../sbm/systematics/detector.py
+   :language: python
+   :pyobject: polarization_angle
 
-   @systematic(data="any")
-   def polarization_angle(sky: Sky, delta_rad: float, hwp: bool = False) -> SignalModel:
-       """Error delta_rad on the polarization angle of the detector(s). ..."""
-       if hwp:
-           return SignalModel({(2, -4): (np.exp(2j * delta_rad) - 1.0) * sky.p / 2.0})
-       return SignalModel({(2, 0): (np.exp(-2j * delta_rad) - 1.0) * sky.p / 2.0})
-
-and import it in ``sbm/systematics/__init__.py``.
+and import it in ``sbm/systematics/__init__.py``. The couples of the
+polarization come from :mod:`sbm.conventions`; do not write them as numbers.
 
 * ``data`` is the data the model describes: ``"pair"``, the pair difference
   ``(d_T - d_B) / 2`` of two orthogonal detectors without HWP; ``"single"``, the
@@ -104,12 +100,11 @@ Step 3: the test
 Write the TOD of the same signal in real space, without spin components, and
 add a case to ``cases()`` in ``tests/test_systematics.py``:
 
-.. code-block:: python
-
-   delta = 0.05
-   add(sy.polarization_angle, "polarization_angle-single", False,
-       single + sy.polarization_angle(sky, delta),
-       lambda px, ps, ph: lbs_polarizer_tod(real, px, -ps + delta))
+.. literalinclude:: ../../tests/test_systematics.py
+   :language: python
+   :start-after: # start of the example of docs/source/adding_systematics.rst
+   :end-before: # end of the example
+   :dedent: 4
 
 ``real`` is a :class:`sbm.testing.RealSky` (random values and derivatives in
 every pixel, with a detector that samples the sky at an offset pointing) and

@@ -54,7 +54,7 @@ The binned map-maker fits, in every pixel, the components of a basis
 (:class:`.Basis`) to the data: the intensity :math:`I` at :math:`(0,0)` and,
 at every other couple :math:`(n,m)` of the basis, a complex amplitude
 :math:`Z_{n,m}` whose spin component is :math:`Z_{n,m}/2` (the polarization
-:math:`P = Q + iU` at :math:`(2,0)` without HWP, :math:`(2,-4)` with HWP), with
+:math:`P = Q + iU` at |pol| without HWP, |pol_hwp| with HWP), with
 the conjugate couple :math:`(-n,-m)` carrying :math:`Z^*_{n,m}/2`. The least
 squares give
 

@@ -1,18 +1,14 @@
 """Orientation functions (h-maps) of a detector.
 
 SBM describes the scanning strategy through the orientation functions
+``h̃_{n,m}(p)``, the averages over the samples falling in pixel ``p`` of the
+factor of :mod:`sbm.conventions` (:func:`~sbm.conventions.projection_parts`),
+with the crossing angle ``psi`` of the detector and the HWP angle ``phi``.
+``h̃_{-n,-m}`` is the complex conjugate of ``h̃_{n,m}`` and ``h̃_{0,0} = 1``.
 
-    h̃_{n,m}(p) = < exp(-i (n psi + m phi)) >_p ,
-
-averaged over the samples falling in pixel ``p``, where ``psi`` is the crossing
-angle of the detector and ``phi`` the HWP angle (the angle of the HWP with
-respect to the telescope, counted opposite to ``psi``). ``h̃_{-n,-m}`` is the
-complex conjugate of ``h̃_{n,m}`` and ``h̃_{0,0} = 1``.
-
-litebird_sim and Falcons.jl write ``h_{n,m} = < exp(+i (n psi' + m chi)) >``
-with their orientation angle ``psi' = -psi`` and HWP angle ``chi = phi``, so
-``h̃_{n,m} = h_{n,-m}``. :meth:`HMaps.load` and :meth:`HMaps.save` convert
-between the two.
+The h-map files of litebird_sim and Falcons.jl hold the same functions at the
+couples of :func:`~sbm.conventions.litebird_sim_couple`; :meth:`HMaps.load`
+and :meth:`HMaps.save` convert between the two.
 """
 
 from __future__ import annotations
@@ -198,8 +194,8 @@ class HMaps:
     def load(cls, path) -> HMaps:
         """Read an h-map file of litebird_sim or Falcons.jl (``h_maps_det_<name>.h5``).
 
-        The ``(0, 0)`` group holds the hit counts. The convention is converted
-        (``h̃_{n,m} = h_{n,-m}``, see the module documentation).
+        The ``(0, 0)`` group holds the hit counts. The couples are converted with
+        :func:`~sbm.conventions.litebird_sim_couple`.
         """
         with h5py.File(path, "r") as f:
             groups = {}
@@ -265,8 +261,8 @@ class HMaps:
     def save(self, path) -> Path:
         """Write the maps as an h-map file of litebird_sim and Falcons.jl.
 
-        Every couple is written in their convention, ``h_{n,m} = h̃_{n,-m}``,
-        with ``n >= 0``; the ``(0, 0)`` group holds the hit counts. The coordinate
+        Every couple is written in their convention
+        (:func:`~sbm.conventions.litebird_sim_couple`), with ``n >= 0``; the ``(0, 0)`` group holds the hit counts. The coordinate
         system must be known, ``"Galactic"`` or ``"Ecliptic"`` (or ``"G"``,
         ``"E"``): set :attr:`coordinate_system` first for maps computed with
         :meth:`from_samples`.

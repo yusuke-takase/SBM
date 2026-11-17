@@ -1,19 +1,19 @@
 """Sky maps and their spin derivatives.
 
-The derivatives follow the convention of SBM: on the local tangent plane with
-``x`` along theta and ``y`` along phi, ``eth = d_y - i d_x`` and
-``eth_bar = d_y + i d_x``. For the temperature, with the derivatives of healpy
-(``d/dtheta`` and ``d/dphi / sin(theta)``), ``eth I = I_phi - i I_theta``.
+The derivatives ``eth`` and ``eth_bar`` are those of :mod:`sbm.conventions`,
+:data:`~sbm.conventions.ETH_PHASE` times the standard spin-raising and
+spin-lowering operators.
 
 The polarization ``P = Q + iU`` is a spin-2 field: its components refer to the
 local basis ``(e_theta, e_phi)``, which turns from one point to the next. A
 pointing offset displaces the beam rigidly, so the polarization direction of the
 detector is carried along the displacement (parallel transport), and the
 derivatives of ``P`` are the covariant (spin-weighted) ones: they are computed
-from the E and B coefficients with spin transforms,
+from the T, E and B coefficients with spin transforms, the standard ones being
 
-    eth P     = -i sum (E + iB)_lm sqrt((l - 2)(l + 3)) 3Y_lm
-    eth_bar P = -i sum (E + iB)_lm sqrt((l + 2)(l - 1)) 1Y_lm
+    eth_std I     =  sum T_lm sqrt(l (l + 1)) 1Y_lm
+    eth_std P     = -sum (E + iB)_lm sqrt((l - 2)(l + 3)) 3Y_lm
+    eth_bar_std P =  sum (E + iB)_lm sqrt((l + 2)(l - 1)) 1Y_lm
 
 with the spin harmonics of healpy, and equal ``eth Q + i eth U`` of the
 components in a frame transported from the point.
@@ -29,13 +29,8 @@ that the spin weights of the factors of each component add up to its ``n``
 
 The second-order maps used by the pointing systematics (``eth^2 I``, ``lap I``,
 ``eth^2 P``, ``eth_bar^2 P``, ``lap P``) are the covariant second derivatives,
-computed exactly with spin transforms (:func:`second_order_maps`): a pointing
-offset of size ``rho`` in direction ``alpha`` samples the sky at the point
-displaced along ``-(sin(alpha) e_theta + cos(alpha) e_phi)``, and
-
-    S(p') = S - (rho/2) (e^{i alpha} eth + e^{-i alpha} eth_bar) S
-            + (rho^2/8) (e^{2i alpha} eth^2 + e^{-2i alpha} eth_bar^2) S
-            + (rho^2/4) lap S + O(rho^3) .
+computed exactly with spin transforms (:func:`second_order_maps`), and enter the
+expansion of a pointing offset of :mod:`sbm.conventions`.
 """
 
 from __future__ import annotations
@@ -269,7 +264,8 @@ def _second_order_exact(alm, nside: int) -> dict:
 
 def _displaced(theta, phi, alpha, step):
     """Points displaced by ``step`` along the geodesic in direction ``alpha``,
-    along ``-(sin(alpha) e_theta + cos(alpha) e_phi)``."""
+    along ``-(sin(alpha) e_theta + cos(alpha) e_phi)`` (the directions of SBM 0.4,
+    in which the finite differences of :func:`second_order_maps` are written)."""
     st, ct = np.sin(theta), np.cos(theta)
     sp, cp = np.sin(phi), np.cos(phi)
     n = np.stack([st * cp, st * sp, ct])

@@ -8,8 +8,7 @@ the tests (:class:`sbm.testing.RealSky` and the anchor tests) are written out
 independently, so that a change here that is not carried through the package
 makes them fail.
 
-Angles
-------
+.. rubric:: Angles
 
 * :math:`\psi` (``psi``) is the crossing angle of the detector: the orientation
   of the reference axis of the focal plane on the sky, measured from the axis of
@@ -21,8 +20,7 @@ Angles
   :math:`\chi` of litebird_sim). On the sky the HWP is at :math:`\psi' + \phi
   = -\psi + \phi` (:data:`SKY_HWP_ANGLE`).
 
-Spin expansion
---------------
+.. rubric:: Spin expansion
 
 The data of a detector are
 
@@ -55,8 +53,7 @@ With :math:`P = Q + iU`, an ideal detector without HWP sees
 :data:`POLARIZATION_HWP`. A term :math:`A\cos(n\psi + m\phi + a)` is the
 component :math:`\frac{A}{2}` :func:`phase_factor` :math:`(a)` at :math:`(n,m)`.
 
-Derivatives and offsets
------------------------
+.. rubric:: Derivatives and offsets
 
 :math:`\eth` and :math:`\bar\eth` are :data:`ETH_PHASE` times the standard
 spin-raising and spin-lowering operators,
@@ -78,8 +75,7 @@ A pointing offset fixed in the frame of the detector has
 :math:`\alpha = \psi - \phi + \chi` (it turns with the HWP on the sky,
 :data:`SKY_HWP_ANGLE`).
 
-Other codes and files
----------------------
+.. rubric:: Other codes and files
 
 * litebird_sim and Falcons.jl write
   :math:`h_{n,m} = \langle e^{+i(n\psi' + m\chi)} \rangle`; their couple of
@@ -93,7 +89,7 @@ Other codes and files
 * The literature that expands the data in the HWP angle on the sky,
   :math:`\rho = \psi' + \phi`, has the conjugate pair :func:`to_sky_hwp_angle`.
 
-Examples:
+.. rubric:: Examples
 
 >>> import numpy as np
 >>> from sbm import conventions as cv
@@ -192,7 +188,8 @@ def litebird_sim_couple(n: int, m: int) -> Couple:
 
 def from_0_4(n: int, m: int) -> Couple:
     """The couple of a component or an orientation function ``(n, m)`` of SBM 0.4
-    (and of its cross-link files)."""
+    (and of its cross-link files), and conversely (the relation is
+    its own inverse)."""
     return int(n), SYNTHESIS_SIGN * int(m)
 
 

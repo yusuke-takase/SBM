@@ -9,10 +9,9 @@ the map-maker. The full guide is the documentation page
 [`notebooks/adding_a_systematic.ipynb`](notebooks/adding_a_systematic.ipynb)
 goes through it with an example. In short:
 
-1. Write the perturbation in the conventions of
-   [docs/source/conventions.rst](docs/source/conventions.rst):
-   `d = sum S_{n,m} exp(i (n psi + m phi))`, `I` at `(0,0)`, `P/2` at `(2,0)`
-   (no HWP) or `(2,-4)` (HWP).
+1. Write the perturbation in the conventions of `sbm/conventions.py` (shown on
+   the documentation page [Conventions](docs/source/conventions.rst)); take the
+   couples of the polarization from there instead of writing them as numbers.
 2. Add the function to the module of `sbm/systematics/` where the systematic
    acts (`sky`, `pointing`, `optics`, `hwp`, `detector`), declared with
    `@systematic(data=..., templates=[...])`, and import it in

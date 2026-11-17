@@ -14,7 +14,8 @@ def sky_signal(
 ) -> SignalModel:
     """Signal of the sky seen by an ideal detector (or pair difference).
 
-    ``I`` at ``(0, 0)`` and ``P / 2`` at ``(2, 0)``, or at ``(2, -4)`` with HWP.
+    ``I`` at ``(0, 0)`` and ``P / 2`` at :data:`~sbm.conventions.POLARIZATION`, or
+    at :data:`~sbm.conventions.POLARIZATION_HWP` with HWP.
     A pair difference has no intensity.
     """
     if hwp and pair_difference:

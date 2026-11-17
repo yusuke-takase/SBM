@@ -10,6 +10,8 @@ is reloaded); the function is called as usual.
 
 from __future__ import annotations
 
+import inspect
+
 #: Kinds of data a signal model describes (the argument ``data`` of :func:`systematic`).
 DATA = ("pair", "single", "single_hwp", "any")
 
@@ -38,7 +40,8 @@ def systematic(data: str, templates=()):
 
     The decorated function gets the attributes ``data`` and ``templates``, so
     that ``Basis.iqu(hwp=True).extend(abs_pointing.templates)`` works, and is
-    added to :data:`ALL`, whose every member the tests check against TOD.
+    added to :data:`ALL`, whose every member the tests check against TOD. The
+    templates are appended to its docstring, which therefore does not list them.
     """
     if data not in DATA:
         raise ValueError(f"data must be one of {DATA}, got {data!r}")
@@ -52,6 +55,10 @@ def systematic(data: str, templates=()):
     def register(function):
         function.data = data
         function.templates = templates
+        if templates and function.__doc__:
+            label = "Template" if len(templates) == 1 else "Templates"
+            listed = ", ".join(f"``({n}, {m})``" for n, m in templates)
+            function.__doc__ = f"{inspect.cleandoc(function.__doc__)}\n\n{label}: {listed}."
         key = (function.__module__, function.__qualname__)
         for i, other in enumerate(ALL):
             if (other.__module__, other.__qualname__) == key:

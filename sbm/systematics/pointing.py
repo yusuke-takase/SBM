@@ -28,11 +28,14 @@ def diff_pointing(
 ) -> SignalModel:
     """Pointing offsets of the two detectors of a pair difference.
 
-    The offsets of T and B are ``u_t = rho_t e^{i chi_t}`` and
-    ``u_b = i rho_b e^{i chi_b}`` (B is rotated by 90 degrees). The temperature
-    gradient enters with ``zeta = u_t - u_b`` and weight 1/4, the polarization
-    gradient with ``o_zeta = u_t + u_b`` and weight 1/8. With ``second_order``
-    the O(rho^2) terms are included. Templates: ``(1, 0)``, ``(3, 0)``.
+    The offsets of T and B are ``u_t = rho_t phase_factor(chi_t)`` and
+    ``u_b = i rho_b phase_factor(chi_b)``
+    (:func:`~sbm.conventions.phase_factor`; ``chi_b`` is measured in the frame
+    of B, rotated by 90 degrees). With ``zeta = u_t - u_b`` and
+    ``o_zeta = u_t + u_b`` the components are
+    ``-zeta/4 eth I - conj(o_zeta)/8 eth_bar P`` at ``(1, 0)`` and
+    ``-o_zeta/8 eth P`` at ``(3, 0)``. With ``second_order`` the O(rho^2) terms
+    are added at ``(0, 0)``, ``(2, 0)`` and ``(4, 0)``.
     """
     u_t = rho_t_rad * phase_factor(chi_t_rad)
     u_b = 1j * rho_b_rad * phase_factor(chi_b_rad)
@@ -104,6 +107,13 @@ def abs_pointing(
     """Pointing offset of a single detector behind a HWP.
 
     The offset is fixed in the frame of the detector (direction ``psi + chi``).
+    With ``u = rho phase_factor(chi)`` (:func:`~sbm.conventions.phase_factor`)
+    and the polarization at ``(pn, pm) =``
+    :data:`~sbm.conventions.POLARIZATION_HWP`, the components are ``-u/2 eth I``
+    at ``(1, 0)``, ``-u/4 eth P`` at ``(pn + 1, pm)`` and ``-conj(u)/4 eth_bar P``
+    at ``(pn - 1, pm)``. With ``second_order`` the O(rho^2) terms of the expansion
+    of :mod:`sbm.conventions` are added at ``(0, 0)``, ``(pn, pm)``, ``(2, 0)``
+    and ``(pn +/- 2, pm)``.
     """
     return _offset_components(sky, rho_rad, chi_rad, 1, 0, second_order)
 
@@ -115,6 +125,13 @@ def hwp_wedge(
     """Deflection of the beam by a wedged HWP, for a single detector.
 
     The deflection turns with the HWP: on the sky it points along the angle of
-    the HWP on the sky (:data:`~sbm.conventions.SKY_HWP_ANGLE`) plus ``chi``.
+    the HWP on the sky plus ``chi``, ``dn psi + dm phi + chi`` with
+    ``(dn, dm) =`` :data:`~sbm.conventions.SKY_HWP_ANGLE`. With
+    ``u = rho phase_factor(chi)`` and the polarization at ``(pn, pm)``, the
+    components are those of :func:`abs_pointing` with ``(1, 0)`` replaced by
+    ``(dn, dm)``: ``-u/2 eth I`` at ``(dn, dm)``, ``-u/4 eth P`` at
+    ``(pn + dn, pm + dm)`` and ``-conj(u)/4 eth_bar P`` at ``(pn - dn, pm - dm)``,
+    and with ``second_order`` the O(rho^2) terms at ``(0, 0)``, ``(pn, pm)``,
+    ``(2 dn, 2 dm)`` and ``(pn +/- 2 dn, pm +/- 2 dm)``.
     """
     return _offset_components(sky, rho_rad, chi_rad, *SKY_HWP_ANGLE, second_order)

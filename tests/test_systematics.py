@@ -217,6 +217,7 @@ def cases():
         lambda px, ps, ph: lbs_mueller_tod(real, px, ps, ph, harmonics),
     )
 
+    # start of the example of docs/source/adding_systematics.rst
     delta = 0.05
     add(
         sy.polarization_angle,
@@ -225,6 +226,7 @@ def cases():
         single + sy.polarization_angle(sky, delta),
         lambda px, ps, ph: lbs_polarizer_tod(real, px, -ps + delta),
     )
+    # end of the example
     add(
         sy.polarization_angle,
         "polarization_angle-pair",
@@ -346,13 +348,13 @@ def test_every_systematic_has_a_case():
 
 
 def test_every_systematic_is_documented():
-    text = (
-        Path(__file__).parents[1] / "docs" / "source" / "systematics.rst"
-    ).read_text()
+    # the table of docs/source/systematics.rst is built from ALL; every function
+    # needs its page in the API reference
+    text = (Path(__file__).parents[1] / "docs" / "source" / "reference.rst").read_text()
     missing = [
         f.__name__ for f in sy.ALL if f"sbm.systematics.{f.__name__}" not in text
     ]
-    assert not missing, f"list {missing} in docs/source/systematics.rst"
+    assert not missing, f"list {missing} in docs/source/reference.rst"
 
 
 def test_declaring_a_systematic_again_replaces_it():

@@ -29,8 +29,9 @@ def beam(
     comes from :func:`sbm.beam.pencil`, :func:`sbm.beam.gaussian`,
     :func:`sbm.beam.elliptical` or :meth:`sbm.SphericalHarmonics.from_maps`. The h-maps must hold the
     couples between the basis and the components, up to spin
-    ``max(spin_k) + 2`` (``max(spin_k) + 4`` with the template ``(4, 0)`` or
-    ``(4, -4)``).
+    ``max(spin_k) + 2`` (``max(spin_k) + 4`` with the template of the ``4 psi``
+    term, ``(4, 0)`` without HWP or ``(4, m)`` with the ``m`` of
+    :data:`~sbm.conventions.POLARIZATION_HWP` with HWP).
     """
     maps = convolve(
         sky_alm,
