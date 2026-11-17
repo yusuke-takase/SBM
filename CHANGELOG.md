@@ -1,6 +1,8 @@
 # Head
+- the conventions are written once, in `sbm.conventions` (the sign of the spin expansion, the couples of the polarization, the phase of eth, the angle of the HWP on the sky, the relations to litebird_sim, to SBM 0.4 and to the literature, the rotation of the Stokes parameters, the Fourier coefficients on a grid): the package takes them from there, the page "Conventions" shows its docstring and tables built from the package, the table of the page "Systematics" is built from `sbm.systematics.ALL`, `@systematic` appends the templates to the docstrings, and the code of the pages is included from `docs/examples` and the tests, which run it. `tests/test_conventions.py` writes the conventions out independently and checks that they stay in one place. The convention does not change: the models and the maps are bit for bit those of 0.4.2.
+- the CI runs the notebooks (extra `notebooks`).
 - guides for coding agents in `agent_workspace/` (`Agent.md`, `CLAUDE.md`, `Handbook.md` with a template for the specification of a new systematic and its two layers of tests, #24), read from `AGENTS.md` and `CLAUDE.md` at the root. They refer to the documentation for the conventions and the procedures instead of restating them.
-- the version (extra `lint`) and the rules of Ruff are fixed in `pyproject.toml`, and the CI checks `sbm` and `tests` with Ruff; the imports of `sbm/systematics/__init__.py`, whose order is that of `ALL`, are not sorted.
+- the version (extra `lint`) and the rules of Ruff are fixed in `pyproject.toml`, and the CI checks `sbm`, `tests` and `docs/examples` with Ruff; the imports of `sbm/systematics/__init__.py`, whose order is that of `ALL`, are not sorted.
 
 # Version 0.4.2
 - **Breaking**: the API is rebuilt around the parts of the map-maker, without aliases of the former names (`docs/source/migration.rst` maps every former name to the new one):

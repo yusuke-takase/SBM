@@ -27,16 +27,29 @@ goes through it with an example. In short:
 ## Tests and style
 
 From the repository root, with [uv](https://docs.astral.sh/uv/) (or
-`pip install -e ".[test,plot,docs,lint]"` in any virtual environment):
+`pip install -e ".[test,plot,docs,lint,notebooks]"` in any virtual environment):
 
 ```
 uv venv
-uv pip install --python .venv/bin/python -e ".[test,plot,docs,lint]"
+uv pip install --python .venv/bin/python -e ".[test,plot,docs,lint,notebooks]"
 .venv/bin/python -m pytest tests
-.venv/bin/ruff check sbm tests
+.venv/bin/ruff check sbm tests docs/examples
 .venv/bin/python -m sphinx -b html -W docs/source docs/build/html
 ```
 
-The tests run from any directory and use no reference maps. The version and the
-rules of Ruff are fixed in `pyproject.toml`, and the check reports no
-diagnostics. Code, comments and documentation are in English.
+The tests run from any directory and use no reference maps; with the extra
+`notebooks` they also run the notebooks. The version and the rules of Ruff are
+fixed in `pyproject.toml`, and the check reports no diagnostics. Code, comments
+and documentation are in English.
+
+## Conventions
+
+The conventions (the spin expansion, the angles, the couples of the
+polarization, the relations to litebird_sim and to SBM 0.4) are written once, in
+`sbm/conventions.py`. The code takes them from there, the tables of the
+documentation are built from the package (`docs/source/_ext`), `@systematic`
+writes the templates into the docstrings, and the code shown by the
+documentation is included from `docs/examples` and the tests. To change a
+convention, change `sbm/conventions.py`; `tests/test_conventions.py` (anchor
+tests that write the convention out, and the checks that keep it in one place)
+and `tests/test_pointing_geometry.py` then list what does not follow.
