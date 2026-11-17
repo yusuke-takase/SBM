@@ -63,7 +63,7 @@ def reconstruct(fields, psi, alpha, pixels=None):
     result = np.zeros_like(psi, dtype=complex)
     for (n, h), field in fields.items():
         values = field if pixels is None else field[pixels]
-        result += values * np.exp(1j * (n * psi + h * alpha))
+        result += values * np.exp(-1j * (n * psi + h * alpha))
     np.testing.assert_allclose(result.imag, 0, atol=2e-12)
     return result.real
 
@@ -75,22 +75,22 @@ def convolve(sky, beam, matrix=None, spins=range(LMAX + 1)):
 def point_response(maps, detector, matrix, psi, alpha):
     return np.array(
         [
-            detector @ rotation(-a) @ matrix @ rotation(a) @ rotation(-p) @ stokes
+            detector @ rotation(-a) @ matrix @ rotation(a) @ rotation(p) @ stokes
             for stokes, p, a in zip(maps.T, psi, alpha)
         ]
     )
 
 
-def test_ideal_hwp_has_existing_sbm_polarization_sign():
+def test_ideal_hwp_has_the_polarization_at_its_couple():
     sky = random_alms(11, components=3)
     fields = convolve(sky, pencil_beam())
     maps = sky_maps(sky)
     p = maps[1] + 1j * maps[2]
-    np.testing.assert_allclose(fields[2, -4], p / 2, atol=2e-13)
-    np.testing.assert_allclose(fields[-2, 4], p.conj() / 2, atol=2e-13)
+    np.testing.assert_allclose(fields[2, 4], p / 2, atol=2e-13)
+    np.testing.assert_allclose(fields[-2, -4], p.conj() / 2, atol=2e-13)
     np.testing.assert_allclose(fields[0, 0], maps[0], atol=2e-13)
     for pair, value in fields.items():
-        if pair not in [(0, 0), (2, -4), (-2, 4)]:
+        if pair not in [(0, 0), (2, 4), (-2, -4)]:
             np.testing.assert_allclose(value, 0, atol=2e-13)
 
 
@@ -176,9 +176,9 @@ def direct_wigner_sum(sky, beam, matrix, theta, phi, psi, alpha):
                         )
         d = wigner_small_d(ell, theta)
         orders = np.arange(-ell, ell + 1)
-        # Conventional Wigner angle is -psi_SBM.
+        # psi is the crossing angle of litebird_sim
         dstar = (
-            np.exp(1j * orders[:, None] * phi) * d * np.exp(-1j * orders[None, :] * psi)
+            np.exp(1j * orders[:, None] * phi) * d * np.exp(1j * orders[None, :] * psi)
         )
         value += np.sum((a.T @ effective.conj()) * dstar)
     assert abs(value.imag) < 2e-11
@@ -205,7 +205,7 @@ def test_asymmetric_beam_against_direct_wigner_sum(identity):
     # This fixture also exercises complex n=0 maps and negative odd beam orders.
     if not identity:
         assert np.max(np.abs(fields[0, 2].imag)) > 1e-3
-        assert np.max(np.abs(fields[1, -4])) > 1e-3
+        assert np.max(np.abs(fields[1, 4])) > 1e-3
 
 
 def hmaps_of(psi, alpha):
@@ -220,7 +220,7 @@ def hmaps_of(psi, alpha):
 BASES = {
     2: Basis.qu(hwp=True),
     3: Basis.iqu(hwp=True),
-    5: Basis.iqu(hwp=True).extend([(4, -4)]),
+    5: Basis.iqu(hwp=True).extend([(4, 4)]),
 }
 
 
@@ -250,12 +250,12 @@ def test_mapmaking_against_sampled_tod_least_squares(mdim, kind):
     actual = map_make((hmaps_of(psi, alpha), model), BASES[mdim]).iqu
     expected = np.zeros_like(actual)
     for pixel, stokes in enumerate(sky_maps(sky).T):
-        phase = 4 * alpha[pixel] - 2 * psi[pixel]
+        phase = 2 * psi[pixel] + 4 * alpha[pixel]
         design = [np.cos(phase), np.sin(phase)]
         if mdim != 2:
             design.insert(0, np.ones_like(phase))
         if mdim == 5:
-            extra = 4 * alpha[pixel] - 4 * psi[pixel]
+            extra = 4 * psi[pixel] + 4 * alpha[pixel]
             design.extend([np.cos(extra), np.sin(extra)])
         tod = point_response(
             np.tile(stokes[:, None], (1, 64)),

@@ -228,8 +228,10 @@ class HMaps:
         """Read a cross-link file in the format of SBM 0.4 (``h``, ``hitmap``,
         ``toml/spin_n``, ``toml/spin_m``, ``ss``), as written by Falcons.jl 1.0.
 
-        The values are those that ``ScanFields.get_xlink`` returned: the
-        ``n = 0`` couples are the conjugates of the stored ``(0, -m)``.
+        The values are those that ``ScanFields.get_xlink`` returned, in the
+        convention of SBM 0.4: the ``n = 0`` couples are the conjugates of the
+        stored ``(0, -m)``. Each couple of the file is converted with
+        :func:`~sbm.conventions.from_0_4`.
         """
         with h5py.File(path, "r") as f:
             hits = np.asarray(f["hitmap"][()], dtype=float)

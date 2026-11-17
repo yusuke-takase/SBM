@@ -19,6 +19,7 @@ from sbm import conventions as _cv  # noqa: E402
 rst_epilog = f"""
 .. |pol| replace:: ``{_cv.POLARIZATION}``
 .. |pol_hwp| replace:: ``{_cv.POLARIZATION_HWP}``
+.. |beam_4psi_hwp| replace:: ``{(4, _cv.POLARIZATION_HWP[1])}``
 """
 
 project = "sbm"

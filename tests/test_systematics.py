@@ -41,8 +41,8 @@ NO_HWP_BASES = [
 ]
 HWP_BASES = [
     Basis.iqu(hwp=True),
-    Basis.iqu(hwp=True).extend([(1, 0), (3, -4), (1, -4)]),
-    Basis.iqu(hwp=True).extend([(1, -1), (3, -5), (1, -3), (0, 4), (0, 2)]),
+    Basis.iqu(hwp=True).extend([(1, 0), (3, 4), (1, 4)]),
+    Basis.iqu(hwp=True).extend([(1, 1), (3, 5), (1, 3), (0, 4), (0, 2)]),
 ]
 
 
@@ -57,14 +57,14 @@ def lbs_rotation(angle):
 
 
 def lbs_mueller_tod(real, pixels, psi, phi, harmonics):
-    """litebird_sim's chain det R(chi)^T M(chi) R(chi) R(psi') S with psi' = -psi, chi = phi."""
+    """litebird_sim's chain det R(chi)^T M(chi) R(chi) R(psi) S, with chi = phi."""
     out = np.empty(pixels.size)
     for j, (p, a, b) in enumerate(zip(pixels, psi, phi)):
         mueller = np.zeros((4, 4))
         for k, m_k in harmonics.items():
             mueller += np.real(m_k) if k == 0 else 2 * np.real(m_k * np.exp(1j * k * b))
         stokes = np.array([real.x["I"][p], real.x["Q"][p], real.x["U"][p], 0.0])
-        chain = lbs_rotation(b).T @ mueller @ lbs_rotation(b) @ lbs_rotation(-a)
+        chain = lbs_rotation(b).T @ mueller @ lbs_rotation(b) @ lbs_rotation(a)
         out[j] = np.array([1.0, 1.0, 0.0, 0.0]) @ chain @ stokes
     return out
 
@@ -99,7 +99,8 @@ def _pair(real, pixels, psi, gain_t=0.0, gain_b=0.0, **offsets):
     so = offsets.get("second_order", False)
     psi_b = psi + np.pi / 2
     d_t = real.detector(pixels, psi, rho=rho_t, alpha=psi + chi_t, second_order=so)
-    d_b = real.detector(pixels, psi_b, rho=rho_b, alpha=psi_b + chi_b, second_order=so)
+    # both offsets from the reference axis of the focal plane, that of T
+    d_b = real.detector(pixels, psi_b, rho=rho_b, alpha=psi + chi_b, second_order=so)
     return ((1 + gain_t) * d_t - (1 + gain_b) * d_b) / 2
 
 
@@ -177,7 +178,7 @@ def cases():
 
     for fn, direction in (
         (sy.abs_pointing, lambda ps, ph: ps),
-        (sy.hwp_wedge, lambda ps, ph: ps - ph),
+        (sy.hwp_wedge, lambda ps, ph: ps + ph),
     ):
         for so in (False, True):
             model = single_hwp + fn(sky, 0.03, 0.7, second_order=so)
@@ -224,7 +225,7 @@ def cases():
         "polarization_angle-single",
         False,
         single + sy.polarization_angle(sky, delta),
-        lambda px, ps, ph: lbs_polarizer_tod(real, px, -ps + delta),
+        lambda px, ps, ph: lbs_polarizer_tod(real, px, ps + delta),
     )
     # end of the example
     add(
@@ -233,8 +234,8 @@ def cases():
         False,
         pair + sy.polarization_angle(sky, delta),
         lambda px, ps, ph: (
-            lbs_polarizer_tod(real, px, -ps + delta)
-            - lbs_polarizer_tod(real, px, -(ps + np.pi / 2) + delta)
+            lbs_polarizer_tod(real, px, ps + delta)
+            - lbs_polarizer_tod(real, px, ps + np.pi / 2 + delta)
         )
         / 2,
     )
@@ -243,7 +244,7 @@ def cases():
         "polarization_angle-hwp",
         True,
         single_hwp + sy.polarization_angle(sky, delta, hwp=True),
-        lambda px, ps, ph: lbs_polarizer_tod(real, px, 2 * ph - delta - ps),
+        lambda px, ps, ph: lbs_polarizer_tod(real, px, 2 * ph - delta + ps),
     )
 
     # beam: a pencil beam behind a HWP of general Mueller matrix (see test_hwp_convolution)
@@ -380,7 +381,8 @@ def test_declarations():
     for f in sy.ALL:
         assert f.data in sy.DATA
         assert all(isinstance(t, tuple) and len(t) == 2 for t in f.templates)
-    assert sy.abs_pointing.templates == ((1, 0), (3, -4), (1, -4))
+    assert sy.abs_pointing.templates == ((1, 0), (3, 4), (1, 4))
+    assert sy.hwp_wedge.templates == ((1, 1), (3, 5), (1, 3))
     with pytest.raises(ValueError, match="data"):
         sy.systematic(data="unknown")
     with pytest.raises(ValueError, match="couples"):
@@ -420,7 +422,7 @@ def test_hwp_spins_are_consistent():
     # functions of the same angles: IP = 2 pol + 4 wedge_T between spins.
     sky = RealSky(NSIDE, seed=10).sky()
     (ip,) = sy.hwp_ip(sky, 1.0, 0.0).couples
-    wedge_t = (1, -1)
+    wedge_t = (1, 1)
     assert sy.hwp_wedge(sky, 1.0, 0.0).component(*wedge_t).any()
     pol = Basis.iqu(hwp=True).polarization
     combination = (2 * pol[0] - 4 * wedge_t[0], 2 * pol[1] - 4 * wedge_t[1])

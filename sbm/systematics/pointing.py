@@ -29,16 +29,17 @@ def diff_pointing(
     """Pointing offsets of the two detectors of a pair difference.
 
     The offsets of T and B are ``u_t = rho_t phase_factor(chi_t)`` and
-    ``u_b = i rho_b phase_factor(chi_b)``
-    (:func:`~sbm.conventions.phase_factor`; ``chi_b`` is measured in the frame
-    of B, rotated by 90 degrees). With ``zeta = u_t - u_b`` and
+    ``u_b = rho_b phase_factor(chi_b)``
+    (:func:`~sbm.conventions.phase_factor`), their directions ``chi_t`` and
+    ``chi_b`` measured from the same reference axis of the focal plane (not from
+    the polarizer of B, at 90 degrees from that of T). With ``zeta = u_t - u_b`` and
     ``o_zeta = u_t + u_b`` the components are
     ``-zeta/4 eth I - conj(o_zeta)/8 eth_bar P`` at ``(1, 0)`` and
     ``-o_zeta/8 eth P`` at ``(3, 0)``. With ``second_order`` the O(rho^2) terms
     are added at ``(0, 0)``, ``(2, 0)`` and ``(4, 0)``.
     """
     u_t = rho_t_rad * phase_factor(chi_t_rad)
-    u_b = 1j * rho_b_rad * phase_factor(chi_b_rad)
+    u_b = rho_b_rad * phase_factor(chi_b_rad)
     zeta = u_t - u_b
     o_zeta = u_t + u_b
     components = {

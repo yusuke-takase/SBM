@@ -13,8 +13,10 @@ least-squares fit of those TOD with :func:`sbm.map_make` of the model::
     model = sy.sky_signal(real.sky()) + my_systematic(real.sky(), ...)
     assert_matches_tod(model, tod, samples, sbm.Basis.iqu(hwp=False))
 
-The angles are those of SBM: a detector without HWP sees
-``I + Q cos 2 psi - U sin 2 psi``, with HWP ``I + Q cos(4 phi - 2 psi) + U sin(4 phi - 2 psi)``.
+The TOD of :class:`RealSky` are written out, independently of
+:mod:`sbm.conventions`, with its angles (those of litebird_sim): a detector
+without HWP sees ``I + Q cos 2 psi + U sin 2 psi``, behind a HWP
+``I + Q cos(2 psi + 4 phi) + U sin(2 psi + 4 phi)``.
 """
 
 from __future__ import annotations
@@ -140,11 +142,11 @@ class RealSky:
             for a in ("xx", "xy", "yy")
         }
 
-    def _eth(self, s):
-        return self.d[s, "y"] - 1j * self.d[s, "x"]
+    def _eth(self, s):  # the standard eth, -(d_x + i d_y)
+        return -(self.d[s, "x"] + 1j * self.d[s, "y"])
 
-    def _eth2(self, s):  # (d_y - i d_x)^2
-        return self.h[s, "yy"] - self.h[s, "xx"] - 2j * self.h[s, "xy"]
+    def _eth2(self, s):  # (d_x + i d_y)^2
+        return self.h[s, "xx"] - self.h[s, "yy"] + 2j * self.h[s, "xy"]
 
     def _lap(self, s):
         return self.h[s, "xx"] + self.h[s, "yy"]
@@ -171,8 +173,8 @@ class RealSky:
         )
 
     def sample(self, s, pixels, rho=0.0, alpha=0.0, second_order=False):
-        """Value of ``s`` at the offset ``rho`` along ``-(sin(alpha) e_x + cos(alpha) e_y)``."""
-        dx, dy = -rho * np.sin(alpha), -rho * np.cos(alpha)
+        """Value of ``s`` at the offset ``rho`` along ``cos(alpha) e_x + sin(alpha) e_y``."""
+        dx, dy = rho * np.cos(alpha), rho * np.sin(alpha)
         v = (
             self.x[s][pixels]
             + dx * self.d[s, "x"][pixels]
@@ -187,9 +189,9 @@ class RealSky:
         return v
 
     def detector(self, pixels, psi, phi=None, rho=0.0, alpha=0.0, second_order=False):
-        """TOD of a single detector: ``I + Q cos 2psi - U sin 2psi`` without HWP
-        (``phi=None``), ``I + Q cos(4phi - 2psi) + U sin(4phi - 2psi)`` with HWP,
+        """TOD of a single detector: ``I + Q cos 2psi + U sin 2psi`` without HWP
+        (``phi=None``), ``I + Q cos(2psi + 4phi) + U sin(2psi + 4phi)`` with HWP,
         sampling the sky at the offset ``rho`` in direction ``alpha``."""
         i, q, u = (self.sample(s, pixels, rho, alpha, second_order) for s in "IQU")
-        angle = 2 * psi if phi is None else 2 * psi - 4 * phi
-        return i + q * np.cos(angle) - u * np.sin(angle)
+        angle = 2 * psi if phi is None else 2 * psi + 4 * phi
+        return i + q * np.cos(angle) + u * np.sin(angle)

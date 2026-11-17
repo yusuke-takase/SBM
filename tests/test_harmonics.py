@@ -71,7 +71,7 @@ def test_gaussian_beam_is_healpy_smoothing(hwp):
     alm = random_teb(lmax, 4)
     fields = convolve(alm, sbm_beam.gaussian(fwhm, lmax), nside, range(5), hwp=hwp)
     smoothed = hp.alm2map(hp.smoothalm(alm, fwhm=fwhm, pol=True, inplace=False), nside)
-    pol = (2, -4) if hwp else (2, 0)
+    pol = (2, 4) if hwp else (2, 0)
     np.testing.assert_allclose(fields[0, 0].real, smoothed[0], atol=1e-12)
     np.testing.assert_allclose(
         fields[pol], (smoothed[1] + 1j * smoothed[2]) / 2, atol=1e-12

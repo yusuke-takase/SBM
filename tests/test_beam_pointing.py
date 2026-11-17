@@ -19,7 +19,7 @@ from sbm.harmonics import SphericalHarmonics
 from sbm.sky import Sky
 
 PHI0 = 1.0  # azimuth of the beam centre in the beam frame
-CHI = -PHI0 - np.pi / 2  # the same offset in the convention of the pointing models
+CHI = PHI0  # the same offset in the convention of the pointing models
 
 
 def random_alm(lmax, seed, temperature=True):
@@ -89,7 +89,7 @@ def test_shifted_beam_with_hwp_is_the_offset_within_the_narrow_beam_approximatio
             max(
                 np.max(np.abs(fields[c] - offset.component(*c)))
                 / np.max(np.abs(offset.component(*c)))
-                for c in ((1, -4), (3, -4))
+                for c in ((1, 4), (3, 4))
             )
         )
     # about 0.8 % per degree of FWHM: 10 % at 12 degrees, halved at 6 degrees

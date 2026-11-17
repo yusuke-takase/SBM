@@ -1,7 +1,66 @@
-Migration from the former API
-=============================
+Migration
+=========
 
-The former classes and functions are removed, without aliases. The code and the
+From 0.4.2 to 0.5: the convention
+---------------------------------
+
+SBM 0.5 counts the crossing angle :math:`\psi` in the sense of the polarization
+angle, as litebird_sim and Falcons.jl do, writes the data with
+:math:`e^{-i(n\psi + m\phi)}` and uses the standard spin-raising operator: the
+convention of :mod:`sbm.conventions`. The arguments keep their names and
+shapes, so that code written for 0.4.2 runs, **without an error, and gives a
+different result** where it passes one of the following. A model, its maps and
+the map-making of 0.4.2 are reproduced to the rounding errors with these
+replacements.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - In 0.4.2
+     - In 0.5
+   * - a couple :math:`(n, m)` of a component, an orientation function or a
+       basis (``Basis.extend([...])``, ``model.component(n, m)``,
+       ``hmaps.h(n, m)``)
+     - :math:`(n, -m)`, :func:`sbm.conventions.from_0_4`; take the templates
+       from the functions (``f.templates``) and the couples of the
+       polarization from :mod:`sbm.conventions`
+   * - ``psi`` given to :meth:`.HMaps.from_samples` or to :mod:`sbm.testing`,
+       counted opposite to the polarization angle
+     - ``-psi``, the crossing angle of litebird_sim
+   * - ``chi_rad`` of :func:`~sbm.systematics.abs_pointing` and
+       :func:`~sbm.systematics.hwp_wedge`, ``chi_t_rad`` of
+       :func:`~sbm.systematics.diff_pointing`
+     - :math:`-\chi - \pi/2`: the direction of the offset itself, from the
+       reference axis of the focal plane
+   * - ``chi_b_rad`` of :func:`~sbm.systematics.diff_pointing`, measured in the
+       frame of B
+     - :math:`-\chi_B - \pi`: from the same axis as ``chi_t_rad``
+   * - derivatives given to :class:`.Sky` (``eth_i``, ``eth_p``, ``eth_bar_p``,
+       ``second_order``), with :math:`\eth = \partial_y - i\partial_x`
+     - the standard operators: :math:`-i` times ``eth_i`` and ``eth_p``,
+       :math:`i` times ``eth_bar_p``, :math:`-1` times ``eth2_i``, ``eth2_p``
+       and ``eth_bar2_p``; ``lap_i`` and ``lap_p`` unchanged
+   * - ``spin_m`` of :func:`sbm.beam.beam_transfer`, the component ``m``
+     - the harmonic :math:`e^{i\,{\rm spin\_m}\,\phi}` of the signal, the
+       component ``m = -spin_m``
+   * - :meth:`.HMaps.load` and :meth:`.HMaps.save` converted the couples of the
+       files of litebird_sim and Falcons.jl, :math:`(n, m) \to (n, -m)`
+     - no conversion: the couples are the same
+   * - :meth:`.HMaps.load_legacy` read the couples as stored
+     - converts them with :func:`~sbm.conventions.from_0_4`; a couple whose
+       :math:`(n, -m)` the file lacks is not available
+   * - the HWP angle :math:`\phi`, ``phase_rad`` of
+       :func:`~sbm.systematics.hwp_ip`, ``delta_rad`` of
+       :func:`~sbm.systematics.polarization_angle`, the harmonics of
+       :func:`~sbm.systematics.hwp_mueller`, the Mueller matrix of the beam
+     - unchanged
+
+From the former API (0.4.1)
+---------------------------
+
+This table maps the API of 0.4.1 to that of 0.4.2; for 0.5, apply the section
+above as well. The former classes and functions are removed, without aliases. The code and the
 documentation of the former API (0.4.1) remain in the tag ``v0.4.1``:
 
 .. code-block:: bash

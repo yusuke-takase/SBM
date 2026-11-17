@@ -33,32 +33,32 @@ NSIDE = 4
 LMAX = 8
 
 # --------------------------------------------------------------------- #
-# The convention, written out (that of SBM 0.4)
+# The convention, written out (that of SBM 0.5)
 #
-#   d = sum_{n,m} S_{n,m} exp(+i (n psi + m phi)),   h_{n,m} = < exp(-i (n psi + m phi)) >
+#   d = sum_{n,m} S_{n,m} exp(-i (n psi + m phi)),   h_{n,m} = < exp(+i (n psi + m phi)) >
 #
-# with the angles of litebird_sim psi' = -psi (crossing angle) and chi = phi
-# (HWP angle), and eth = d_y - i d_x on the tangent plane (x along theta).
+# with the angles of litebird_sim, psi (crossing angle) and chi = phi (HWP
+# angle), and the standard eth = -(d_theta + i d_phi / sin(theta)).
 
 
 def synthesize(model, pixels, psi, phi):
     d = np.zeros(pixels.size)
     for c in model.components():
-        d += (c.map[pixels] * np.exp(1j * (c.n * psi + c.m * phi))).real
+        d += (c.map[pixels] * np.exp(-1j * (c.n * psi + c.m * phi))).real
     return d
 
 
 def projection(pixels, psi, phi, n, m, npix):
     hits = np.bincount(pixels, minlength=npix)
-    total = np.bincount(pixels, weights=np.exp(-1j * (n * psi + m * phi)).real, minlength=npix)
+    total = np.bincount(pixels, weights=np.exp(1j * (n * psi + m * phi)).real, minlength=npix)
     total = total + 1j * np.bincount(
-        pixels, weights=np.exp(-1j * (n * psi + m * phi)).imag, minlength=npix
+        pixels, weights=np.exp(1j * (n * psi + m * phi)).imag, minlength=npix
     )
     return total / hits
 
 
 def lbs_psi(psi):
-    return -psi
+    return psi
 
 
 def lbs_rotation(angle):
@@ -203,7 +203,7 @@ def rotated(sky, alpha):
 
 
 def test_turning_the_basis_changes_the_crossing_angle():
-    # in the convention of SBM 0.4 psi becomes psi + alpha, and the HWP angle is unchanged
+    # psi becomes psi - alpha, and the HWP angle is unchanged
     sky = Sky.from_alm(random_alm(8), NSIDE)
     pixels, psi, phi = random_angles(9)
     alpha = 0.4
@@ -214,7 +214,7 @@ def test_turning_the_basis_changes_the_crossing_angle():
         (lambda s: sy.sky_signal(s, hwp=True) + sy.hwp_wedge(s, 1e-2, -0.8), True),
     ]:
         np.testing.assert_allclose(
-            synthesize(build(turned), pixels, psi + alpha, phi),
+            synthesize(build(turned), pixels, psi - alpha, phi),
             synthesize(build(sky), pixels, psi, phi),
             atol=1e-12,
             err_msg=f"hwp={hwp}",
@@ -225,8 +225,8 @@ def test_eth_of_the_temperature():
     alm = random_alm(10)
     sky = Sky.from_alm(alm, NSIDE)
     _, d_theta, d_phi = hp.alm2map_der1(alm[0], NSIDE, lmax=LMAX)
-    np.testing.assert_allclose(sky.eth_i, d_phi - 1j * d_theta, atol=1e-10)
-    np.testing.assert_allclose(sky.eth_bar_i, d_phi + 1j * d_theta, atol=1e-10)
+    np.testing.assert_allclose(sky.eth_i, -(d_theta + 1j * d_phi), atol=1e-10)
+    np.testing.assert_allclose(sky.eth_bar_i, -(d_theta - 1j * d_phi), atol=1e-10)
 
 
 # --------------------------------------------------------------------- #
@@ -304,10 +304,12 @@ FORMER = [
     r"\(3, ?-5\)",
     r"\(4, ?-4\)",
     r"\(4, ?-6\)",
+    r"\(4, ?-8\)",
     r"\(2, ?-2\)",
-    r"exp\(i ?\(n ?psi",
-    r"e\^\{i ?\(n ?\\?psi",
-    r"e\^\{i ?n ?\\psi\}",
+    # the synthesis with e^{+i}; e^{+i} is the projection in 0.5
+    r"S[^=]{0,40}exp\(i ?\(n ?psi",
+    r"S[^=]{0,40}e\^\{i ?\(n ?\\?psi",
+    r"S[^=]{0,40}e\^\{i ?n ?\\psi\}",
     r"counted opposite",
     r"- ?U ?\\?sin ?\(?2 ?\\?psi",
     r"4 ?\\?phi ?- ?2 ?\\?psi",
@@ -324,7 +326,15 @@ def _sources():
     for pattern in ("sbm/**/*.py", "tests/*.py", "docs/source/*.rst", "*.md",
                     "agent_workspace/*.md"):
         for path in sorted(ROOT.glob(pattern)):
-            if path.name == "test_conventions.py":
+            # these write the convention of SBM 0.4 on purpose: sbm.conventions (its
+            # relations), the history, the migration and the page of the thesis
+            if path.name in (
+                "test_conventions.py",
+                "conventions.py",
+                "CHANGELOG.md",
+                "migration.rst",
+                "thesis_systematics.rst",
+            ):
                 continue
             yield path, path.read_text().splitlines()
     for path in sorted(ROOT.glob("notebooks/*.ipynb")):

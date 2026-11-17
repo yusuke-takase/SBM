@@ -4,6 +4,8 @@ Formalism
 The case of single detector
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The signs of the exponents below are those of :mod:`sbm.conventions`.
+
 SBM addresses the map-making problem in spin space. By this approach, binning of time-ordered data (TOD)
 is replaced by a convolution of the map in spin space.
 
@@ -31,7 +33,7 @@ and :math:`\phi`, the transformation :math:`(\psi,\phi)\to(n,m)` is given by
 
 .. math::
 
-    S^{d}(\Omega,\psi,\phi) = \sum_{n,m}{}_{n,m}\tilde{S}^{d}(\Omega)e^{i n\psi}e^{i m\phi}, \\
+    S^{d}(\Omega,\psi,\phi) = \sum_{n,m}{}_{n,m}\tilde{S}^{d}(\Omega)e^{-i n\psi}e^{-i m\phi}, \\
     {}_{n,m}\tilde{S}^{d}(\Omega) = \sum_{n'=-\infty}^{\infty}\sum_{m'=-\infty}^{\infty}{}_{\Delta n,\Delta m}\tilde{h}(\Omega){}_{n',m'}\tilde{S}(\Omega),
 
 where we introduce :math:`\Delta n = n-n'` and :math:`\Delta m = m-m'`. :math:`{}_{n,m}\tilde{S}^{d}` is :meth:`.SignalModel.project`.
@@ -40,8 +42,8 @@ space scan field as
 
 .. math::
 
-    {}_{n,m}\tilde{h}(\Omega) &= \frac{1}{4\pi^{2}}\int d\psi \int d\phi h(\Omega,\psi,\phi)e^{-i n\psi}e^{-i m\phi} \\
-    &= \frac{1}{N_{\rm hits}}\sum_{j}e^{-i(n\psi_j + m \phi_j)}.
+    {}_{n,m}\tilde{h}(\Omega) &= \frac{1}{4\pi^{2}}\int d\psi \int d\phi h(\Omega,\psi,\phi)e^{i n\psi}e^{i m\phi} \\
+    &= \frac{1}{N_{\rm hits}}\sum_{j}e^{i(n\psi_j + m \phi_j)}.
 
 These are the orientation functions returned by :meth:`.HMaps.h`; :math:`{}_{-n,-m}\tilde h` is the complex conjugate of :math:`{}_{n,m}\tilde h` and :math:`{}_{0,0}\tilde h = 1`.
 
@@ -96,7 +98,7 @@ Here, we define orthogonal pair detector which is named as :math:`\texttt{T}` an
 
 .. math::
 
-    {}_{n,m}\tilde{h}^{(\texttt{B})} = {}_{n,m}\tilde{h}^{(\texttt{T})}e^{-i n \frac{\pi}{2}}.
+    {}_{n,m}\tilde{h}^{(\texttt{B})} = {}_{n,m}\tilde{h}^{(\texttt{T})}e^{i n \frac{\pi}{2}}.
 
 The detected signal in spin space per detector is given by
 

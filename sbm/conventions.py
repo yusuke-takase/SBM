@@ -6,19 +6,18 @@ takes them from here, the documentation shows this text and the tables built
 from these values, and the tests check the examples below. The physical TOD of
 the tests (:class:`sbm.testing.RealSky` and the anchor tests) are written out
 independently, so that a change here that is not carried through the package
-makes them fail.
+makes them fail. They are those of litebird_sim and Falcons.jl.
 
 .. rubric:: Angles
 
 * :math:`\psi` (``psi``) is the crossing angle of the detector: the orientation
   of the reference axis of the focal plane on the sky, measured from the axis of
-  :math:`Q`, and counted opposite to the polarization angle of :math:`Q` and
-  :math:`U` (the angle of litebird_sim is :math:`\psi' = -\psi`,
-  :func:`litebird_sim_angle`).
+  :math:`Q` in the sense of the polarization angle of :math:`Q` and :math:`U`
+  (the angle :math:`\psi` of litebird_sim, :func:`litebird_sim_angle`).
 * :math:`\phi` (``phi``) is the HWP angle with respect to the telescope, on
-  which the HWP is mounted, counted as the polarization angle (the angle
-  :math:`\chi` of litebird_sim). On the sky the HWP is at :math:`\psi' + \phi
-  = -\psi + \phi` (:data:`SKY_HWP_ANGLE`).
+  which the HWP is mounted, counted in the same sense (the angle :math:`\chi` of
+  litebird_sim). On the sky the HWP is at :math:`\psi + \phi`
+  (:data:`SKY_HWP_ANGLE`).
 
 .. rubric:: Spin expansion
 
@@ -26,7 +25,7 @@ The data of a detector are
 
 .. math::
 
-   d(\psi, \phi) = \sum_{n,m} {}_{n,m}\tilde S \, e^{i(n\psi + m\phi)},
+   d(\psi, \phi) = \sum_{n,m} {}_{n,m}\tilde S \, e^{-i(n\psi + m\phi)},
    \qquad {}_{-n,-m}\tilde S = {}_{n,m}\tilde S^*,
 
 (:func:`synthesis_phase`; :data:`SYNTHESIS_SIGN` is the sign of the exponent),
@@ -34,81 +33,87 @@ the orientation functions of a pixel are the averages over its samples
 
 .. math::
 
-   {}_{n,m}\tilde h = \langle e^{-i(n\psi + m\phi)} \rangle,
+   {}_{n,m}\tilde h = \langle e^{+i(n\psi + m\phi)} \rangle,
    \qquad {}_{-n,-m}\tilde h = {}_{n,m}\tilde h^*,
 
 (:func:`projection_parts`), and the binned data of the pixel are
-:math:`\langle d\, e^{-i(n\psi + m\phi)} \rangle = \sum_{n',m'}
+:math:`\langle d\, e^{+i(n\psi + m\phi)} \rangle = \sum_{n',m'}
 {}_{n-n',m-m'}\tilde h \; {}_{n',m'}\tilde S`. A model and the h-maps store
 one couple per conjugate pair (:func:`canonical`). When the local basis turns by
 an angle :math:`\alpha` in the sense of the polarization angle, a field of spin
 weight :math:`s` is multiplied by :math:`e^{-is\alpha}` and :math:`\psi`
-becomes :math:`\psi + \alpha`, so the component :math:`{}_{n,m}\tilde S` has
-spin weight :math:`n`.
+becomes :math:`\psi - \alpha`, so the component :math:`{}_{n,m}\tilde S` has
+spin weight :math:`n`; the HWP angle enters only :math:`m`.
 
 With :math:`P = Q + iU`, an ideal detector without HWP sees
-:math:`I + Q\cos 2\psi - U\sin 2\psi`: :math:`I` at :math:`(0,0)` and
+:math:`I + Q\cos 2\psi + U\sin 2\psi`: :math:`I` at :math:`(0,0)` and
 :math:`P/2` at :data:`POLARIZATION`. Behind an ideal HWP it sees
-:math:`I + Q\cos(4\phi - 2\psi) + U\sin(4\phi - 2\psi)`: :math:`P/2` at
+:math:`I + Q\cos(2\psi + 4\phi) + U\sin(2\psi + 4\phi)`: :math:`P/2` at
 :data:`POLARIZATION_HWP`. A term :math:`A\cos(n\psi + m\phi + a)` is the
 component :math:`\frac{A}{2}` :func:`phase_factor` :math:`(a)` at :math:`(n,m)`.
+With ``phi`` increasing in time at the angular frequency of the HWP, the
+polarization is at the negative frequency :math:`-4 f_{\rm HWP}` of a discrete
+Fourier transform such as ``numpy.fft`` (with :math:`e^{-2i\psi}`), its
+conjugate at :math:`+4 f_{\rm HWP}`.
 
 .. rubric:: Derivatives and offsets
 
-:math:`\eth` and :math:`\bar\eth` are :data:`ETH_PHASE` times the standard
-spin-raising and spin-lowering operators,
-:math:`\eth_{\rm std} = -(\partial_\theta + i\partial_\phi/\sin\theta)`: on the
-local tangent plane with :math:`x` along :math:`\theta` and :math:`y` along
-:math:`\phi`, :math:`\eth = \partial_y - i\partial_x` and
-:math:`\bar\eth = \partial_y + i\partial_x`. An offset of size :math:`\rho` in
-direction :math:`\alpha` samples the sky at the point displaced by :math:`\rho`
-along :math:`-(\sin\alpha\, e_\theta + \cos\alpha\, e_\phi)`, and
+:math:`\eth` and :math:`\bar\eth` are the standard spin-raising and
+spin-lowering operators (:data:`ETH_PHASE` is 1),
+:math:`\eth = -(\partial_\theta + i\partial_\phi/\sin\theta)` and
+:math:`\bar\eth = -(\partial_\theta - i\partial_\phi/\sin\theta)` on a
+field of spin weight 0. An offset of size :math:`\rho` in direction
+:math:`\alpha` samples the sky at the point displaced by :math:`\rho` along
+:math:`\cos\alpha\, e_\theta + \sin\alpha\, e_\phi`, and
 
 .. math::
 
-   S(p') = S - \frac{\rho}{2}\left(e^{i\alpha}\eth + e^{-i\alpha}\bar\eth\right) S
-   + \frac{\rho^2}{8}\left(e^{2i\alpha}\eth^2 + e^{-2i\alpha}\bar\eth^2\right) S
+   S(p') = S - \frac{\rho}{2}\left(e^{-i\alpha}\eth + e^{i\alpha}\bar\eth\right) S
+   + \frac{\rho^2}{8}\left(e^{-2i\alpha}\eth^2 + e^{2i\alpha}\bar\eth^2\right) S
    + \frac{\rho^2}{4}\nabla^2 S + O(\rho^3).
 
 A pointing offset fixed in the frame of the detector has
-:math:`\alpha = \psi + \chi`, the deflection of a wedged HWP
-:math:`\alpha = \psi - \phi + \chi` (it turns with the HWP on the sky,
-:data:`SKY_HWP_ANGLE`).
+:math:`\alpha = \psi + \chi`, with :math:`\chi` the direction of the offset
+measured from the reference axis of the focal plane in the sense of
+:math:`\psi`; the deflection of a wedged HWP turns with it,
+:math:`\alpha = \psi + \phi + \chi` (:data:`SKY_HWP_ANGLE`). The two detectors
+of a pair difference measure their :math:`\chi` from the same axis.
 
 .. rubric:: Other codes and files
 
 * litebird_sim and Falcons.jl write
-  :math:`h_{n,m} = \langle e^{+i(n\psi' + m\chi)} \rangle`; their couple of
-  :math:`{}_{n,m}\tilde h` is :func:`litebird_sim_couple`, here
-  :math:`h_{n,-m}`. Their TOD model behind a HWP of Mueller matrix :math:`M` is
-  :math:`d = (1, 1, 0, 0) \cdot R(\chi)^T M R(\chi) R(\psi') S`, with
+  :math:`h_{n,m} = \langle e^{+i(n\psi + m\chi)} \rangle`, the orientation
+  functions of SBM at the same couple (:func:`litebird_sim_couple`). Their TOD
+  model behind a HWP of Mueller matrix :math:`M` is
+  :math:`d = (1, 1, 0, 0) \cdot R(\chi)^T M R(\chi) R(\psi) S`, with
   :func:`stokes_rotation`.
-* The cross-link files of SBM 0.4 (``HMaps.load_legacy``) and the
-  couples of SBM 0.4 map to the couples here with :func:`from_0_4` (the
-  identity: this is the convention of SBM 0.4).
+* SBM 0.4 (to 0.4.2) counted :math:`\psi` in the opposite sense and wrote
+  :math:`d = \sum {}_{n,m}\tilde S\, e^{+i(n\psi + m\phi)}`: its couples, and
+  those of its cross-link files (``HMaps.load_legacy``), map to
+  the couples here with :func:`from_0_4`, :math:`(n, m) \to (n, -m)`.
 * The literature that expands the data in the HWP angle on the sky,
-  :math:`\rho = \psi' + \phi`, has the conjugate pair :func:`to_sky_hwp_angle`.
+  :math:`\rho = \psi + \phi`, has the conjugate pair :func:`to_sky_hwp_angle`.
 
 .. rubric:: Examples
 
 >>> import numpy as np
 >>> from sbm import conventions as cv
 >>> cv.POLARIZATION, cv.POLARIZATION_HWP
-((2, 0), (2, -4))
+((2, 0), (2, 4))
 >>> psi, phi, i, q, u = 0.3, 1.1, 1.0, 0.2, -0.5
 >>> p = q + 1j * u
 >>> def tod(n, m, s):  # a component and its conjugate
 ...     return 2 * (s * cv.synthesis_phase(n, m, psi, phi)).real
 >>> ideal = i + tod(*cv.POLARIZATION_HWP, p / 2)
->>> bool(np.isclose(ideal, i + q * np.cos(4 * phi - 2 * psi) + u * np.sin(4 * phi - 2 * psi)))
+>>> bool(np.isclose(ideal, i + q * np.cos(2 * psi + 4 * phi) + u * np.sin(2 * psi + 4 * phi)))
 True
 >>> without = i + tod(*cv.POLARIZATION, p / 2)
->>> bool(np.isclose(without, i + q * np.cos(2 * psi) - u * np.sin(2 * psi)))
+>>> bool(np.isclose(without, i + q * np.cos(2 * psi) + u * np.sin(2 * psi)))
 True
 >>> bool(np.isclose(tod(0, 4, 0.5 * cv.phase_factor(0.7)), np.cos(4 * phi + 0.7)))
 True
->>> cv.litebird_sim_couple(2, -4), cv.from_0_4(2, -4), cv.to_sky_hwp_angle(2, -4)
-((2, 4), (2, -4), (2, -4))
+>>> cv.litebird_sim_couple(2, 4), cv.from_0_4(2, -4), cv.to_sky_hwp_angle(2, 4)
+((2, 4), (2, 4), (2, -4))
 """
 
 from __future__ import annotations
@@ -119,11 +124,11 @@ Couple = tuple[int, int]
 
 #: Sign of the exponent of the spin expansion,
 #: ``d = sum S_{n,m} exp(SYNTHESIS_SIGN i (n psi + m phi))``.
-SYNTHESIS_SIGN = 1
+SYNTHESIS_SIGN = -1
 
 #: Phase of the derivatives of SBM with respect to the standard spin-raising
 #: operator, ``eth = ETH_PHASE eth_std`` and ``eth_bar = conj(ETH_PHASE) eth_bar_std``.
-ETH_PHASE = 1j
+ETH_PHASE = 1
 
 #: Couple of ``P / 2`` (``P = Q + iU``) for an ideal detector without HWP.
 POLARIZATION = (2, 0)
@@ -188,8 +193,8 @@ def litebird_sim_couple(n: int, m: int) -> Couple:
 
 def from_0_4(n: int, m: int) -> Couple:
     """The couple of a component or an orientation function ``(n, m)`` of SBM 0.4
-    (and of its cross-link files), and conversely (the relation is
-    its own inverse)."""
+    to 0.4.2 (and of its cross-link files), ``(n, -m)``, and
+    conversely (the relation is its own inverse)."""
     return int(n), SYNTHESIS_SIGN * int(m)
 
 

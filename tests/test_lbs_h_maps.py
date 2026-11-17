@@ -98,14 +98,14 @@ def sbm_hmaps(psi_sbm, chi):
     )
 
 
-def test_load_uses_minus_psi(tmp_path):
+def test_load_uses_the_angles_of_litebird_sim(tmp_path):
     psi, chi = samples(51)
     hits = np.full(NPIX, NSAMPLES)
     hits[[0, 5, 11]] = 0
     hm = HMaps.load(write_lbs_h_maps(tmp_path / "h_maps_det_det.h5", psi, chi, hits))
     np.testing.assert_array_equal(hm.hits, hits)
     seen = hits > 0
-    expected = sbm_hmaps(-psi, chi)
+    expected = sbm_hmaps(psi, chi)
     for n in SPINS_N:
         for m in SPINS_M:
             np.testing.assert_allclose(
@@ -133,7 +133,7 @@ def test_fixed_length_string_attributes_are_decoded(tmp_path):
     [
         (False, Basis.iqu(hwp=False)),
         (True, Basis.iqu(hwp=True)),
-        (True, Basis.iqu(hwp=True).extend([(4, -4)])),
+        (True, Basis.iqu(hwp=True).extend([(4, 4)])),
     ],
 )
 def test_map_making_matches_litebird_sim_tod_binning(tmp_path, hwp, basis):
@@ -174,9 +174,9 @@ def test_map_making_matches_litebird_sim_tod_binning(tmp_path, hwp, basis):
         # Without systematics the binned map of an ideal detector is the input
         # sky whatever the orientation convention: nothing more to compare.
         return
-    # Feeding litebird_sim's angles to SBM unchanged (ψ_SBM = ψ) describes the
-    # mirrored TOD and does not reproduce the binning.
-    mirrored = map_make((sbm_hmaps(psi, chi), model), basis).iqu
+    # The crossing angle counted in the opposite sense (that of SBM 0.4)
+    # describes the mirrored TOD and does not reproduce the binning.
+    mirrored = map_make((sbm_hmaps(-psi, chi), model), basis).iqu
     assert np.max(np.abs(mirrored[1:] - expected[1:])) > 1e-3
 
 
@@ -191,10 +191,10 @@ def test_several_detectors_are_hit_weighted(tmp_path):
     b = write_lbs_h_maps(tmp_path / "b.h5", psi[:, half:], chi[:, half:], name="b")
     both = HMaps.combine([HMaps.load(a), HMaps.load(b)])
     np.testing.assert_array_equal(both.hits, hits_a + half)
-    expected = sbm_hmaps(-psi, chi)
+    expected = sbm_hmaps(psi, chi)
     keep = np.arange(NPIX) != 3
-    only_b = sbm_hmaps(-psi[3:4, half:], chi[3:4, half:])
-    for n, m in [(2, 0), (2, -4), (4, 8), (0, 4)]:
+    only_b = sbm_hmaps(psi[3:4, half:], chi[3:4, half:])
+    for n, m in [(2, 0), (2, 4), (4, 8), (0, 4)]:
         np.testing.assert_allclose(
             both.h(n, m)[keep], expected.h(n, m)[keep], atol=1e-14
         )
