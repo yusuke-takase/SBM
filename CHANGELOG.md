@@ -1,4 +1,5 @@
 # Head
+- guides for coding agents in `agent_workspace/` (`Agent.md`, `CLAUDE.md`, `Handbook.md` with a template for the specification of a new systematic and its two layers of tests, #24), read from `AGENTS.md` and `CLAUDE.md` at the root. They refer to the documentation for the conventions and the procedures instead of restating them.
 - the version (extra `lint`) and the rules of Ruff are fixed in `pyproject.toml`, and the CI checks `sbm` and `tests` with Ruff; the imports of `sbm/systematics/__init__.py`, whose order is that of `ALL`, are not sorted.
 
 # Version 0.4.2
