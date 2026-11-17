@@ -51,16 +51,16 @@ class Basis:
         self.polarization = polarization
 
     @classmethod
-    def iqu(cls, hwp: bool) -> "Basis":
+    def iqu(cls, hwp: bool) -> Basis:
         """I and P, the standard 3x3 system (``mdim = 3``)."""
         return cls([(0, 0), POLARIZATION_HWP if hwp else POLARIZATION])
 
     @classmethod
-    def qu(cls, hwp: bool) -> "Basis":
+    def qu(cls, hwp: bool) -> Basis:
         """P only, the 2x2 system of the pair difference (``mdim = 2``)."""
         return cls([POLARIZATION_HWP if hwp else POLARIZATION])
 
-    def extend(self, couples: Iterable[Couple]) -> "Basis":
+    def extend(self, couples: Iterable[Couple]) -> Basis:
         """A basis with more couples (templates of systematics)."""
         return Basis(list(self.couples) + list(couples), self.polarization)
 

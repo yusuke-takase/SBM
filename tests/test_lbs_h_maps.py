@@ -155,7 +155,7 @@ def test_map_making_matches_litebird_sim_tod_binning(tmp_path, hwp, basis):
         else np.eye(4)
     )
     hm = HMaps.load(write_lbs_h_maps(tmp_path / "h.h5", psi, chi))
-    kwargs = dict(hwp=True, mueller=mueller) if hwp else {}
+    kwargs = {"hwp": True, "mueller": mueller} if hwp else {}
     model = sy.beam(sky, pencil_beam(detector), NSIDE, range(LMAX + 1), **kwargs)
     actual = map_make((hm, model), basis).iqu
 

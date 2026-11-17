@@ -14,8 +14,9 @@ detectors, their systems weighted by the hit counts are summed before solving.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import contextlib
 import warnings
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -123,10 +124,8 @@ def _solve(a: np.ndarray, b: np.ndarray, mask: np.ndarray) -> np.ndarray:
         x[idx] = np.linalg.solve(a[idx], b[idx, :, None])[..., 0]
     except np.linalg.LinAlgError:
         for i in idx:
-            try:
+            with contextlib.suppress(np.linalg.LinAlgError):
                 x[i] = np.linalg.solve(a[i], b[i])
-            except np.linalg.LinAlgError:
-                pass
     return x
 
 

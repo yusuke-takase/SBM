@@ -31,6 +31,8 @@ dependencies = [
 plot = ["matplotlib>=3.1"]
 test = ["pytest>=7"]
 docs = ["sphinx>=7", "pydata-sphinx-theme>=0.16"]
+# Keep in step with tool.ruff.required-version.
+lint = ["ruff==0.17.4"]
 
 [project.urls]
 Repository = "https://github.com/yusuke-takase/SBM"
@@ -38,5 +40,12 @@ Repository = "https://github.com/yusuke-takase/SBM"
 [tool.hatch.build.targets.wheel]
 packages = ["sbm"]
 
+[tool.ruff]
+required-version = "==0.17.4"
+
 [tool.ruff.lint]
-extend-select = []
+select = ["E4", "E7", "E9", "F", "I", "UP", "C4", "PIE", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# The order of these imports is the order of ALL (the path of the signal).
+"sbm/systematics/__init__.py" = ["I001"]

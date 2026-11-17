@@ -20,12 +20,11 @@ from sbm.map_making import (
 )
 from sbm.signal_model import SignalModel
 from sbm.sky import Sky
-
 from sbm.testing import least_squares, random_samples, tod_from_components
 
 NSIDE = 2
 NPIX = hp.nside2npix(NSIDE)
-COUPLES = [(n, m) for n in range(0, 9) for m in range(-12, 13, 4)]
+COUPLES = [(n, m) for n in range(9) for m in range(-12, 13, 4)]
 
 
 def random_map(rng, complex_=True):
@@ -404,7 +403,7 @@ def test_orientation_matrix_of_an_ideal_scan():
 def test_sky_derivatives_of_a_dipole():
     # checks the signs of the convention; lmax=4 keeps the aliasing of map2alm small
     nside = 64
-    theta, phi = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
+    theta, _ = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
     i = np.cos(theta)  # d/dtheta = -sin(theta), d/dphi = 0
     sky = Sky.from_maps(i, np.zeros_like(i), np.zeros_like(i), lmax=4)
     np.testing.assert_allclose(sky.eth_i, 1j * np.sin(theta), atol=1e-3)

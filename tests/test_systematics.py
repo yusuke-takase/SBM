@@ -12,9 +12,9 @@ no function of ``ALL`` lacks a case, and that the documentation lists all of the
 To add a systematic, add its cases here (see "Adding a systematic" in the docs).
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import pytest
@@ -163,7 +163,7 @@ def cases():
         lambda: (pair, bandpass),
     )
 
-    offsets = dict(rho_t=0.03, chi_t=0.4, rho_b=0.02, chi_b=-1.3)
+    offsets = {"rho_t": 0.03, "chi_t": 0.4, "rho_b": 0.02, "chi_b": -1.3}
     for so in (False, True):
         model = pair + sy.diff_pointing(sky, 0.03, 0.4, 0.02, -1.3, second_order=so)
         add(
@@ -318,6 +318,22 @@ def test_every_exported_function_is_a_registered_systematic():
     }
     assert exported == set(sy.ALL)
     assert len(sy.ALL) == len(set(sy.ALL))
+
+
+def test_all_follows_the_path_of_the_signal():
+    # The imports of sbm/systematics/__init__.py set this order (Ruff does not sort them).
+    assert [f.__name__ for f in sy.ALL] == [
+        "sky_signal",
+        "diff_pointing",
+        "abs_pointing",
+        "hwp_wedge",
+        "beam",
+        "hwp_ip",
+        "hwp_mueller",
+        "diff_gain",
+        "bandpass_mismatch",
+        "polarization_angle",
+    ]
 
 
 def test_every_systematic_has_a_case():

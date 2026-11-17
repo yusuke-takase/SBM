@@ -133,7 +133,7 @@ class HMaps:
         phi=None,
         couples: Iterable[Couple] = (),
         **metadata,
-    ) -> "HMaps":
+    ) -> HMaps:
         """Compute the orientation functions of a set of samples.
 
         Args:
@@ -163,7 +163,7 @@ class HMaps:
         return cls(h, hits, **metadata)
 
     @staticmethod
-    def combine(hmaps: Sequence["HMaps"]) -> "HMaps":
+    def combine(hmaps: Sequence[HMaps]) -> HMaps:
         """Hit-weighted combination of the h-maps of several detectors.
 
         Map-making with the combination is the same as map-making with each
@@ -201,7 +201,7 @@ class HMaps:
     # Files
 
     @classmethod
-    def load(cls, path) -> "HMaps":
+    def load(cls, path) -> HMaps:
         """Read an h-map file of litebird_sim or Falcons.jl (``h_maps_det_<name>.h5``).
 
         The ``(0, 0)`` group holds the hit counts. The convention is converted
@@ -209,7 +209,7 @@ class HMaps:
         """
         with h5py.File(path, "r") as f:
             groups = {}
-            for key in f.keys():
+            for key in f:
                 couple = _parse_couple(key)
                 if couple is not None:  # other groups or datasets are ignored
                     groups[couple] = f[key]
@@ -234,7 +234,7 @@ class HMaps:
         )
 
     @classmethod
-    def load_legacy(cls, path) -> "HMaps":
+    def load_legacy(cls, path) -> HMaps:
         """Read a cross-link file in the format of SBM 0.4 (``h``, ``hitmap``,
         ``toml/spin_n``, ``toml/spin_m``, ``ss``), as written by Falcons.jl 1.0.
 
@@ -246,7 +246,7 @@ class HMaps:
             stored = f["h"][()]
             spins_n = [int(n) for n in f["toml"]["spin_n"][()]]
             spins_m = [int(m) for m in f["toml"]["spin_m"][()]]
-            ss = {key: f["ss"][key][()] for key in f["ss"].keys() if key != "quat"}
+            ss = {key: f["ss"][key][()] for key in f["ss"] if key != "quat"}
         stored = np.where(np.isnan(stored), 0.0, stored)
         h = {}
         for i_n, n in enumerate(spins_n):
