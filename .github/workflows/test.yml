@@ -2,45 +2,94 @@ name: Tests
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
   pull_request:
-    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
 
 jobs:
-  tests:
-    runs-on: ${{ matrix.os }}
+  pytest:
+    # Linux only; the documentation is built but not deployed.
+    name: pytest (Python ${{ matrix.python }}, ${{ matrix.numpy }})
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python: [3.9, 3.11]
-        exclude:
-          - os: macos-latest
-            python: 3.9
-          - os: ubuntu-latest
-            python: 3.11
-
+        include:
+          - python: "3.11"
+            numpy: "numpy<2"
+          - python: "3.12"
+            numpy: "numpy>=2"
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python }}
-
-      - name: Install poetry
-        run: python -m pip install poetry==1.8.2
-
-      - name: Install sbm dependencies
+      - name: Install uv
         run: |
-          poetry export --without-hashes -o requirements.txt
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Install sbm
-        run: poetry install
+      - name: Install SBM
+        run: |
+          uv venv --python ${{ matrix.python }}
+          uv pip install --python .venv/bin/python -e ".[test,plot]" "${{ matrix.numpy }}"
 
-      - name: Test
-        run: poetry run pytest -vv
+      - name: Run pytest
+        run: .venv/bin/python -m pytest tests -q
+
+  notebooks:
+    # The notebooks run (in memory) with one version of Python.
+    name: Notebooks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run the notebooks
+        run: |
+          uv venv --python 3.12
+          uv pip install --python .venv/bin/python -e ".[test,notebooks]"
+          .venv/bin/python -m pytest tests/test_notebooks.py -q
+
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run Ruff
+        # The version and the rules are fixed in pyproject.toml.
+        run: |
+          uv venv --python 3.12
+          uv pip install --python .venv/bin/python -e ".[lint]"
+          .venv/bin/ruff check sbm tests docs/examples
+
+  docs:
+    name: Sphinx documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build the documentation
+        run: |
+          uv venv --python 3.12
+          uv pip install --python .venv/bin/python -e ".[docs]"
+          .venv/bin/python -m sphinx -b html -W docs/source docs/build/html

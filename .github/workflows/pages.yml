@@ -1,0 +1,57 @@
+name: Pages
+
+# Manual only. Builds the documentation of the selected branch and uploads the site as the
+# artifact "github-pages"; with "deploy" checked and the branch master, also deploys it.
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy to GitHub Pages (otherwise only build and upload the artifact)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build
+        run: |
+          uv venv --python 3.12
+          uv pip install --python .venv/bin/python -e ".[docs]"
+          .venv/bin/python -m sphinx -b html -W docs/source docs/build/html
+
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: docs/build/html
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: inputs.deploy && github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

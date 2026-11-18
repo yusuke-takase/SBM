@@ -11,3 +11,7 @@ docs/source/_build/
 docs/source/_static/
 .ruff_cache/
 docs/_build/
+
+# Sphinx autosummary output
+docs/source/generated/
+.venv/
