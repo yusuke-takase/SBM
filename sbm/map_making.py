@@ -331,3 +331,138 @@ def noise_maps(
     y = np.full((hmaps.npix, basis.dimension), complex(np.nan, np.nan), dtype=complex)
     y[idx] = r @ t.T
     return MapMakingResult(basis=basis, solution=y.T.copy(), mask=mask)
+
+
+# ---------------------------------------------------------------------- #
+# Pointing jitter
+
+
+def _unit_offsets(offset_model) -> list[SignalModel]:
+    """The models of the unit offsets along ``chi = 0`` and ``chi = pi/2`` of
+    each independent offset model, checked to be linear in the offset."""
+    models = [offset_model] if callable(offset_model) else list(offset_model)
+    if not models:
+        raise ValueError("the pointing jitter needs at least one offset model")
+    units = []
+    for model in models:
+        along_x, along_y = model(1.0, 0.0), model(1.0, np.pi / 2)
+        excess = model(2.0, 0.0) - 2.0 * along_x
+        scale = max(
+            (float(np.max(np.abs(c.map))) for c in along_x.components()), default=0.0
+        )
+        if any(
+            float(np.max(np.abs(c.map))) > 1e-10 * scale for c in excess.components()
+        ):
+            raise ValueError(
+                "the offset model must be linear in the offset (first order, "
+                "without second_order)"
+            )
+        units += [along_x, along_y]
+    return units
+
+
+def pointing_jitter_covariance(
+    hmaps: HMaps,
+    basis: Basis,
+    offset_model,
+    sigma_rad: float,
+    mask=None,
+) -> np.ndarray:
+    """Covariance of the solved amplitudes for a random pointing jitter, shape
+    ``(npix, k, k)``.
+
+    The pointing offset of every sample is drawn independently of the other
+    samples: its two components, along the directions ``chi = 0`` and
+    ``chi = pi/2`` of ``offset_model``, are independent Gaussian variables of
+    standard deviation ``sigma_rad``. Since this jitter is isotropic, its
+    statistics do not depend on the frame in which ``chi`` is measured.
+
+    ``offset_model(rho_rad, chi_rad)`` is the :class:`.SignalModel` of a fixed
+    offset at first order, for instance
+    ``functools.partial(sbm.systematics.abs_pointing, sky)`` or, for a pair whose
+    two detectors share the offset,
+    ``lambda rho, chi: sbm.systematics.diff_pointing(sky, rho, chi, rho, chi)``.
+    A sequence of models gives jitters that are independent of each other, such
+    as those of the two detectors of a pair. A co-pointed pair behind a HWP has
+    the data of a single detector that sees the polarization only: give
+    ``abs_pointing`` a :class:`.Sky` without intensity.
+
+    At first order the jitter adds ``x g + y g'`` to every sample, with ``g`` and
+    ``g'`` the data of the unit offsets along the two directions: white noise of
+    variance ``sigma^2 (g^2 + g'^2)``. The right-hand side of the map-maker then
+    has the covariance ``sigma^2 / N_hits A_g``, where ``A_g`` is the matrix of
+    :func:`orientation_matrix` with the samples weighted by ``g^2 + g'^2``, and
+    the amplitudes have ``A^{-1} (sigma^2 / N_hits A_g) A^{-1}``. The pixels are
+    independent. The covariance is ``NaN`` in the pixels that are not solved (as
+    in :func:`map_make`).
+
+    The h-maps must hold the couples between the differences of the basis couples
+    and the components of ``g^2``, whose couples are the sums of two couples of
+    the offset model; ``KeyError`` lists the missing ones. The mean effect of the
+    jitter, a smoothing of the sky at second order in ``sigma_rad``, is not
+    included.
+
+    Raises:
+        ValueError: ``sigma_rad`` negative or not finite, or an offset model that
+            is not linear in the offset (``second_order=True``).
+    """
+    if not (np.isfinite(sigma_rad) and sigma_rad >= 0):
+        raise ValueError(f"sigma_rad must be finite and non-negative, got {sigma_rad}")
+    squared = sum(unit * unit for unit in _unit_offsets(offset_model))
+    full, w = basis.full, basis.weights
+    differences = {(ni - nj, mi - mj) for ni, mi in full for nj, mj in full}
+    missing = sorted(
+        c for c in squared.required_couples(differences) if not hmaps.has(*c)
+    )
+    if missing:
+        raise KeyError(
+            f"the h-maps lack the couples {missing} needed by the pointing jitter "
+            f"on {basis}"
+        )
+    a = orientation_matrix(hmaps, basis)
+    mask = _selection(a, hmaps.hits, mask)
+    idx = np.flatnonzero(mask)
+    a_g = np.empty((idx.size, len(full), len(full)), dtype=complex)
+    for i, (ni, mi) in enumerate(full):
+        for j in range(i, len(full)):
+            nj, mj = full[j]
+            a_g[:, i, j] = w[i] * w[j] * squared.project(hmaps, ni - nj, mi - mj)[idx]
+            a_g[:, j, i] = np.conj(a_g[:, i, j])
+    a_inv = np.linalg.inv(a[idx])
+    cov = np.full(a.shape, complex(np.nan, np.nan), dtype=complex)
+    scale = sigma_rad**2 / hmaps.hits[idx]
+    cov[idx] = a_inv @ a_g @ a_inv * scale[:, None, None]
+    return cov
+
+
+def pointing_jitter_maps(
+    hmaps: HMaps,
+    basis: Basis,
+    offset_model,
+    sigma_rad: float,
+    rng: np.random.Generator,
+    mask=None,
+) -> MapMakingResult:
+    """A realization of the random pointing jitter in the solved amplitudes,
+    with the covariance of :func:`pointing_jitter_covariance` (same arguments).
+
+    The result is the change of the map-making solution, to be added to that of
+    the signal without jitter, e.g.
+    ``map_make((hmaps, sky_signal(sky, hwp=True)), basis).iqu + jitter.iqu``.
+    """
+    cov = pointing_jitter_covariance(hmaps, basis, offset_model, sigma_rad, mask)
+    mask = ~np.isnan(cov[:, 0, 0])
+    t = _real_transform(basis)
+    t_inv = np.linalg.inv(t)
+    idx = np.flatnonzero(mask)
+    cov_r = np.einsum("ij,pjk,lk->pil", t_inv, cov[idx], t_inv.conj()).real
+    cov_r = 0.5 * (cov_r + np.swapaxes(cov_r, 1, 2))
+    # a square root that also holds for a singular covariance (sigma = 0, or a
+    # component that the jitter does not reach)
+    values, vectors = np.linalg.eigh(cov_r)
+    root = vectors * np.sqrt(np.clip(values, 0.0, None))[:, None, :]
+    z = rng.standard_normal((idx.size, basis.dimension))
+    r = np.einsum("pij,pj->pi", root, z)
+    y = np.full((hmaps.npix, basis.dimension), complex(np.nan, np.nan), dtype=complex)
+    y[idx] = r @ t.T
+    return MapMakingResult(basis=basis, solution=y.T.copy(), mask=mask)

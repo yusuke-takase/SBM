@@ -19,6 +19,8 @@ from .map_making import (
     noise_covariance,
     noise_maps,
     orientation_matrix,
+    pointing_jitter_covariance,
+    pointing_jitter_maps,
 )
 from .plotting import get_cmap
 from .signal_model import SignalModel, SpinComponent
@@ -58,6 +60,8 @@ __all__ = [
     "noise_covariance",
     "noise_maps",
     "orientation_matrix",
+    "pointing_jitter_covariance",
+    "pointing_jitter_maps",
     "spin",
     "systematics",
 ]
