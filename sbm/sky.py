@@ -48,7 +48,6 @@ import numpy as np
 from .harmonics import SphericalHarmonics
 from .spin import SpinMap, SpinWeightError
 
-
 SECOND_ORDER_KEYS = ("eth2_i", "lap_i", "eth2_p", "eth_bar2_p", "lap_p")
 
 #: Spin weights of the second-order maps.
@@ -122,12 +121,12 @@ class Sky:
             self.__dict__["second_order"] = _second_order_with_spins(second_order)
 
     @classmethod
-    def from_maps(cls, i, q, u, **kwargs) -> "Sky":
+    def from_maps(cls, i, q, u, **kwargs) -> Sky:
         """Sky from I, Q and U maps."""
         return cls(i, np.asarray(q) + 1j * np.asarray(u), **kwargs)
 
     @classmethod
-    def from_alm(cls, alm, nside: int, **kwargs) -> "Sky":
+    def from_alm(cls, alm, nside: int, **kwargs) -> Sky:
         """Sky from T, E, B coefficients (:class:`.SphericalHarmonics`, litebird_sim's,
         or an array in the healpy ordering with ``mmax = lmax``)."""
         alm = SphericalHarmonics.of(alm)
@@ -279,7 +278,7 @@ def _synthesize(alm_t, alm_eb, lmax, theta, phi, nthreads, epsilon):
     from ducc0.sht.experimental import synthesis_general
 
     loc = np.ascontiguousarray(np.stack([theta, phi], axis=1))
-    options = dict(lmax=lmax, loc=loc, epsilon=epsilon, nthreads=nthreads)
+    options = {"lmax": lmax, "loc": loc, "epsilon": epsilon, "nthreads": nthreads}
     t = synthesis_general(alm=alm_t, spin=0, **options)[0]
     qu = synthesis_general(alm=alm_eb, spin=2, **options)
     return t, qu[0], qu[1]

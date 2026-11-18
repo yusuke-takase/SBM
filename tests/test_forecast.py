@@ -59,7 +59,7 @@ def test_forecast_exact_is_stationary():
 
 def test_forecast_exact_resolves_small_bias():
     # delta_r ~ 1e-9 is resolved (MIGRAD with tol=1e-8 could not): the bias follows the linear scaling
-    ell, cl_tens, cl_lens = _spectra()
+    _, _, cl_lens = _spectra()
     base = 1e-6 * cl_lens
     d1 = sbm.forecast(_full(base))["delta_r"]
     d2 = sbm.forecast(_full(2.0 * base))["delta_r"]
@@ -70,7 +70,7 @@ def test_forecast_exact_resolves_small_bias():
 def test_forecast_recovers_injected_tensor_bias():
     # a systematic equal to r_in times the tensor spectrum makes C_hat equal to the model at r_in,
     # so the likelihood maximum is exactly r_in, with or without noise
-    ell, cl_tens, cl_lens = _spectra()
+    _, cl_tens, cl_lens = _spectra()
     noise = np.full_like(
         cl_lens, np.deg2rad(2.0 / 60.0) ** 2
     )  # 2 uK-arcmin white noise

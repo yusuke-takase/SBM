@@ -103,7 +103,7 @@ def hwp_mueller(sky: Sky, harmonics: dict, rtol: float = 1e-12) -> SignalModel:
     stokes = (sky.i, sky.q, sky.u)
     scale = np.max(np.abs(coeff[..., :3])) if coeff.size else 0.0
     components = {}
-    for n in range(0, 3):
+    for n in range(3):
         for m in range(-(kmax + 4), kmax + 5):
             if n == 0 and m < 0:
                 continue

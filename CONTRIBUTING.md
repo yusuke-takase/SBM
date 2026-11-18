@@ -27,11 +27,17 @@ goes through it with an example. In short:
 
 ## Tests and style
 
+From the repository root, with [uv](https://docs.astral.sh/uv/) (or
+`pip install -e ".[test,plot,docs,lint]"` in any virtual environment):
+
 ```
-pip install -e ".[test,plot]"
-pytest
-ruff check sbm tests
+uv venv
+uv pip install --python .venv/bin/python -e ".[test,plot,docs,lint]"
+.venv/bin/python -m pytest tests
+.venv/bin/ruff check sbm tests
+.venv/bin/python -m sphinx -b html -W docs/source docs/build/html
 ```
 
-The tests run from any directory and use no reference maps. Code, comments and
-documentation are in English.
+The tests run from any directory and use no reference maps. The version and the
+rules of Ruff are fixed in `pyproject.toml`, and the check reports no
+diagnostics. Code, comments and documentation are in English.

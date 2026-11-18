@@ -55,7 +55,7 @@ class SphericalHarmonics:
         return self.values.shape[0]
 
     @classmethod
-    def of(cls, alm, mmax: int | None = None) -> "SphericalHarmonics":
+    def of(cls, alm, mmax: int | None = None) -> SphericalHarmonics:
         """``alm`` as :class:`SphericalHarmonics`: itself, an object with the
         attributes ``values``, ``lmax`` and ``mmax`` (such as litebird_sim's), or an
         array of coefficients with ``mmax = lmax`` unless ``mmax`` is given.
@@ -76,7 +76,7 @@ class SphericalHarmonics:
     @classmethod
     def from_maps(
         cls, maps, lmax: int | None = None, iter: int = 3
-    ) -> "SphericalHarmonics":
+    ) -> SphericalHarmonics:
         """Coefficients of a T map or of I, Q, U maps (``healpy.map2alm``)."""
         maps = np.atleast_2d(np.asarray(maps, dtype=float))
         if maps.shape[0] not in (1, 3):
@@ -90,7 +90,7 @@ class SphericalHarmonics:
         values = self.values[:3] if self.nstokes >= 3 else self.values[0]
         return np.atleast_2d(hp.alm2map(values, nside, lmax=self.lmax, mmax=self.mmax))
 
-    def full(self) -> "SphericalHarmonics":
+    def full(self) -> SphericalHarmonics:
         """The same coefficients with ``mmax = lmax`` (zero above the old ``mmax``)."""
         if self.mmax == self.lmax:
             return self

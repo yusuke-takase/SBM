@@ -5,11 +5,11 @@ import healpy as hp
 import numpy as np
 import pytest
 
-
 from sbm import systematics as sy
 from sbm.basis import Basis
 from sbm.beam import _low_ell_beam_source, _low_ell_filters, beam_transfer, convolve
 from sbm.map_making import map_make
+
 from .test_hwp_convolution import (
     LMAX,
     NSIDE,
@@ -56,7 +56,9 @@ def realspace_tod(beam, monopole, dipole, theta, phi, psi, alpha, matrix):
             np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)
         )
     )
-    options = dict(lmax=LMAX, ntheta=ntheta, nphi=nphi, geometry="GL", nthreads=1)
+    options = {
+        "lmax": LMAX, "ntheta": ntheta, "nphi": nphi, "geometry": "GL", "nthreads": 1
+    }
     intensity = ducc0.sht.experimental.synthesis_2d(alm=beam[:1], spin=0, **options)[0]
     q, u = ducc0.sht.experimental.synthesis_2d(alm=beam[1:3], spin=2, **options)
     p_ludwig = (q + 1j * u) * np.exp(2j * ph)

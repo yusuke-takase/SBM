@@ -34,7 +34,7 @@ class SpinComponent:
     m: int
     map: np.ndarray
 
-    def conj(self) -> "SpinComponent":
+    def conj(self) -> SpinComponent:
         return SpinComponent(-self.n, -self.m, np.conj(self.map))
 
 
@@ -136,7 +136,7 @@ class SignalModel:
                     needed.add(key)
         return needed
 
-    def __add__(self, other: "SignalModel") -> "SignalModel":
+    def __add__(self, other: SignalModel) -> SignalModel:
         if not isinstance(other, SignalModel):
             return NotImplemented
         merged = dict(self._s)
@@ -149,7 +149,7 @@ class SignalModel:
             return self
         return NotImplemented
 
-    def __mul__(self, other) -> "SignalModel":
+    def __mul__(self, other) -> SignalModel:
         """A number times the model, or the product of two models.
 
         The product of the signals ``d_a d_b`` is the convolution of their spin
@@ -180,13 +180,13 @@ class SignalModel:
         factor = float(other)
         return SignalModel({key: factor * value for key, value in self._s.items()})
 
-    def __rmul__(self, factor) -> "SignalModel":
+    def __rmul__(self, factor) -> SignalModel:
         return self * factor
 
-    def __neg__(self) -> "SignalModel":
+    def __neg__(self) -> SignalModel:
         return -1.0 * self
 
-    def __sub__(self, other: "SignalModel") -> "SignalModel":
+    def __sub__(self, other: SignalModel) -> SignalModel:
         return self + (-other)
 
     def __repr__(self) -> str:

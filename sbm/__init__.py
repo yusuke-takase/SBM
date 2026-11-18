@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 """Spin-based map-making (SBM).
 
 The scan of a detector is described by its orientation functions
@@ -35,16 +34,16 @@ from .spectra import (
 from .version import __author__, __version__
 
 __all__ = [
-    "__author__",
-    "__version__",
     "Basis",
     "HMaps",
     "MapMaker",
     "MapMakingResult",
     "SignalModel",
-    "SphericalHarmonics",
     "Sky",
+    "SphericalHarmonics",
     "SpinComponent",
+    "__author__",
+    "__version__",
     "beam",
     "c2d",
     "d2c",

@@ -14,3 +14,4 @@ docs/_build/
 
 # Sphinx autosummary output
 docs/source/generated/
+.venv/

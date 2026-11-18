@@ -4,13 +4,12 @@ import healpy as hp
 import numpy as np
 import pytest
 
+from sbm import beam as sbm_beam
 from sbm import systematics as sy
 from sbm.basis import Basis
-from sbm import beam as sbm_beam
 from sbm.beam import convolve as beam_convolve
 from sbm.hmaps import HMaps
 from sbm.map_making import map_make
-
 
 NSIDE = 2
 LMAX = 4

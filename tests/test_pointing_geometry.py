@@ -168,7 +168,7 @@ def test_single_detector_offsets(kind):
 def test_pair_difference_offsets():
     alm = band_limited_alm(4)
     sky = exact_sky(alm)
-    pixels, theta, phi_sky, psi, phi = samples(5)
+    pixels, theta, phi_sky, psi, _ = samples(5)
     rho_t, chi_t, rho_b, chi_b = RHO, 0.3, 0.7 * RHO, -1.2
     psi_b = psi + np.pi / 2
     d_t = response(iqu_displaced(alm, theta, phi_sky, psi + chi_t, rho_t), 2 * psi)

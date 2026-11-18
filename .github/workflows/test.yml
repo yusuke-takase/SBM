@@ -38,6 +38,25 @@ jobs:
       - name: Run pytest
         run: .venv/bin/python -m pytest tests -q
 
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run Ruff
+        # The version and the rules are fixed in pyproject.toml.
+        run: |
+          uv venv --python 3.12
+          uv pip install --python .venv/bin/python -e ".[lint]"
+          .venv/bin/ruff check sbm tests
+
   docs:
     name: Sphinx documentation
     runs-on: ubuntu-latest
