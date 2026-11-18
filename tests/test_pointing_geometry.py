@@ -48,10 +48,10 @@ def local_basis(theta, phi):
 
 
 def displaced(theta, phi, alpha, rho):
-    """Geodesic step rho along -(sin(alpha) e_theta + cos(alpha) e_phi), and the
+    """Geodesic step rho along cos(alpha) e_theta + sin(alpha) e_phi, and the
     rotation (angle of the transported e_theta in the new local basis)."""
     n, e_theta, e_phi = local_basis(theta, phi)
-    t = -(np.sin(alpha) * e_theta + np.cos(alpha) * e_phi)
+    t = np.cos(alpha) * e_theta + np.sin(alpha) * e_phi
     v = np.cos(rho) * n + np.sin(rho) * t
     # the rotation about n x t that moves n to v, applied to e_theta
     axis = np.cross(n, t, axis=0)
@@ -91,13 +91,13 @@ def exact_sky(alm, h=1e-5):
     theta, phi = hp.pix2ang(NSIDE, np.arange(hp.nside2npix(NSIDE)))
     i, q, u = iqu_at(alm, theta, phi)
 
-    def derivative(alpha):  # along -(sin(alpha) e_theta + cos(alpha) e_phi)
+    def derivative(alpha):  # along cos(alpha) e_theta + sin(alpha) e_phi
         plus = np.array(iqu_displaced(alm, theta, phi, alpha, h))
         minus = np.array(iqu_displaced(alm, theta, phi, alpha, -h))
         return (plus - minus) / (2 * h)
 
-    x, y = -derivative(np.pi / 2), -derivative(0.0)  # along theta and phi
-    eth = y - 1j * x  # of each of I, Q, U (Q, U in the transported frame)
+    x, y = derivative(0.0), derivative(np.pi / 2)  # along theta and phi
+    eth = -(x + 1j * y)  # standard, of each of I, Q, U (Q, U in the transported frame)
     return Sky.from_maps(
         i,
         q,
@@ -112,7 +112,7 @@ def exact_sky(alm, h=1e-5):
 def evaluate(model, pixels, psi, phi):
     d = np.zeros(pixels.size)
     for comp in model.components():
-        d += (comp.map[pixels] * np.exp(1j * (comp.n * psi + comp.m * phi))).real
+        d += (comp.map[pixels] * np.exp(-1j * (comp.n * psi + comp.m * phi))).real
     return d
 
 
@@ -127,7 +127,7 @@ def samples(seed, n=8):
 
 def response(iqu, angle):
     i, q, u = iqu
-    return i + q * np.cos(angle) - u * np.sin(angle)
+    return i + q * np.cos(angle) + u * np.sin(angle)
 
 
 def test_synthesis_matches_healpy():
@@ -152,8 +152,8 @@ def test_single_detector_offsets(kind):
     sky = exact_sky(alm)
     pixels, theta, phi_sky, psi, phi = samples(3)
     chi = 0.6
-    alpha = psi + chi if kind == "abs_pointing" else psi - phi + chi
-    true = response(iqu_displaced(alm, theta, phi_sky, alpha, RHO), 2 * psi - 4 * phi)
+    alpha = psi + chi if kind == "abs_pointing" else psi + phi + chi
+    true = response(iqu_displaced(alm, theta, phi_sky, alpha, RHO), 2 * psi + 4 * phi)
     base = sy.sky_signal(sky, hwp=True)
     fn = getattr(sy, kind)
     hierarchy(
@@ -170,9 +170,9 @@ def test_pair_difference_offsets():
     sky = exact_sky(alm)
     pixels, theta, phi_sky, psi, _ = samples(5)
     rho_t, chi_t, rho_b, chi_b = RHO, 0.3, 0.7 * RHO, -1.2
-    psi_b = psi + np.pi / 2
+    psi_b = psi + np.pi / 2  # the polarizer of B; both offsets from the axis of T
     d_t = response(iqu_displaced(alm, theta, phi_sky, psi + chi_t, rho_t), 2 * psi)
-    d_b = response(iqu_displaced(alm, theta, phi_sky, psi_b + chi_b, rho_b), 2 * psi_b)
+    d_b = response(iqu_displaced(alm, theta, phi_sky, psi + chi_b, rho_b), 2 * psi_b)
     base = sy.sky_signal(sky, pair_difference=True)
     models = [
         base,
@@ -224,7 +224,8 @@ def test_second_order_maps_are_transported_second_differences():
 
     d0, d45, d90 = (second_difference(a) for a in (0.0, np.pi / 4, np.pi / 2))
     lap = 2 * (d0 + d90) / h**2
-    a = 2 * (d0 - d90) / h**2 + 1j * (lap - 4 * d45 / h**2)
+    # D(alpha) = (h^2/4) Re(e^{-2i alpha} eth^2) + (h^2/4) lap
+    a = 2 * (d0 - d90) / h**2 + 1j * (4 * d45 / h**2 - lap)
     expected = {
         "eth2_i": a[0],
         "lap_i": lap[0],

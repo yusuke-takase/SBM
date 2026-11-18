@@ -1,19 +1,19 @@
 """Sky maps and their spin derivatives.
 
-The derivatives follow the convention of SBM: on the local tangent plane with
-``x`` along theta and ``y`` along phi, ``eth = d_y - i d_x`` and
-``eth_bar = d_y + i d_x``. For the temperature, with the derivatives of healpy
-(``d/dtheta`` and ``d/dphi / sin(theta)``), ``eth I = I_phi - i I_theta``.
+The derivatives ``eth`` and ``eth_bar`` are those of :mod:`sbm.conventions`,
+:data:`~sbm.conventions.ETH_PHASE` times the standard spin-raising and
+spin-lowering operators.
 
 The polarization ``P = Q + iU`` is a spin-2 field: its components refer to the
 local basis ``(e_theta, e_phi)``, which turns from one point to the next. A
 pointing offset displaces the beam rigidly, so the polarization direction of the
 detector is carried along the displacement (parallel transport), and the
 derivatives of ``P`` are the covariant (spin-weighted) ones: they are computed
-from the E and B coefficients with spin transforms,
+from the T, E and B coefficients with spin transforms, the standard ones being
 
-    eth P     = -i sum (E + iB)_lm sqrt((l - 2)(l + 3)) 3Y_lm
-    eth_bar P = -i sum (E + iB)_lm sqrt((l + 2)(l - 1)) 1Y_lm
+    eth_std I     =  sum T_lm sqrt(l (l + 1)) 1Y_lm
+    eth_std P     = -sum (E + iB)_lm sqrt((l - 2)(l + 3)) 3Y_lm
+    eth_bar_std P =  sum (E + iB)_lm sqrt((l + 2)(l - 1)) 1Y_lm
 
 with the spin harmonics of healpy, and equal ``eth Q + i eth U`` of the
 components in a frame transported from the point.
@@ -29,13 +29,8 @@ that the spin weights of the factors of each component add up to its ``n``
 
 The second-order maps used by the pointing systematics (``eth^2 I``, ``lap I``,
 ``eth^2 P``, ``eth_bar^2 P``, ``lap P``) are the covariant second derivatives,
-computed exactly with spin transforms (:func:`second_order_maps`): a pointing
-offset of size ``rho`` in direction ``alpha`` samples the sky at the point
-displaced along ``-(sin(alpha) e_theta + cos(alpha) e_phi)``, and
-
-    S(p') = S - (rho/2) (e^{i alpha} eth + e^{-i alpha} eth_bar) S
-            + (rho^2/8) (e^{2i alpha} eth^2 + e^{-2i alpha} eth_bar^2) S
-            + (rho^2/4) lap S + O(rho^3) .
+computed exactly with spin transforms (:func:`second_order_maps`), and enter the
+expansion of a pointing offset of :mod:`sbm.conventions`.
 """
 
 from __future__ import annotations
@@ -45,8 +40,13 @@ from functools import cached_property
 import healpy as hp
 import numpy as np
 
+from .conventions import ETH_PHASE
 from .harmonics import SphericalHarmonics
 from .spin import SpinMap, SpinWeightError
+
+#: ``eth`` of SBM 0.4 with respect to the standard one, the frame of the finite
+#: differences of ``second_order_maps(transport=False)``.
+_ETH_0_4 = 1j
 
 SECOND_ORDER_KEYS = ("eth2_i", "lap_i", "eth2_p", "eth_bar2_p", "lap_p")
 
@@ -232,9 +232,10 @@ def spin_derivatives(alm, nside: int) -> tuple[np.ndarray, np.ndarray, np.ndarra
             hp.almxfl(g, weight), hp.almxfl(c, weight), spin, nside, lmax
         )
 
-    eth_i = -1j * transform(t, zero, _root(ell, ell + 1), 1)
-    eth_p = 1j * transform(e, b, _root(ell - 2, ell + 3), 3)
-    eth_bar_p = 1j * transform(e, b, _root(ell + 2, ell - 1), 1)
+    # the standard eth and eth_bar of I and P, times the phase of the convention
+    eth_i = ETH_PHASE * -transform(t, zero, _root(ell, ell + 1), 1)
+    eth_p = ETH_PHASE * transform(e, b, _root(ell - 2, ell + 3), 3)
+    eth_bar_p = np.conj(ETH_PHASE) * -transform(e, b, _root(ell + 2, ell - 1), 1)
     return eth_i, eth_p, eth_bar_p
 
 
@@ -250,18 +251,21 @@ def _second_order_exact(alm, nside: int) -> dict:
         )
 
     lap_weight = -(ell * (ell + 1.0))
+    eth2, eth_bar2 = ETH_PHASE**2, np.conj(ETH_PHASE) ** 2
+    # the standard second derivatives, times the phases of the convention
     return {
-        "eth2_i": transform(t, zero, _root(ell - 1, ell, ell + 1, ell + 2), 2),
+        "eth2_i": eth2 * -transform(t, zero, _root(ell - 1, ell, ell + 1, ell + 2), 2),
         "lap_i": transform(t, zero, lap_weight, 0).real,
-        "eth2_p": -transform(e, b, _root(ell - 2, ell + 3, ell - 3, ell + 4), 4),
-        "eth_bar2_p": transform(e, b, _root(ell + 2, ell - 1, ell, ell + 1), 0),
+        "eth2_p": eth2 * transform(e, b, _root(ell - 2, ell + 3, ell - 3, ell + 4), 4),
+        "eth_bar2_p": eth_bar2 * -transform(e, b, _root(ell + 2, ell - 1, ell, ell + 1), 0),
         "lap_p": transform(e, b, lap_weight + 4.0, 2),
     }
 
 
 def _displaced(theta, phi, alpha, step):
     """Points displaced by ``step`` along the geodesic in direction ``alpha``,
-    along ``-(sin(alpha) e_theta + cos(alpha) e_phi)``."""
+    along ``-(sin(alpha) e_theta + cos(alpha) e_phi)`` (the directions of SBM 0.4,
+    in which the finite differences of :func:`second_order_maps` are written)."""
     st, ct = np.sin(theta), np.cos(theta)
     sp, cp = np.sin(phi), np.cos(phi)
     n = np.stack([st * cp, st * sp, ct])
@@ -350,11 +354,14 @@ def second_order_maps(
     lap = 2.0 * (d0 + d90) / h**2
     re_a = 2.0 * (d0 - d90) / h**2
     im_a = lap - 4.0 * d45 / h**2
-    a = re_a + 1j * im_a  # eth^2 of each component
+    a = re_a + 1j * im_a  # eth^2 of SBM 0.4 of each component
+    # to the eth of the convention (the directions alpha above are those of 0.4)
+    eth2 = (ETH_PHASE / _ETH_0_4) ** 2
+    eth_bar2 = np.conj(eth2)
     return {
-        "eth2_i": a[0],
+        "eth2_i": eth2 * a[0],
         "lap_i": lap[0],
-        "eth2_p": a[1] + 1j * a[2],
-        "eth_bar2_p": np.conj(a[1]) + 1j * np.conj(a[2]),
+        "eth2_p": eth2 * (a[1] + 1j * a[2]),
+        "eth_bar2_p": eth_bar2 * (np.conj(a[1]) + 1j * np.conj(a[2])),
         "lap_p": lap[1] + 1j * lap[2],
     }

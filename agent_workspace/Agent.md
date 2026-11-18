@@ -7,10 +7,17 @@ Shared guidelines for agents working on SBM. Detailed specifications and validat
 - [Handbook.md](Handbook.md): implementation specifications and the two layers of testing.
 - [Specification template](Handbook.md#spec-template): design and acceptance criteria for a new effect.
 - [CONTRIBUTING.md](../CONTRIBUTING.md): the development environment, the checks, and the upstream contribution workflow.
-- [conventions.rst](../docs/source/conventions.rst): angles, spins, units, and conventions for external data.
+- [conventions.py](../sbm/conventions.py) (shown on [conventions.rst](../docs/source/conventions.rst)): angles, the spin expansion, and the conventions of external data; spins and units are on the same page.
 - [adding_systematics.rst](../docs/source/adding_systematics.rst): registration and testing procedures.
 
-These guides do not restate the conventions; read them in `conventions.rst`. If descriptions of physical conventions or APIs disagree, check `conventions.rst` and the current code, identify the discrepancy, and update the guide that disagrees. Respect the user's edits and change only what is needed.
+These guides do not restate the conventions; read them in `sbm/conventions.py`, the only place where they are written. If descriptions of physical conventions or APIs disagree, check `sbm/conventions.py` and the current code, identify the discrepancy, and update the guide that disagrees. Respect the user's edits and change only what is needed.
+
+## Keeping the conventions in one place
+
+- Take couples, phases and angles from `sbm.conventions` (for example `POLARIZATION_HWP`, `phase_factor`, `synthesis_phase`); do not write them as numbers or formulas in code, docstrings or docs. `tests/test_conventions.py` fails when a crossing angle is used outside `sbm.conventions`.
+- The tables of `conventions.rst` and `systematics.rst` are built from the package (`docs/source/_ext/sbm_tables.py`), and `@systematic` appends the templates to the docstring: do not write them by hand.
+- Code shown by the documentation lives in `docs/examples/` (run by `tests/test_docs_examples.py`) or in the tests, and is included with `literalinclude`. In the prose of the pages, use the substitutions of `docs/source/conf.py` (`|pol|`, `|pol_hwp|`); they do not work in math or code.
+- The anchor tests of `tests/test_conventions.py` and `tests/test_pointing_geometry.py` write the conventions out on purpose, independently of `sbm.conventions`, as does `sbm.testing.RealSky`. To change a convention, change `sbm/conventions.py` and these written-out references together, and fix what they then report.
 
 ## Workspace files and design
 
@@ -23,7 +30,7 @@ These guides do not restate the conventions; read them in `conventions.rst`. If 
 - Ordinary systematic functions return only the perturbation as a `SignalModel`. Keep scan, `HMaps`, and map-maker processing outside these functions.
 - Add the function to the appropriate module in `sbm/systematics/`. Update `@systematic(data=..., templates=...)`, the public imports and `__all__` in `sbm/systematics/__init__.py`, and the function list in that module's docstring.
 - Start helper function names with `_` and leave them out of `__all__`. The set of public callables, excluding `systematic`, must match `ALL`. `ALL` is a registry, not a mechanism for applying effects in sequence.
-- Place the ideal components and their coefficients where `conventions.rst` puts them. Do not register both members of a conjugate pair.
+- Place the ideal components and their coefficients at the couples of `sbm.conventions`. Do not register both members of a conjugate pair.
 - Build components from the spin-carrying maps of `Sky`, with spin weight equal to `n`. For external maps, check the transformation convention and make the spin weight explicit with `SpinMap(arr, s)`. Do not relabel a spin weight merely to pass a check.
 - Avoid stripping spin information through `np.asarray` or by separating Q and U. Accepting plain ndarrays does not imply that a registered function passes the spin checks. Add an exemption to `UNCHECKED` in `tests/test_spin.py` only with a reason and independent validation.
 - End angle argument names with `_rad`. Document units, signs, data type, required maps and derivatives, approximation order, templates, and handling of invalid inputs in the docstring.
@@ -46,7 +53,7 @@ Set up `.venv` at the repository root as described in CONTRIBUTING.md, and run:
 
 ```sh
 .venv/bin/python -m pytest tests -q
-.venv/bin/ruff check sbm tests
+.venv/bin/ruff check sbm tests docs/examples
 .venv/bin/python -m sphinx -b html -W docs/source docs/build/html
 ```
 

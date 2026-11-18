@@ -12,6 +12,6 @@ When working on a new systematic effect, follow this sequence:
 4. **Only when implementing or changing beams**, check the optical chain in the [beam-specific requirements](Handbook.md#beam-spec). A beam model is the full signal that replaces `sky_signal`.
 5. Run the checks of [Agent.md](Agent.md#run-and-verify) with `.venv/bin/python`: the tests, Ruff with no diagnostics, and Sphinx with `-W`. Add the validation results and limitations to the specification.
 
-If conventions disagree, check [conventions.rst](../docs/source/conventions.rst) and the code, then update the guides as needed. Follow Agent.md for the language of code, docstrings, and upstream documentation, and for completion criteria. Avoid duplicating equations, detailed validation criteria, or conventions in this file.
+The conventions are written only in [sbm/conventions.py](../sbm/conventions.py); take them from there and follow "Keeping the conventions in one place" in [Agent.md](Agent.md). If conventions disagree, check that module and the code, then update the guides as needed. Follow Agent.md for the language of code, docstrings, and upstream documentation, and for completion criteria. Avoid duplicating equations, detailed validation criteria, or conventions in this file.
 
 Maintain this guide in `agent_workspace/CLAUDE.md`, alongside `Agent.md` and `Handbook.md`.

@@ -5,10 +5,11 @@ sense in which the polarization angle is counted, ``P = Q + iU`` is multiplied b
 ``exp(-2i alpha)``: a field of spin weight ``s`` is multiplied by
 ``exp(-i s alpha)``. ``I`` has spin weight 0 and ``P`` 2; ``eth`` raises the spin
 weight by 1 and ``eth_bar`` lowers it by 1, so that ``eth I`` has 1, ``eth P`` 3
-and ``eth_bar P`` 1. The crossing angle ``psi`` of SBM is counted in the opposite
-sense (:doc:`conventions`) and becomes ``psi + alpha``, while the HWP angle
-``phi`` does not change. The data ``d = sum S_{n,m} exp(i (n psi + m phi))``
-are the same in every basis only if ``S_{n,m}`` has spin weight ``n``: **the spin
+and ``eth_bar P`` 1. The crossing angle ``psi`` changes with the basis as
+:mod:`sbm.conventions` states, while the HWP angle ``phi`` does not change. The
+data, the sum of the components ``S_{n,m}`` times
+:func:`~sbm.conventions.synthesis_phase`, are the same in every basis only if
+``S_{n,m}`` has spin weight ``n``: **the spin
 weights of the factors on the right-hand side of a component add up to n**.
 A term that breaks this rule is a wrong couple, a missing conjugate or a
 derivative of the wrong kind.

@@ -2,7 +2,7 @@
 
 This handbook defines how to specify a new systematic effect in SBM, from its physical model to its public API and tests. Write a specification with the [specification template](#spec-template) for each effect before implementing it.
 
-The handbook does not restate the conventions of SBM (the spin expansion, the angles, the positions of the components) nor the procedures documented in `docs/source/`; it refers to them. If it disagrees with [conventions.rst](../docs/source/conventions.rst) or the code, treat those as authoritative and fix this handbook.
+The handbook does not restate the conventions of SBM (the spin expansion, the angles, the positions of the components) nor the procedures documented in `docs/source/`; it refers to them. If it disagrees with [sbm/conventions.py](../sbm/conventions.py) or the code, treat those as authoritative and fix this handbook.
 
 ## 1. Setup and Execution
 
@@ -35,7 +35,7 @@ Put the function in the module of the stage where the effect acts; the modules a
 
 ### 3.1 Angles and Spin Components
 
-The expansion of the data in spin components, the crossing and HWP angles, the positions and coefficients of the ideal components, and the relation to the h-maps of litebird_sim / Falcons.jl are defined in [conventions.rst](../docs/source/conventions.rst). Refer to them in a specification instead of copying them.
+The expansion of the data in spin components, the crossing and HWP angles, the positions and coefficients of the ideal components, and the relation to the h-maps of litebird_sim / Falcons.jl are defined in [sbm/conventions.py](../sbm/conventions.py) and shown on [conventions.rst](../docs/source/conventions.rst). Refer to them in a specification instead of copying them, and take them from `sbm.conventions` in the code (see "Keeping the conventions in one place" in [Agent.md](Agent.md)).
 
 `HMaps.load` / `HMaps.save` convert the convention of h-map files; do not apply the conversion again after loading. Read SBM 0.4 cross-link files with `HMaps.load_legacy`, which has its own conversion (see its docstring).
 
@@ -197,7 +197,7 @@ For an approximation such as a small-angle expansion, compare against the exact 
 
 ```sh
 .venv/bin/python -m pytest tests -q
-.venv/bin/ruff check sbm tests
+.venv/bin/ruff check sbm tests docs/examples
 .venv/bin/python -m sphinx -b html -W docs/source docs/build/html
 ```
 

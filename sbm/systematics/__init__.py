@@ -6,12 +6,10 @@ the sum of the sky signal and of the perturbations of its systematics::
     model = sky_signal(sky, pair_difference=True) + diff_gain(sky, 0.01, -0.01)
     basis = Basis.qu(hwp=False).extend(diff_gain.templates)
 
-The spins follow :mod:`sbm.signal_model`: ``d = sum S_{n,m} exp(i (n psi + m phi))``
-with the crossing angle ``psi`` and the HWP angle ``phi``, the angle of the HWP
-with respect to the telescope, counted opposite to ``psi``, so that the
-polarization is modulated as ``cos(4 phi - 2 psi)`` and sits at ``(2, -4)``.
-Pair differences ``(d_T - d_B) / 2`` are taken between two detectors in the
-same position with orthogonal polarizers (B rotated by 90 degrees), without HWP.
+The spin components, the angles and the couples of the polarization are those
+of :mod:`sbm.conventions`. Pair differences ``(d_T - d_B) / 2`` are taken
+between two detectors in the same position with orthogonal polarizers (B
+rotated by 90 degrees), without HWP.
 
 The modules follow the path of the signal through the instrument:
 

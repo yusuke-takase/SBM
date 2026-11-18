@@ -13,14 +13,18 @@ least-squares fit of those TOD with :func:`sbm.map_make` of the model::
     model = sy.sky_signal(real.sky()) + my_systematic(real.sky(), ...)
     assert_matches_tod(model, tod, samples, sbm.Basis.iqu(hwp=False))
 
-The angles are those of SBM: a detector without HWP sees
-``I + Q cos 2 psi - U sin 2 psi``, with HWP ``I + Q cos(4 phi - 2 psi) + U sin(4 phi - 2 psi)``.
+The TOD of :class:`RealSky` are written out, independently of
+:mod:`sbm.conventions`, with its angles (those of litebird_sim): a detector
+without HWP sees ``I + Q cos 2 psi + U sin 2 psi``, behind a HWP
+``I + Q cos(2 psi + 4 phi) + U sin(2 psi + 4 phi)``.
 """
 
 from __future__ import annotations
 
 import healpy as hp
 import numpy as np
+
+from .conventions import projection_parts, synthesis_phase
 
 
 def random_samples(nside: int, n_per_pixel: int, seed: int):
@@ -41,10 +45,11 @@ def random_samples(nside: int, n_per_pixel: int, seed: int):
 
 def tod_from_components(components, pixels, psi, phi) -> np.ndarray:
     """Real TOD of the spin components ``{(n, m): S}``, each with its conjugate:
-    ``d = S_00 + sum 2 Re[S_nm exp(i (n psi + m phi))]``."""
+    ``d = S_00 + sum 2 Re[S_nm synthesis_phase(n, m, psi, phi)]``
+    (:func:`sbm.conventions.synthesis_phase`)."""
     d = np.zeros(pixels.size)
     for (n, m), s in components.items():
-        term = s[pixels] * np.exp(1j * (n * psi + m * phi))
+        term = s[pixels] * synthesis_phase(n, m, psi, phi)
         d += term.real if (n, m) == (0, 0) else 2.0 * term.real
     return d
 
@@ -64,11 +69,10 @@ def least_squares(d, pixels, psi, phi, couples, npix: int) -> dict:
             continue
         columns = []
         for n, m in couples:
-            theta = n * psi[sel] + m * phi[sel]
             if (n, m) == (0, 0):
-                columns.append(np.ones(theta.size))
-            else:  # Z/2 e^{i theta} + c.c. = Re Z cos(theta) - Im Z sin(theta)
-                columns.extend([np.cos(theta), -np.sin(theta)])
+                columns.append(np.ones(sel.size))
+            else:  # Z/2 and its conjugate: Re(Z) re + Im(Z) im
+                columns.extend(projection_parts(n, m, psi[sel], phi[sel]))
         x = np.linalg.lstsq(np.array(columns).T, d[sel], rcond=None)[0]
         i = 0
         for c in couples:
@@ -138,11 +142,11 @@ class RealSky:
             for a in ("xx", "xy", "yy")
         }
 
-    def _eth(self, s):
-        return self.d[s, "y"] - 1j * self.d[s, "x"]
+    def _eth(self, s):  # the standard eth, -(d_x + i d_y)
+        return -(self.d[s, "x"] + 1j * self.d[s, "y"])
 
-    def _eth2(self, s):  # (d_y - i d_x)^2
-        return self.h[s, "yy"] - self.h[s, "xx"] - 2j * self.h[s, "xy"]
+    def _eth2(self, s):  # (d_x + i d_y)^2
+        return self.h[s, "xx"] - self.h[s, "yy"] + 2j * self.h[s, "xy"]
 
     def _lap(self, s):
         return self.h[s, "xx"] + self.h[s, "yy"]
@@ -169,8 +173,8 @@ class RealSky:
         )
 
     def sample(self, s, pixels, rho=0.0, alpha=0.0, second_order=False):
-        """Value of ``s`` at the offset ``rho`` along ``-(sin(alpha) e_x + cos(alpha) e_y)``."""
-        dx, dy = -rho * np.sin(alpha), -rho * np.cos(alpha)
+        """Value of ``s`` at the offset ``rho`` along ``cos(alpha) e_x + sin(alpha) e_y``."""
+        dx, dy = rho * np.cos(alpha), rho * np.sin(alpha)
         v = (
             self.x[s][pixels]
             + dx * self.d[s, "x"][pixels]
@@ -185,9 +189,9 @@ class RealSky:
         return v
 
     def detector(self, pixels, psi, phi=None, rho=0.0, alpha=0.0, second_order=False):
-        """TOD of a single detector: ``I + Q cos 2psi - U sin 2psi`` without HWP
-        (``phi=None``), ``I + Q cos(4phi - 2psi) + U sin(4phi - 2psi)`` with HWP,
+        """TOD of a single detector: ``I + Q cos 2psi + U sin 2psi`` without HWP
+        (``phi=None``), ``I + Q cos(2psi + 4phi) + U sin(2psi + 4phi)`` with HWP,
         sampling the sky at the offset ``rho`` in direction ``alpha``."""
         i, q, u = (self.sample(s, pixels, rho, alpha, second_order) for s in "IQU")
-        angle = 2 * psi if phi is None else 2 * psi - 4 * phi
-        return i + q * np.cos(angle) - u * np.sin(angle)
+        angle = 2 * psi if phi is None else 2 * psi + 4 * phi
+        return i + q * np.cos(angle) + u * np.sin(angle)

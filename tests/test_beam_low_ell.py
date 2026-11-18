@@ -70,7 +70,7 @@ def realspace_tod(beam, monopole, dipole, theta, phi, psi, alpha, matrix):
     dy = -np.sin(phi) * vx + np.cos(phi) * vy
     dz = np.sin(theta) * (np.cos(phi) * vx + np.sin(phi) * vy) + np.cos(theta) * vz
     local = np.array(
-        [np.cos(psi) * dx - np.sin(psi) * dy, np.sin(psi) * dx + np.cos(psi) * dy, dz]
+        [np.cos(psi) * dx + np.sin(psi) * dy, -np.sin(psi) * dx + np.cos(psi) * dy, dz]
     )
     integrals = monopole * mean[:, None] + moment @ local
     return np.array(
@@ -105,7 +105,7 @@ def test_full_sum_against_realspace_tod_and_map():
     )
     expected_map = np.empty((3, npix))
     for pixel in range(npix):
-        phase = 4 * alpha[pixel] - 2 * psi[pixel]
+        phase = 2 * psi[pixel] + 4 * alpha[pixel]
         design = np.array([np.ones(hits), np.cos(phase), np.sin(phase)]).T
         expected_map[:, pixel] = np.linalg.lstsq(
             design, expected.reshape(npix, hits)[pixel], rcond=None
@@ -122,7 +122,7 @@ def test_full_sum_restores_odd_crossing_correction_without_adding_other_terms():
     fields = convolve(
         sky, beam, NSIDE, (0, 2, 4), hwp=True, mueller=matrix, low_ell="beam_sum"
     )
-    assert np.max(abs(fields[1, -2])) > 1e-4
+    assert np.max(abs(fields[1, 2])) > 1e-4
     pixels = np.arange(hp.nside2npix(NSIDE))
     theta, phi = hp.pix2ang(NSIDE, pixels)
     psi, alpha = np.random.default_rng(62).uniform(-np.pi, np.pi, (2, pixels.size))
