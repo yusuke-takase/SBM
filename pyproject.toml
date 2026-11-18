@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sbm"
-version = "0.4.2"
+version = "0.5.0"
 description = "Spin-based map-making (SBM) for CMB experiments"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -31,6 +31,7 @@ dependencies = [
 plot = ["matplotlib>=3.1"]
 test = ["pytest>=7"]
 docs = ["sphinx>=7", "pydata-sphinx-theme>=0.16"]
+notebooks = ["matplotlib>=3.1", "nbclient>=0.7", "nbformat>=5", "ipykernel>=6"]
 # Keep in step with tool.ruff.required-version.
 lint = ["ruff==0.17.4"]
 
@@ -49,3 +50,5 @@ select = ["E4", "E7", "E9", "F", "I", "UP", "C4", "PIE", "SIM", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 # The order of these imports is the order of ALL (the path of the signal).
 "sbm/systematics/__init__.py" = ["I001"]
+# the examples of the documentation import what each part of a page shows
+"docs/examples/*.py" = ["E402"]

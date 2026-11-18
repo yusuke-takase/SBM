@@ -7,7 +7,7 @@ map-maker solves for the components of a :class:`Basis` in every pixel
 (:func:`map_make`).
 """
 
-from . import beam, spin, systematics
+from . import beam, conventions, spin, systematics
 from .basis import Basis
 from .harmonics import SphericalHarmonics
 from .hmaps import HMaps
@@ -46,6 +46,7 @@ __all__ = [
     "__version__",
     "beam",
     "c2d",
+    "conventions",
     "d2c",
     "forecast",
     "generate_cmb",

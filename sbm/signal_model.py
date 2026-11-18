@@ -1,14 +1,13 @@
 """Signal model of a detector as spin components.
 
-The time-ordered data of a detector are written as
-
-    d = sum_{n,m} S_{n,m} exp(i (n psi + m phi)) ,
-
-with the crossing angle ``psi`` and the HWP angle ``phi`` of :mod:`sbm.hmaps`.
-The data are real, so ``S_{-n,-m}`` is the complex conjugate of ``S_{n,m}``:
-a :class:`SignalModel` stores one component per conjugate pair, and
-``S_{0,0}`` is real. For example the sky seen by an ideal detector without HWP
-is ``S_{0,0} = I`` and ``S_{2,0} = P / 2`` with ``P = Q + iU``.
+The time-ordered data of a detector are the sum of its spin components
+``S_{n,m}`` times :func:`~sbm.conventions.synthesis_phase`, with the crossing
+angle ``psi`` and the HWP angle ``phi`` of :mod:`sbm.conventions`. The data are
+real, so ``S_{-n,-m}`` is the complex conjugate of ``S_{n,m}``: a
+:class:`SignalModel` stores one component per conjugate pair, and ``S_{0,0}``
+is real. For example the sky seen by an ideal detector without HWP is
+``S_{0,0} = I`` and ``P / 2`` at :data:`~sbm.conventions.POLARIZATION`, with
+``P = Q + iU``.
 
 Models are added and multiplied like the signals they describe: the model of
 a detector with several systematics is the sum of the models of each, and the
@@ -113,8 +112,9 @@ class SignalModel:
         return out
 
     def project(self, hmaps: HMaps, n: int, m: int) -> np.ndarray:
-        """Binned data projected on the spin ``(n, m)``:
-        ``< d exp(-i (n psi + m phi)) > = sum_k h̃_{n-n_k, m-m_k} S_k``.
+        """Binned data projected on the spin ``(n, m)`` (the average of the data
+        times the conjugate of :func:`~sbm.conventions.synthesis_phase`):
+        ``sum_k h̃_{n-n_k, m-m_k} S_k``.
         """
         if hmaps.npix != self.npix:
             raise ValueError(

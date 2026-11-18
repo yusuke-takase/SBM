@@ -18,8 +18,7 @@ def diff_gain(sky: Sky, g_t: float, g_b: float) -> SignalModel:
     """Gain errors ``g_t``, ``g_b`` of the two detectors of a pair difference.
 
     ``d = ((1 + g_t) d_T - (1 + g_b) d_B) / 2`` adds ``(g_t - g_b) I / 2`` at
-    ``(0, 0)`` and rescales the polarization by ``(g_t + g_b) / 2``. Template:
-    ``(0, 0)``.
+    ``(0, 0)`` and rescales the polarization by ``(g_t + g_b) / 2``.
     """
     return SignalModel(
         {(0, 0): (g_t - g_b) / 2.0 * sky.i, POLARIZATION: (g_t + g_b) / 4.0 * sky.p}
@@ -36,7 +35,7 @@ def bandpass_mismatch(
     (Hoang et al. 2017, JCAP 12, 015, Sect. 3.2).
 
     Each foreground temperature component ``c_i`` leaks into the pair difference
-    as ``(gamma_t_i - gamma_b_i) c_i / 2`` at ``(0, 0)``. Template: ``(0, 0)``.
+    as ``(gamma_t_i - gamma_b_i) c_i / 2`` at ``(0, 0)``.
     """
     if not (len(components) == len(gamma_t) == len(gamma_b)):
         raise ValueError("components, gamma_t and gamma_b must have the same length")
@@ -53,11 +52,14 @@ def polarization_angle(sky: Sky, delta_rad: float, hwp: bool = False) -> SignalM
     """Error ``delta_rad`` on the polarization angle of the detector(s).
 
     ``delta_rad`` is an error on litebird_sim's ``pol_angle_rad``: without HWP
-    the polarizer is seen at ``psi' + alpha`` (``psi' = -psi``), so the
-    polarization is rotated by ``e^{-2i delta}`` at ``(2, 0)``, for a single
-    detector and for a pair difference whose two detectors share the error;
-    behind a HWP at ``2 phi - alpha + psi'``, so it is rotated by ``e^{+2i delta}``
-    at ``(2, -4)``. Template: none (a rotation of P is not separable from P).
+    the polarizer is seen at ``psi' + alpha``, with the crossing angle ``psi'`` of
+    litebird_sim (:func:`~sbm.conventions.litebird_sim_angle`), so the
+    polarization is rotated by ``e^{-2i delta}`` at
+    :data:`~sbm.conventions.POLARIZATION`, for a single detector and for a pair
+    difference whose two detectors share the error; behind a HWP at
+    ``2 phi - alpha + psi'``, so it is rotated by ``e^{+2i delta}`` at
+    :data:`~sbm.conventions.POLARIZATION_HWP`. There is no template: a rotation
+    of P is not separable from P.
     """
     if hwp:
         return SignalModel(

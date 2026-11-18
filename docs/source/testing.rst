@@ -30,6 +30,15 @@ Every test compares SBM with an independent computation:
   checks the binning of litebird_sim's TOD model.
 * ``test_forecast.py`` checks the likelihood maximum (zero, linear and
   injected biases).
+* ``test_conventions.py`` writes the conventions out, independently of
+  :mod:`sbm.conventions` (the ideal detectors, the chain of litebird_sim, the
+  HWP-IP, the h-map files, the rotation of the basis, the derivatives), runs the
+  examples of :mod:`sbm.conventions`, checks that the crossing angle enters the
+  package only through it and that the tables of these pages are built from the
+  package.
+* ``test_docs_examples.py`` runs the code that these pages include from
+  ``docs/examples``, and ``test_notebooks.py`` the notebooks (with the extra
+  ``notebooks``).
 
 A new systematic comes with a real-space TOD test (:doc:`adding_systematics`);
 changing a weight of a model makes these tests fail.

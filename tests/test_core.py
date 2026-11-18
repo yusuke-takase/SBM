@@ -38,10 +38,10 @@ def random_map(rng, complex_=True):
 
 def test_from_samples_is_the_mean_of_the_phases():
     pixels, psi, phi = random_samples(NSIDE, 16, seed=1)
-    hm = HMaps.from_samples(NSIDE, pixels, psi, phi, couples=[(2, -4), (0, 4)])
-    for n, m in [(2, -4), (-2, 4), (0, 4), (0, -4)]:
+    hm = HMaps.from_samples(NSIDE, pixels, psi, phi, couples=[(2, 4), (0, 4)])
+    for n, m in [(2, 4), (-2, -4), (0, 4), (0, -4)]:
         expected = [
-            np.mean(np.exp(-1j * (n * psi + m * phi))[pixels == p]) for p in range(NPIX)
+            np.mean(np.exp(1j * (n * psi + m * phi))[pixels == p]) for p in range(NPIX)
         ]
         np.testing.assert_allclose(hm.h(n, m), expected, atol=1e-14)
     np.testing.assert_array_equal(hm.h(0, 0), 1.0)
@@ -51,9 +51,9 @@ def test_from_samples_is_the_mean_of_the_phases():
 
 
 def test_save_and_load_follow_the_litebird_sim_convention(tmp_path):
-    # litebird_sim: h_{n,m} = <exp(+i(n psi' + m chi))> with psi' = -psi, chi = phi
+    # litebird_sim: h_{n,m} = <exp(+i(n psi + m chi))> with chi = phi, as in SBM
     pixels, psi, phi = random_samples(NSIDE, 16, seed=2)
-    psi_lbs = -psi
+    psi_lbs = psi
     path = tmp_path / "h_maps_det_a.h5"
     with h5py.File(path, "w") as f:
         f.attrs.update(
@@ -66,7 +66,7 @@ def test_save_and_load_follow_the_litebird_sim_convention(tmp_path):
         )
         f["0,0/Re"] = np.bincount(pixels, minlength=NPIX).astype(float)
         f["0,0/Im"] = np.zeros(NPIX)
-        for n, m in [(2, 4), (4, 0), (-1, 4)]:
+        for n, m in [(2, 4), (4, 0), (-1, -4)]:
             v = [
                 np.mean(np.exp(1j * (n * psi_lbs + m * phi))[pixels == p])
                 for p in range(NPIX)
@@ -75,7 +75,7 @@ def test_save_and_load_follow_the_litebird_sim_convention(tmp_path):
             f[f"{n},{m}/Im"] = np.imag(v)
     hm = HMaps.load(path)
     expected = HMaps.from_samples(
-        NSIDE, pixels, psi, phi, couples=[(2, -4), (4, 0), (1, 4)]
+        NSIDE, pixels, psi, phi, couples=[(2, 4), (4, 0), (1, 4)]
     )
     assert hm.couples == expected.couples
     for c in expected.couples:
@@ -97,19 +97,18 @@ def test_load_legacy_reads_the_couples_of_get_xlink():
         spins_m = list(f["toml/spin_m"][()])
         hits = f["hitmap"][()]
     np.testing.assert_array_equal(hm.hits, hits)
+    # the couple (n, m) of SBM 0.4 is (n, -m); for n = 0 only the stored m < 0 are
+    # used, as get_xlink did
     for n in spins_n[1:]:
         for m in spins_m:
-            np.testing.assert_array_equal(
-                hm.h(n, m), stored[:, spins_m.index(m), spins_n.index(n)]
-            )
-            np.testing.assert_array_equal(
-                hm.h(-n, -m), np.conj(stored[:, spins_m.index(m), spins_n.index(n)])
-            )
+            value = stored[:, spins_m.index(m), spins_n.index(n)]
+            np.testing.assert_array_equal(hm.h(n, -m), value)
+            np.testing.assert_array_equal(hm.h(-n, m), np.conj(value))
     for m in spins_m:
-        if m != 0:
-            np.testing.assert_array_equal(
-                hm.h(0, m), np.conj(stored[:, spins_m.index(-m), 0])
-            )
+        if m < 0:
+            value = stored[:, spins_m.index(m), 0]
+            np.testing.assert_array_equal(hm.h(0, -m), value)
+            np.testing.assert_array_equal(hm.h(0, m), np.conj(value))
 
 
 # --------------------------------------------------------------------- #
@@ -161,11 +160,11 @@ def test_right_hand_side_is_the_projection_on_every_couple():
     model = SignalModel(
         {
             (0, 0): random_map(rng, False),
-            (2, -4): random_map(rng),
+            (2, 4): random_map(rng),
             (1, 4): random_map(rng),
         }
     )
-    basis = Basis.iqu(hwp=True).extend([(1, 0), (3, -4)])
+    basis = Basis.iqu(hwp=True).extend([(1, 0), (3, 4)])
     expected = np.stack(
         [w * model.project(hm, n, m) for w, (n, m) in zip(basis.weights, basis.full)],
         axis=1,
@@ -178,16 +177,16 @@ def test_solvable_does_not_depend_on_the_chunk():
     hm = HMaps(
         {c: 0.3 * random_map(rng) for c in COUPLES if c != (0, 0)}, np.ones(NPIX)
     )
-    a = orientation_matrix(hm, Basis.iqu(hwp=True).extend([(1, 0), (3, -4)]))
+    a = orientation_matrix(hm, Basis.iqu(hwp=True).extend([(1, 0), (3, 4)]))
     np.testing.assert_array_equal(solvable(a, hm.hits, chunk=5), solvable(a, hm.hits))
 
 
 def test_basis_layout():
     basis = Basis.iqu(hwp=True).extend([(-1, 0)])
-    assert basis.couples == ((0, 0), (2, -4), (1, 0))
-    assert basis.full == [(0, 0), (2, -4), (-2, 4), (1, 0), (-1, 0)]
+    assert basis.couples == ((0, 0), (2, 4), (1, 0))
+    assert basis.full == [(0, 0), (2, 4), (-2, -4), (1, 0), (-1, 0)]
     np.testing.assert_array_equal(basis.weights, [1, 0.5, 0.5, 0.5, 0.5])
-    assert basis.polarization == (2, -4)
+    assert basis.polarization == (2, 4)
     assert Basis.qu(hwp=False).dimension == 2
 
 
@@ -205,10 +204,10 @@ CASES = [
     (False, [(0, 0), (2, 0)], Basis.iqu(hwp=False)),
     (False, [(0, 0), (1, 0), (2, 0), (3, 0)], Basis.qu(hwp=False)),
     (False, [(0, 0), (1, 0), (2, 0), (3, 0)], Basis.iqu(hwp=False).extend([(1, 0)])),
-    (True, [(0, 0), (2, -4), (1, 0), (0, 4)], Basis.iqu(hwp=True)),
+    (True, [(0, 0), (2, 4), (1, 0), (0, 4)], Basis.iqu(hwp=True)),
     (
         True,
-        [(0, 0), (2, -4), (1, -4), (3, -4), (1, 0)],
+        [(0, 0), (2, 4), (1, 4), (3, 4), (1, 0)],
         Basis.iqu(hwp=True).extend([(1, 0), (0, 4)]),
     ),
 ]
@@ -314,7 +313,7 @@ def test_hmaps_copy_the_hits_and_write_files_that_litebird_sim_reads(tmp_path):
 
 def test_saving_needs_a_known_coordinate_system(tmp_path):
     pixels, psi, phi = random_samples(NSIDE, 16, seed=4)
-    hm = HMaps.from_samples(NSIDE, pixels, psi, phi, couples=[(2, -4)])
+    hm = HMaps.from_samples(NSIDE, pixels, psi, phi, couples=[(2, 4)])
     with pytest.raises(ValueError, match="coordinate system"):
         hm.save(tmp_path / "h.h5")
     hm.coordinate_system = "E"
@@ -348,8 +347,8 @@ def test_noise_covariance_is_the_covariance_of_the_least_squares_fit():
         sel = pixels == p
         cols = [np.ones(sel.sum())]
         for n, m in basis.couples[1:]:
-            theta = n * psi[sel] + m * phi[sel]
-            cols.extend([np.cos(theta), -np.sin(theta)])
+            theta = n * psi[sel] + m * phi[sel]  # Z/2 exp(-i theta) + c.c.
+            cols.extend([np.cos(theta), np.sin(theta)])
         x = np.array(cols).T
         cov_r = sigma2 * np.linalg.inv(x.T @ x)
         t = np.array(
@@ -406,14 +405,15 @@ def test_sky_derivatives_of_a_dipole():
     theta, _ = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
     i = np.cos(theta)  # d/dtheta = -sin(theta), d/dphi = 0
     sky = Sky.from_maps(i, np.zeros_like(i), np.zeros_like(i), lmax=4)
-    np.testing.assert_allclose(sky.eth_i, 1j * np.sin(theta), atol=1e-3)
-    np.testing.assert_allclose(sky.eth_bar_i, -1j * np.sin(theta), atol=1e-3)
+    # eth = -(d/dtheta + i d/dphi / sin(theta))
+    np.testing.assert_allclose(sky.eth_i, np.sin(theta), atol=1e-3)
+    np.testing.assert_allclose(sky.eth_bar_i, np.sin(theta), atol=1e-3)
 
 
 def test_polarization_derivatives_are_covariant():
     # E_{2,0} = 1: P = -2Y_20 = -c sin^2(theta). Its covariant derivatives are
-    # eth P = 0 (no spin-3 harmonic at l = 2) and eth_bar P = -4i c sin cos, while
-    # the derivatives of Q and U as scalars would give +-2i c sin cos.
+    # eth P = 0 (no spin-3 harmonic at l = 2) and eth_bar P = 4 c sin cos, while
+    # the derivatives of Q and U as scalars would give -+2 c sin cos.
     lmax, nside = 4, 32
     alm = np.zeros((3, hp.Alm.getsize(lmax)), complex)
     alm[1, hp.Alm.getidx(lmax, 2, 0)] = 1.0
@@ -423,7 +423,7 @@ def test_polarization_derivatives_are_covariant():
     np.testing.assert_allclose(sky.p, -c * np.sin(theta) ** 2, atol=1e-14)
     np.testing.assert_allclose(sky.eth_p, 0.0, atol=1e-13)
     np.testing.assert_allclose(
-        sky.eth_bar_p, -4j * c * np.sin(theta) * np.cos(theta), atol=1e-13
+        sky.eth_bar_p, 4 * c * np.sin(theta) * np.cos(theta), atol=1e-13
     )
 
 
@@ -447,7 +447,7 @@ def test_map_maker_reuses_the_inverse_for_many_models():
     assert not maker.mask[4] and maker.mask.sum() == NPIX - 1
     for seed in range(3):
         _, model = _random_model(
-            np.random.default_rng(seed), [(0, 0), (2, -4), (1, 0), (0, 4)]
+            np.random.default_rng(seed), [(0, 0), (2, 4), (1, 0), (0, 4)]
         )
         expected = map_make((hm, model), basis)
         actual = maker(model)

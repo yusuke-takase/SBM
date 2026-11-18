@@ -1,18 +1,14 @@
 """Orientation functions (h-maps) of a detector.
 
 SBM describes the scanning strategy through the orientation functions
+``h̃_{n,m}(p)``, the averages over the samples falling in pixel ``p`` of the
+factor of :mod:`sbm.conventions` (:func:`~sbm.conventions.projection_parts`),
+with the crossing angle ``psi`` of the detector and the HWP angle ``phi``.
+``h̃_{-n,-m}`` is the complex conjugate of ``h̃_{n,m}`` and ``h̃_{0,0} = 1``.
 
-    h̃_{n,m}(p) = < exp(-i (n psi + m phi)) >_p ,
-
-averaged over the samples falling in pixel ``p``, where ``psi`` is the crossing
-angle of the detector and ``phi`` the HWP angle (the angle of the HWP with
-respect to the telescope, counted opposite to ``psi``). ``h̃_{-n,-m}`` is the
-complex conjugate of ``h̃_{n,m}`` and ``h̃_{0,0} = 1``.
-
-litebird_sim and Falcons.jl write ``h_{n,m} = < exp(+i (n psi' + m chi)) >``
-with their orientation angle ``psi' = -psi`` and HWP angle ``chi = phi``, so
-``h̃_{n,m} = h_{n,-m}``. :meth:`HMaps.load` and :meth:`HMaps.save` convert
-between the two.
+The h-map files of litebird_sim and Falcons.jl hold the same functions at the
+couples of :func:`~sbm.conventions.litebird_sim_couple`; :meth:`HMaps.load`
+and :meth:`HMaps.save` convert between the two.
 """
 
 from __future__ import annotations
@@ -24,19 +20,13 @@ import h5py
 import healpy as hp
 import numpy as np
 
-Couple = tuple[int, int]
-
-
-def canonical(n: int, m: int) -> tuple[Couple, bool]:
-    """Return the canonical couple of ``(n, m)`` and whether it is its conjugate.
-
-    Every couple but ``(0, 0)`` is stored once: ``n > 0``, or ``n == 0`` and
-    ``m > 0``. The others are the complex conjugates of their opposite.
-    """
-    n, m = int(n), int(m)
-    if n > 0 or (n == 0 and m >= 0):
-        return (n, m), False
-    return (-n, -m), True
+from .conventions import (
+    Couple,
+    canonical,
+    from_0_4,
+    litebird_sim_couple,
+    projection_parts,
+)
 
 
 class HMaps:
@@ -154,10 +144,10 @@ class HMaps:
             key, _ = canonical(n, m)
             if key == (0, 0) or key in h:
                 continue
-            phase = key[0] * psi + key[1] * phi
+            re, im = projection_parts(key[0], key[1], psi, phi)
             value = np.zeros(npix, dtype=complex)
-            value.real = np.bincount(pixels, weights=np.cos(phase), minlength=npix)
-            value.imag = -np.bincount(pixels, weights=np.sin(phase), minlength=npix)
+            value.real = np.bincount(pixels, weights=re, minlength=npix)
+            value.imag = np.bincount(pixels, weights=im, minlength=npix)
             value[seen] /= hits[seen]
             h[key] = value
         return cls(h, hits, **metadata)
@@ -204,8 +194,8 @@ class HMaps:
     def load(cls, path) -> HMaps:
         """Read an h-map file of litebird_sim or Falcons.jl (``h_maps_det_<name>.h5``).
 
-        The ``(0, 0)`` group holds the hit counts. The convention is converted
-        (``h̃_{n,m} = h_{n,-m}``, see the module documentation).
+        The ``(0, 0)`` group holds the hit counts. The couples are converted with
+        :func:`~sbm.conventions.litebird_sim_couple`.
         """
         with h5py.File(path, "r") as f:
             groups = {}
@@ -221,7 +211,7 @@ class HMaps:
                 if (n, m) == (0, 0):
                     continue
                 value = group["Re"][()] + 1j * group["Im"][()]
-                key, conj = canonical(n, -m)
+                key, conj = canonical(*litebird_sim_couple(n, m))
                 h.setdefault(key, np.conj(value) if conj else value)
             attrs = dict(f.attrs)
         return cls(
@@ -238,8 +228,10 @@ class HMaps:
         """Read a cross-link file in the format of SBM 0.4 (``h``, ``hitmap``,
         ``toml/spin_n``, ``toml/spin_m``, ``ss``), as written by Falcons.jl 1.0.
 
-        The values are those that ``ScanFields.get_xlink`` returned: the
-        ``n = 0`` couples are the conjugates of the stored ``(0, -m)``.
+        The values are those that ``ScanFields.get_xlink`` returned, in the
+        convention of SBM 0.4: the ``n = 0`` couples are the conjugates of the
+        stored ``(0, -m)``. Each couple of the file is converted with
+        :func:`~sbm.conventions.from_0_4`.
         """
         with h5py.File(path, "r") as f:
             hits = np.asarray(f["hitmap"][()], dtype=float)
@@ -251,10 +243,11 @@ class HMaps:
         h = {}
         for i_n, n in enumerate(spins_n):
             for i_m, m in enumerate(spins_m):
-                if n > 0:
-                    h[(n, m)] = stored[:, i_m, i_n]
-                elif n == 0 and -m in spins_m and m > 0:
-                    h[(0, m)] = np.conj(stored[:, spins_m.index(-m), i_n])
+                # the stored (0, m > 0) are not used, as in ScanFields.get_xlink
+                if n > 0 or (n == 0 and m < 0):
+                    key, conj = canonical(*from_0_4(n, m))
+                    value = stored[:, i_m, i_n]
+                    h[key] = np.conj(value) if conj else value
         name = ss.get("name")
         if isinstance(name, np.ndarray):
             name = name[0] if name.size else None
@@ -270,8 +263,8 @@ class HMaps:
     def save(self, path) -> Path:
         """Write the maps as an h-map file of litebird_sim and Falcons.jl.
 
-        Every couple is written in their convention, ``h_{n,m} = h̃_{n,-m}``,
-        with ``n >= 0``; the ``(0, 0)`` group holds the hit counts. The coordinate
+        Every couple is written in their convention
+        (:func:`~sbm.conventions.litebird_sim_couple`), with ``n >= 0``; the ``(0, 0)`` group holds the hit counts. The coordinate
         system must be known, ``"Galactic"`` or ``"Ecliptic"`` (or ``"G"``,
         ``"E"``): set :attr:`coordinate_system` first for maps computed with
         :meth:`from_samples`.
@@ -296,8 +289,9 @@ class HMaps:
             f["0,0/Im"] = np.zeros_like(self.hits)
             for n, m in self.couples:
                 value = self.h(n, m)
-                f[f"{n},{-m}/Re"] = value.real
-                f[f"{n},{-m}/Im"] = value.imag
+                n_file, m_file = litebird_sim_couple(n, m)
+                f[f"{n_file},{m_file}/Re"] = value.real
+                f[f"{n_file},{m_file}/Im"] = value.imag
         return path
 
 

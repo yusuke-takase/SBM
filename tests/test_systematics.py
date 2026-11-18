@@ -41,8 +41,8 @@ NO_HWP_BASES = [
 ]
 HWP_BASES = [
     Basis.iqu(hwp=True),
-    Basis.iqu(hwp=True).extend([(1, 0), (3, -4), (1, -4)]),
-    Basis.iqu(hwp=True).extend([(1, -1), (3, -5), (1, -3), (0, 4), (0, 2)]),
+    Basis.iqu(hwp=True).extend([(1, 0), (3, 4), (1, 4)]),
+    Basis.iqu(hwp=True).extend([(1, 1), (3, 5), (1, 3), (0, 4), (0, 2)]),
 ]
 
 
@@ -56,16 +56,18 @@ def lbs_rotation(angle):
     return np.array([[1, 0, 0, 0], [0, c, s, 0], [0, -s, c, 0], [0, 0, 0, 1]])
 
 
-def lbs_mueller_tod(real, pixels, psi, phi, harmonics):
-    """litebird_sim's chain det R(chi)^T M(chi) R(chi) R(psi') S with psi' = -psi, chi = phi."""
+def lbs_mueller_tod(real, pixels, psi, phi, harmonics, pol_angle=0.0):
+    """litebird_sim's chain det R(chi)^T M(chi) R(chi) R(psi) S, with chi = phi and
+    det = (1, cos 2 pol_angle, sin 2 pol_angle, 0)."""
+    detector = np.array([1.0, np.cos(2 * pol_angle), np.sin(2 * pol_angle), 0.0])
     out = np.empty(pixels.size)
     for j, (p, a, b) in enumerate(zip(pixels, psi, phi)):
         mueller = np.zeros((4, 4))
         for k, m_k in harmonics.items():
             mueller += np.real(m_k) if k == 0 else 2 * np.real(m_k * np.exp(1j * k * b))
         stokes = np.array([real.x["I"][p], real.x["Q"][p], real.x["U"][p], 0.0])
-        chain = lbs_rotation(b).T @ mueller @ lbs_rotation(b) @ lbs_rotation(-a)
-        out[j] = np.array([1.0, 1.0, 0.0, 0.0]) @ chain @ stokes
+        chain = lbs_rotation(b).T @ mueller @ lbs_rotation(b) @ lbs_rotation(a)
+        out[j] = detector @ chain @ stokes
     return out
 
 
@@ -99,7 +101,8 @@ def _pair(real, pixels, psi, gain_t=0.0, gain_b=0.0, **offsets):
     so = offsets.get("second_order", False)
     psi_b = psi + np.pi / 2
     d_t = real.detector(pixels, psi, rho=rho_t, alpha=psi + chi_t, second_order=so)
-    d_b = real.detector(pixels, psi_b, rho=rho_b, alpha=psi_b + chi_b, second_order=so)
+    # both offsets from the reference axis of the focal plane, that of T
+    d_b = real.detector(pixels, psi_b, rho=rho_b, alpha=psi + chi_b, second_order=so)
     return ((1 + gain_t) * d_t - (1 + gain_b) * d_b) / 2
 
 
@@ -134,6 +137,34 @@ def cases():
         True,
         single_hwp,
         lambda px, ps, ph: real.detector(px, ps, ph),
+    )
+
+    # a polarization angle xi of the detector(s)
+    xi = 0.37
+    add(
+        sy.sky_signal,
+        "sky_signal-single-xi",
+        False,
+        sy.sky_signal(sky, pol_angle_rad=xi),
+        lambda px, ps, ph: lbs_polarizer_tod(real, px, ps + xi),
+    )
+    add(
+        sy.sky_signal,
+        "sky_signal-pair-xi",
+        False,
+        sy.sky_signal(sky, pair_difference=True, pol_angle_rad=xi),
+        lambda px, ps, ph: (
+            lbs_polarizer_tod(real, px, ps + xi)
+            - lbs_polarizer_tod(real, px, ps + xi + np.pi / 2)
+        )
+        / 2,
+    )
+    add(
+        sy.sky_signal,
+        "sky_signal-hwp-xi",
+        True,
+        sy.sky_signal(sky, hwp=True, pol_angle_rad=xi),
+        lambda px, ps, ph: lbs_polarizer_tod(real, px, 2 * ph - xi + ps),
     )
 
     g_t, g_b = 0.013, -0.021
@@ -177,7 +208,7 @@ def cases():
 
     for fn, direction in (
         (sy.abs_pointing, lambda ps, ph: ps),
-        (sy.hwp_wedge, lambda ps, ph: ps - ph),
+        (sy.hwp_wedge, lambda ps, ph: ps + ph),
     ):
         for so in (False, True):
             model = single_hwp + fn(sky, 0.03, 0.7, second_order=so)
@@ -216,23 +247,33 @@ def cases():
         single_hwp + sy.hwp_mueller(sky, harmonics),
         lambda px, ps, ph: lbs_mueller_tod(real, px, ps, ph, harmonics),
     )
+    add(
+        sy.hwp_mueller,
+        "hwp_mueller-xi",
+        True,
+        sy.sky_signal(sky, hwp=True, pol_angle_rad=xi)
+        + sy.hwp_mueller(sky, harmonics, pol_angle_rad=xi),
+        lambda px, ps, ph: lbs_mueller_tod(real, px, ps, ph, harmonics, xi),
+    )
 
+    # start of the example of docs/source/adding_systematics.rst
     delta = 0.05
     add(
         sy.polarization_angle,
         "polarization_angle-single",
         False,
         single + sy.polarization_angle(sky, delta),
-        lambda px, ps, ph: lbs_polarizer_tod(real, px, -ps + delta),
+        lambda px, ps, ph: lbs_polarizer_tod(real, px, ps + delta),
     )
+    # end of the example
     add(
         sy.polarization_angle,
         "polarization_angle-pair",
         False,
         pair + sy.polarization_angle(sky, delta),
         lambda px, ps, ph: (
-            lbs_polarizer_tod(real, px, -ps + delta)
-            - lbs_polarizer_tod(real, px, -(ps + np.pi / 2) + delta)
+            lbs_polarizer_tod(real, px, ps + delta)
+            - lbs_polarizer_tod(real, px, ps + np.pi / 2 + delta)
         )
         / 2,
     )
@@ -241,7 +282,7 @@ def cases():
         "polarization_angle-hwp",
         True,
         single_hwp + sy.polarization_angle(sky, delta, hwp=True),
-        lambda px, ps, ph: lbs_polarizer_tod(real, px, 2 * ph - delta - ps),
+        lambda px, ps, ph: lbs_polarizer_tod(real, px, 2 * ph - delta + ps),
     )
 
     # beam: a pencil beam behind a HWP of general Mueller matrix (see test_hwp_convolution)
@@ -346,13 +387,13 @@ def test_every_systematic_has_a_case():
 
 
 def test_every_systematic_is_documented():
-    text = (
-        Path(__file__).parents[1] / "docs" / "source" / "systematics.rst"
-    ).read_text()
+    # the table of docs/source/systematics.rst is built from ALL; every function
+    # needs its page in the API reference
+    text = (Path(__file__).parents[1] / "docs" / "source" / "reference.rst").read_text()
     missing = [
         f.__name__ for f in sy.ALL if f"sbm.systematics.{f.__name__}" not in text
     ]
-    assert not missing, f"list {missing} in docs/source/systematics.rst"
+    assert not missing, f"list {missing} in docs/source/reference.rst"
 
 
 def test_declaring_a_systematic_again_replaces_it():
@@ -378,7 +419,8 @@ def test_declarations():
     for f in sy.ALL:
         assert f.data in sy.DATA
         assert all(isinstance(t, tuple) and len(t) == 2 for t in f.templates)
-    assert sy.abs_pointing.templates == ((1, 0), (3, -4), (1, -4))
+    assert sy.abs_pointing.templates == ((1, 0), (3, 4), (1, 4))
+    assert sy.hwp_wedge.templates == ((1, 1), (3, 5), (1, 3))
     with pytest.raises(ValueError, match="data"):
         sy.systematic(data="unknown")
     with pytest.raises(ValueError, match="couples"):
@@ -387,6 +429,66 @@ def test_declarations():
 
 # --------------------------------------------------------------------- #
 # Relations between the models
+
+
+@pytest.mark.parametrize(
+    "hwp,pair", [(False, False), (False, True), (True, False)], ids=["single", "pair", "hwp"]
+)
+def test_polarization_angle_is_the_change_of_the_angle_of_the_detector(hwp, pair):
+    sky = RealSky(NSIDE, seed=13).sky()
+    delta = 0.21
+    change = sy.sky_signal(sky, hwp, pair, pol_angle_rad=delta) - sy.sky_signal(
+        sky, hwp, pair
+    )
+    error = sy.polarization_angle(sky, delta, hwp=hwp)
+    for c in error.couples:
+        np.testing.assert_allclose(change.component(*c), error.component(*c), atol=1e-15)
+
+
+@pytest.mark.parametrize("xi", [0.0, 0.3, -1.1])
+def test_hwp_mueller_of_a_constant_matrix_has_closed_forms(xi):
+    # a, b, c, d of the docstring of hwp_mueller; P = Q + iU
+    sky = RealSky(NSIDE, seed=14).sky()
+    rng = np.random.default_rng(15)
+    i, p = np.asarray(sky.i), np.asarray(sky.p)
+
+    def full(matrix):
+        return sy.sky_signal(sky, hwp=True, pol_angle_rad=xi) + sy.hwp_mueller(
+            sky, {0: matrix}, pol_angle_rad=xi
+        )
+
+    m = sy.IDEAL_HWP + 0.05 * rng.standard_normal((4, 4))
+    a = (m[1, 1] + m[2, 2]) / 2 + 0.5j * (m[2, 1] - m[1, 2])
+    b = (m[1, 1] - m[2, 2]) / 2 + 0.5j * (m[2, 1] + m[1, 2])
+    c, d = m[1, 0] + 1j * m[2, 0], m[0, 1] + 1j * m[0, 2]
+    expected = {
+        (0, 0): m[0, 0] * i,
+        (2, 4): np.conj(b) / 2 * np.exp(2j * xi) * p,
+        (2, 0): a / 2 * np.exp(-2j * xi) * p,
+        (2, 2): np.conj(d) / 2 * p,
+        (0, 2): np.conj(c) / 2 * np.exp(2j * xi) * i,
+    }
+    model = full(m)
+    assert sorted(model.couples) == sorted(expected)
+    for couple, value in expected.items():
+        np.testing.assert_allclose(model.component(*couple), value, atol=1e-15)
+    # the ideal HWP and no HWP (the identity)
+    ideal = full(sy.IDEAL_HWP)
+    assert ideal.couples == sy.sky_signal(sky, hwp=True).couples
+    np.testing.assert_allclose(
+        ideal.component(2, 4), sy.sky_signal(sky, hwp=True, pol_angle_rad=xi).component(2, 4)
+    )
+    identity = full(np.eye(4))  # the sum keeps the vanishing polarization behind a HWP
+    without = sy.sky_signal(sky, pol_angle_rad=xi)
+    for couple in set(identity.couples) | set(without.couples):
+        expected = without.component(*couple) if couple in without.couples else 0.0
+        np.testing.assert_allclose(identity.component(*couple), expected, atol=1e-15)
+    # the TOD of the components with their conjugates is real
+    pixels, psi, phi = random_samples(NSIDE, 5, seed=16)
+    tod = sum(
+        c.map[pixels] * np.exp(-1j * (c.n * psi + c.m * phi)) for c in model.components()
+    )
+    np.testing.assert_allclose(tod.imag, 0.0, atol=1e-14)
 
 
 def test_hwp_ip_is_a_case_of_hwp_mueller():
@@ -418,7 +520,7 @@ def test_hwp_spins_are_consistent():
     # functions of the same angles: IP = 2 pol + 4 wedge_T between spins.
     sky = RealSky(NSIDE, seed=10).sky()
     (ip,) = sy.hwp_ip(sky, 1.0, 0.0).couples
-    wedge_t = (1, -1)
+    wedge_t = (1, 1)
     assert sy.hwp_wedge(sky, 1.0, 0.0).component(*wedge_t).any()
     pol = Basis.iqu(hwp=True).polarization
     combination = (2 * pol[0] - 4 * wedge_t[0], 2 * pol[1] - 4 * wedge_t[1])
