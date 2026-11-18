@@ -19,6 +19,8 @@ Scan, signal and map-making
    sbm.orientation_matrix
    sbm.noise_covariance
    sbm.noise_maps
+   sbm.pointing_jitter_covariance
+   sbm.pointing_jitter_maps
 
 Systematics
 -----------

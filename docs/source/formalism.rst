@@ -71,6 +71,14 @@ with :math:`w = 1` for :math:`(0,0)` and :math:`1/2` otherwise, and
 and :func:`.map_make` solves the system. For white noise of variance
 :math:`\sigma^2` per sample and :math:`N_{\rm hits}` hits the covariance of
 :math:`y` is :math:`\sigma^2 A^{-1}/N_{\rm hits}` (:func:`.noise_covariance`).
+A pointing jitter, an offset drawn independently for every sample with
+components of standard deviation :math:`\sigma` along two orthogonal
+directions, adds :math:`x g + y g'` to the data at first order, with :math:`g`
+and :math:`g'` the data of the unit offsets: it is white noise of variance
+:math:`\sigma^2 (g^2 + g'^2)`, and the covariance of :math:`y` is
+:math:`A^{-1} (\sigma^2 A_g/N_{\rm hits}) A^{-1}`, with :math:`A_g` the
+matrix :math:`A` of the samples weighted by :math:`g^2 + g'^2`
+(:func:`.pointing_jitter_covariance`).
 
 
 The case of multiple detectors
